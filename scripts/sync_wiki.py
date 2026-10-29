@@ -18,6 +18,7 @@ import sys
 from pathlib import Path
 
 REPO_URL = "https://github.com/memearr/meme-arr"
+REPO_ROOT = Path(__file__).resolve().parent.parent
 BRANCH = "main"
 
 # source file (repo-relative, forward slashes) -> wiki page name
@@ -67,7 +68,15 @@ def rewrite_target(target: str, src: str) -> str:
         return "images/" + resolved[len(IMAGES_DIR) + 1:] + suffix
     if resolved in PAGES:
         return PAGES[resolved] + suffix
-    kind = "blob" if posixpath.splitext(resolved)[1] else "tree"
+    # A file gets a /blob/ link and a folder a /tree/ link. Look at the repository to tell
+    # (LICENSE has no extension), and fall back to the extension for paths that don't exist.
+    on_disk = REPO_ROOT / resolved
+    if on_disk.is_dir():
+        kind = "tree"
+    elif on_disk.is_file() or posixpath.splitext(resolved)[1]:
+        kind = "blob"
+    else:
+        kind = "tree"
     return f"{REPO_URL}/{kind}/{BRANCH}/{resolved}{suffix}"
 
 

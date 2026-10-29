@@ -28,7 +28,7 @@ wedged or dead.
 A slightly richer liveness check for uptime monitors / status pages:
 
 ```json
-{ "status": "ok", "version": "v0.13.1", "uptime_seconds": 8123, "index_running": false }
+{ "status": "ok", "version": "v0.25.0", "uptime_seconds": 8123, "index_running": false }
 ```
 
 Deliberately **in-memory only, no DB query** — so it stays fast even if
@@ -69,7 +69,7 @@ A persistent, human-readable event log (`activity_log` table, see
 cleared by `DELETE /api/activity/log`. Capped at the most recent 5,000 rows.
 
 What writes to it today:
-- **Indexing** (`index.rs`): pass started/finished with counts, per-item
+- **Indexing** (`index/`): pass started/finished with counts, per-item
   failures (the first 25 per pass, then a "further errors suppressed" line),
   sidecar-subtitle and embedded-track extraction failures, skipped unmapped
   libraries, pruned items.

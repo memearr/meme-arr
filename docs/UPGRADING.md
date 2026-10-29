@@ -22,7 +22,7 @@ docker compose up -d
 
 `pull` fetches the newest `:latest`; `up -d` recreates the container with it. To stay on a
 specific version, change the image line to a tag such as
-`ghcr.io/memearr/meme-arr:v0.24.1` and do the same.
+`ghcr.io/memearr/meme-arr:v0.25.0` and do the same.
 
 ## Upgrade with Portainer or Synology
 
@@ -35,8 +35,8 @@ specific version, change the image line to a tag such as
 
 - The database is **migrated automatically**. Migrations only add things; they don't remove your
   data.
-- Some versions fill in new data once at startup (for example, version 0.24.1 adds a per-item
-  subtitle count and fills it in). On a big library that can take a few seconds to a minute;
+- Some versions fill in new data once at startup (for example, the per-item subtitle count that
+  the Library views read). On a big library that can take a few seconds to a minute;
   the page may be slow to appear once.
 - A restart does not rescan the library unconditionally: the scan runs when it is due.
 - The sidebar shows the version. **System → Health** says `update_available` while a newer

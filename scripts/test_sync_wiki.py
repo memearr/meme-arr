@@ -121,5 +121,11 @@ class RepoTests(unittest.TestCase):
             self.assertNotIn("](ARCHITECTURE.md)", home)
 
 
+    def test_files_without_an_extension_link_as_blob_and_folders_as_tree(self):
+        # LICENSE is a file in the repository root; examples/ and grafana/ are folders.
+        self.assertEqual(w.rewrite_target("../LICENSE", "docs/README.md"), f"{w.REPO_URL}/blob/main/LICENSE")
+        self.assertEqual(w.rewrite_target("../examples/smb", "docs/README.md"), f"{w.REPO_URL}/tree/main/examples/smb")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -2,8 +2,8 @@
 
 One SQLite database (`DATA_DIR/index.sqlite3`, default `/data/index.sqlite3`
 in the container), WAL mode, bundled `rusqlite` (no system SQLite
-dependency). All schema and queries live in `src/db.rs` — nothing else in
-the crate writes raw SQL against these tables.
+dependency). The schema lives in `src/db/mod.rs` and the queries in the other files of
+`src/db/` (one per area) — nothing else in the crate writes raw SQL against these tables.
 
 **Migrations**: `migrate()` runs `CREATE TABLE IF NOT EXISTS` for everything
 below on every startup (idempotent), plus `add_column_if_missing()` calls
@@ -33,7 +33,8 @@ One row per indexed movie or episode.
 | `library` | TEXT, nullable | the Plex library section title — added post-release via `add_column_if_missing` |
 | `file_mtime`, `file_size` | INTEGER | the fingerprint used to skip re-indexing an unchanged file: the **video plus its sidecar subtitle** (newest mtime, summed size), so a subtitle added or replaced later is noticed. Rows indexed before this carry the video-only value, so items that have a sidecar are re-indexed once |
 | `indexed_at` | INTEGER | unix seconds |
-| `indexer_version` | INTEGER | added post-release; compared against `INDEXER_VERSION` in `index.rs` so a smarter indexer reprocesses already-seen files once instead of old rows staying stuck forever |
+| `cue_count` | INTEGER | how many cues the item has, kept by `upsert_media` (reset to 0 on re-index) and `insert_cues`, and filled in once for databases from before it existed. The Library, stats and Wanted views read it instead of counting the cue table |
+| `indexer_version` | INTEGER | added post-release; compared against `INDEXER_VERSION` in `index/` so a smarter indexer reprocesses already-seen files once instead of old rows staying stuck forever |
 
 ### `subtitle_cue`
 One row per subtitle line, the thing dialogue search actually matches
@@ -41,7 +42,7 @@ against.
 
 | Column | Type | Notes |
 |---|---|---|
-| `id` | INTEGER PK | this *is* the row id the dialogue index (`compactindex.rs`) and FTS5 both key off |
+| `id` | INTEGER PK | this *is* the row id the dialogue index (`compactindex/`) and FTS5 both key off |
 | `media_id` | INTEGER | `REFERENCES media(id) ON DELETE CASCADE` |
 | `start_ms`, `end_ms` | INTEGER | |
 | `text` | TEXT | the real, untouched subtitle line |
@@ -62,7 +63,7 @@ external-content table.
 `detail='full'` (the default, not explicitly set) means FTS5 stores
 per-occurrence position data — what makes native phrase `MATCH` queries
 work, and also the dominant cost in this index's size at scale (see the
-compact-index research notes in `compactindex.rs`'s module doc and
+compact-index research notes in `compactindex/mod.rs`'s module doc and
 `docs/ARCHITECTURE.md`).
 
 ## App configuration
@@ -98,8 +99,7 @@ in `position` order, first match wins).
 ## Observability
 
 ### `activity_log`
-The Activity tab's persistent log (replaced an in-memory-only version that
-reset on every restart). Trimmed to the most recent 5000 rows on every
+The Activity tab's persistent log. Trimmed to the most recent 5000 rows on every
 insert (`DELETE ... WHERE id <= (SELECT MAX(id) - 5000 ...)`, a no-op once
 under the cap).
 
@@ -156,7 +156,7 @@ Same shape/purpose for the Plex PIN login flow.
 
 ## What's deliberately *not* here
 
-The research compact dialogue index (`compactindex.rs`) is **not** a SQLite
+The research compact dialogue index (`compactindex/`) is **not** a SQLite
 table at all — it's a standalone binary file
 (`DATA_DIR/compact_index.bin`), built/loaded by `compact_rebuild.rs`. It's a
 rebuildable derived cache, never authoritative: `subtitle_cue`/`subtitle_fts`

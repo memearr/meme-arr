@@ -97,6 +97,6 @@ See [Deployment](DEPLOYMENT.md#behind-a-reverse-proxy) for proxy examples.
 ## Reporting a problem
 
 If you find a security problem, please do **not** post the details in a public issue. Use the
-**Report a vulnerability** button on the repository's Security tab if it is there; otherwise
-open an issue that says only that you have a security report and ask for a private way to send
-it. Include the version and steps to reproduce when you can.
+repository's **Security** tab and choose **Report a vulnerability** to send it privately.
+Include the version and the steps to reproduce when you can. The policy is in
+[SECURITY.md](https://github.com/memearr/meme-arr/blob/main/SECURITY.md).

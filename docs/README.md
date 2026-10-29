@@ -49,11 +49,11 @@ first meme, with a screenshot of every step. Something not working? Go to
   moment" actually works — Frinkiac, but for a private Plex or Jellyfin library.
 - **Where things live**: `src/` is the whole Rust crate (binary = `src/main.rs`,
   everything else lives in the library at `src/lib.rs` so integration tests
-  can reach it); `web/` is the frontend (`App.jsx` plus a few feature components, small
+  can reach it); `web/` is the frontend (the shell in `App.jsx`, one component file per area, small
   unit-tested logic modules, `api.js` — a thin fetch wrapper — and `styles.css`); `tests/` has an end-to-end pipeline
   test and the compact-index research benchmark.
 - **What's authoritative vs. in-progress**: `subtitle_cue`/`subtitle_fts`
   (SQLite FTS5) is the real, live dialogue search path today. There's a
-  from-scratch alternative inverted index (`src/compactindex.rs`) running in
+  from-scratch alternative inverted index (`src/compactindex/`) running in
   **shadow mode** (built/compared in the background, never affects what a
   user sees) — see ARCHITECTURE.md's note on it before assuming it's live.

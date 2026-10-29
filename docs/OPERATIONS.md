@@ -33,16 +33,15 @@ aren't. Don't keep fiddling with the volume's `driver_opts`; the robust fix
 is to mount the shares on the **host** (`cifs-utils` + `/etc/fstab`), run
 `sudo snap connect docker:removable-media` so snap Docker can see `/mnt`,
 and bind-mount them (`- /mnt/media/d:/media/d:ro`) instead of using CIFS
-volumes. Exact commands: README → "Troubleshooting SMB mounts".
+volumes. Exact commands: [Getting started → Media on a network share](GETTING-STARTED.md#media-on-a-network-share).
 
 ### Plex on Windows reports `D:\...` paths
 If the Plex server runs on Windows, every file path it reports looks like
 `D:\Movies\Dune.mkv`. Map the drive in Settings → path mappings (`D:\` or
 `D:` → `/media/d`); `paths.rs` normalizes `\` to `/` and matches the drive
-letter case-insensitively. Before that was fixed (v0.3.0), Windows paths
-silently matched no mapping, every item resolved as unreachable, and the UI
-showed titles indexed but "0 lines indexed". If you see that pattern again,
-check the mapping's prefix against the raw path Plex reports first.
+letter case-insensitively. Without that, Windows paths would match no mapping, every item
+would resolve as unreachable, and the UI would show titles indexed but "0 lines indexed". If you
+see that pattern, check the mapping's prefix against the raw path Plex reports first.
 
 ### Line endings and separators when editing from Windows
 Editing `docker-compose.yml`/`.env` from a Windows machine (as this
@@ -111,23 +110,12 @@ depends on the server:
 
 ## The editor preview doesn't play
 
-The preview is a short clip the server renders with ffmpeg, then the browser plays it.
-If the player appears and the play button does nothing, the clip that was served wasn't
-a complete video. Older versions could do that:
-
-- a render that was interrupted (you moved the slider and the browser dropped the
-  request, the container restarted, or ffmpeg failed part way) left a half-written file
-  in the preview cache, and every later request for the **same** clip was served that
-  broken file until the cache was cleared;
-- two requests for the same clip at once (Reload preview right after releasing a
-  slider) could get the first one's half-finished file.
-
-Now a render goes to a temporary file and only becomes the cache entry when it is a
-complete MP4, identical requests wait for one render, an abandoned request stops its
-ffmpeg and removes its temporary file, and a cached file is checked before it is served
-(a broken leftover from an older version is rendered again). Preview audio is stereo,
-because a 5.1/7.1 track can stop a browser starting playback. If a preview still doesn't
-start, the editor says so after a few seconds; then:
+The preview is a short clip the server renders with ffmpeg, then the browser plays it. A render
+goes to a temporary file and only becomes the cache entry once it is a complete MP4. Identical
+requests wait for a single render, an abandoned request stops its ffmpeg and removes its temporary
+file, and a cached file is checked before it is served. Preview audio is stereo, because a 5.1/7.1
+track can stop a browser starting playback. If a preview still doesn't start, the editor says so
+after a few seconds; then:
 
 1. Press **Reload preview**.
 2. **System → Tasks → Clear preview cache → Run now** removes every cached preview.

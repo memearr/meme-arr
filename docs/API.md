@@ -60,7 +60,7 @@ repo's existence to an unauthenticated caller); `error` carries the reason
 in that case.
 ```json
 {
-  "current": "v0.11.0", "latest": "v0.11.0", "update_available": false,
+  "current": "v0.25.0", "latest": "v0.25.0", "update_available": false,
   "checked": true, "error": null, "repo_url": "...", "releases_url": "..."
 }
 ```
@@ -296,7 +296,7 @@ validated before touching Plex/ffmpeg at all).
 sequence is either exported with sound or without, there's no per-clip
 toggle. A clip whose own source has no audio track gets silence substituted
 for its segment (so the concatenated result never has gaps or an
-inconsistent stream layout); see `src/export.rs`'s
+inconsistent stream layout); see `src/export/`'s
 `sequence_clip_args_with_audio` for the mechanics.
 
 The same metadata rules apply, including to the intermediate files, so nothing from any

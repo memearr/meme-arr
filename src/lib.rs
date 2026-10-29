@@ -1,4 +1,4 @@
-//! meme-arr library: Plex-connected clip & meme studio.
+//! meme-arr library: clip & meme studio for Plex and Jellyfin.
 //!
 //! Exposes the modules so integration tests can exercise the pipeline, and
 //! provides [`run`] as the server entry point used by the binary.

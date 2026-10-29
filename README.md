@@ -167,8 +167,9 @@ SMB shares itself is in [`examples/smb/`](examples/smb/)). More in
 
 ## Configuration
 
-Runtime Plex settings live in the **Settings page**. The env vars below are
-infrastructure/bootstrap only:
+Your media-server connection (Plex or Jellyfin), path mappings and logins live in the **Settings
+page**; see [Configuration](docs/CONFIGURATION.md). The env vars below are
+infrastructure and first-run bootstrap only:
 
 | Variable          | Required | Default            | Purpose |
 |-------------------|----------|--------------------|---------|
@@ -196,37 +197,11 @@ and are never written back over values you save in the UI.
 
 ## API
 
-The UI is a thin client over a JSON API:
-
-| Method | Path | Purpose |
-|--------|------|---------|
-| GET  | `/api/libraries` | Plex library sections |
-| GET  | `/api/search?q=&limit=&offset=&library=` | Dialogue full-text search, paged (`has_more`), with `show:` / `ep:` / `movie:` / `library:` / `season:` operators and `-` exclusions in `q`; `library` may repeat |
-| GET  | `/api/search/title?q=&limit=&offset=&library=` | Title/show search over the index, same paging, operators and library filter |
-| GET  | `/api/media/:ratingKey` | Indexed media metadata |
-| GET  | `/api/media/:ratingKey/subtitles?start=&end=` | Cues in a window |
-| GET  | `/api/preview/:ratingKey?start=&end=&width=&fps=&caption_mode=&top=&bottom=&font_size=&offset_ms=` | On-demand preview mp4, with the same caption burned in (and sync offset applied) as a real export would |
-| POST | `/api/export` | Start an export job |
-| POST | `/api/sequence/export` | Start a multi-clip sequence export (clips concatenated back to back) |
-| GET  | `/api/jobs/:id` | Export job status + download path |
-| GET  | `/api/download/:filename` | Download a finished file |
-| GET  | `/api/index/status` | Index progress + stats |
-| POST | `/api/index/reindex` | Rescan the library |
-| GET  | `/api/activity/log?limit=` | Recent activity-log entries (indexing start/finish, skipped libraries, errors), newest first |
-| GET  | `/api/system/storage` | Disk usage: index DB (text vs. search-index/overhead breakdown), preview cache, exported memes |
-| POST | `/api/system/vacuum` | Merge the FTS5 index's segments and compact the database file; reports bytes freed |
-| POST | `/api/system/clear-preview-cache` | Delete all cached preview clips (safe — they regenerate on demand) |
-| POST | `/api/system/clear-exports` | Delete every exported meme in `/output` (destructive) |
-| GET  | `/api/libraries/stats` | Per-library totals: indexed / missing subs / unreachable / subtitle lines |
-| GET  | `/api/libraries/missing?library=` | Items in a library with no indexed subtitles, + reason |
-| GET  | `/api/library/browse?q=&offset=&limit=` | Paginated Library tab listing (movies individually, episodes grouped by show) |
-| GET  | `/api/library/episodes?show=` | Episodes of one show, with per-episode indexed status |
-| GET  | `/api/settings` | Current Plex settings + mappings (token never returned) |
-| PUT  | `/api/settings` | Save URL / token / mappings |
-| DELETE | `/api/settings` | Clear Plex settings + mappings |
-| POST | `/api/settings/test` | Test a connection and list libraries |
-| GET  | `/api/version` | Build version + whether a newer GitHub tag exists |
-| GET  | `/healthz` | Health check |
+The UI is a thin client over a JSON API (search, library, exports, subtitles, settings,
+system). Every endpoint, with its request and response shapes, is documented in
+[docs/API.md](docs/API.md). `GET /healthz` is the liveness check; see
+[Observability](docs/OBSERVABILITY.md) for `/status` and `/metrics`. A read-only API key for
+dashboards can be created in Settings.
 
 ---
 
@@ -264,8 +239,9 @@ cargo test --all
   pruned from the database on the next reindex, instead of lingering forever.
 - **Subtitle sources.** For each item the indexer first looks for a **sidecar**
   subtitle file next to the video (`.srt`/`.vtt`/`.ass`/`.ssa`, e.g.
-  `Movie.en.srt`, preferring English then `.srt`), and falls back to an
-  **embedded** text subtitle track in the file.
+  `Movie.en.srt`, preferring English then `.srt`), then an **embedded** text
+  subtitle track in the file, and for Plex also a subtitle Plex **keeps in its own
+  database** (one it downloaded or that was uploaded), read through Plex's API.
 - **Image-based subtitles** (PGS/VobSub, including `.sup` sidecars) can't be
   indexed for search without OCR, so they're skipped for dialogue search (they can
   still be burned at export). OCR is a possible future addition.

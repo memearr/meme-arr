@@ -210,7 +210,7 @@ More in [Troubleshooting](TROUBLESHOOTING.md), [Operations](OPERATIONS.md) and t
 ## What next
 
 - **Keep it up to date.** The image is published to GitHub's container registry; pull a
-  newer `:latest` (or a version tag such as `:v0.21.0`) and recreate the container. Your
+  newer `:latest` (or a version tag such as `:v0.25.0`) and recreate the container. Your
   settings and index live in `./data`, so they survive. Back up `./data`, or use
   **System → Backups** (settings only).
 - **Fill in missing subtitles.** The **Wanted** tab lists items with no searchable
