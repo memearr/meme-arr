@@ -1,0 +1,98 @@
+# meme-arr — docker compose stack with Docker mounting FIVE Windows (SMB/CIFS) shares.
+#
+# The simple setup (mount your media on the host and bind-mount it) is the
+# top-level docker-compose.yml; use this file only if Docker itself must mount
+# the shares. Copy it and .env.example (as .env) into one folder.
+#
+# Plex URL, token, and the library->mount path mappings are configured IN THE APP
+# on the Settings page (persisted in the /data volume) — you no longer need to set
+# them here. The PLEX_* / PATH_MAP env vars below are optional first-run bootstrap
+# only; leave them out and configure in the UI instead.
+#
+# This example mounts FIVE remote Windows (SMB/CIFS) shares read-only at
+# /media/drive1 .. /media/drive5. In the app's Settings page, map each Plex
+# library path to the matching /media/driveN. Fill in SMB_HOST/SMB_USER/SMB_PASS
+# in your .env and adjust each share name/device to match your network.
+#
+# GOTCHAS (hard-won):
+#   * A literal `$` in a `device:` (e.g. the admin share `D$`) MUST be written
+#     `$$` in compose, or it gets eaten by variable interpolation.
+#   * Named volumes cache their driver_opts at CREATE time. After you change a
+#     device/option you MUST delete the old volume or the change is ignored:
+#       docker volume rm <stack>_drive1   (repeat per drive), then redeploy.
+#   * snap-packaged Docker is AppArmor-confined and often refuses CIFS volume
+#     mounts. If so, mount the shares on the HOST (mount -t cifs) and bind-mount
+#     them in instead (- /mnt/media/d:/media/d:ro). See README.
+#   * Windows admin shares (D$) exist only for FIXED disks and only for the real
+#     built-in Administrator; for USB/removable drives, share them by name.
+
+services:
+  meme-arr:
+    image: ghcr.io/memearr/meme-arr:latest
+    container_name: meme-arr
+    restart: unless-stopped
+    ports:
+      - "8089:8080" # browse at http://<host-ip>:8089
+    environment:
+      # Start the scheduled library scan enabled (first run only -- after
+      # that, System -> Tasks owns the schedule; restarts only scan if due).
+      INDEX_ON_START: "true"
+      RUST_LOG: "info"
+      # The app runs as this user/group, not root. On startup it chowns /data
+      # and /output to match (so a volume an older root-running version wrote
+      # keeps working), then drops privileges. PUID=0 keeps running as root.
+      PUID: "1000"
+      PGID: "1000"
+      # Optional first-run bootstrap (otherwise use the Settings page):
+      # PLEX_URL: "http://192.168.1.10:32400"
+      # PLEX_TOKEN: "xxxxxxxxxxxx"
+      # PATH_MAP: "/volume1/media=>/media/drive1"
+    volumes:
+      - plexmeme-data:/data # settings + subtitle index + preview cache
+      - ./output:/output # finished memes (or point at a real share)
+      - drive1:/media/drive1:ro
+      - drive2:/media/drive2:ro
+      - drive3:/media/drive3:ro
+      - drive4:/media/drive4:ro
+      - drive5:/media/drive5:ro
+      # Optional: drop an Impact.ttf here to use the classic meme font.
+      # - ./fonts:/app/fonts:ro
+
+volumes:
+  plexmeme-data:
+
+  # --- Five remote Windows (SMB/CIFS) shares, mounted read-only ---
+  # Change each `device` (//HOST/Share) to your actual shares; they can live on
+  # different hosts. ro = read-only. file_mode=0444/dir_mode=0555 make them
+  # world-readable, so the app (running as PUID, not root) can still read them
+  # even though uid/gid are 0 -- keep those modes if you change the owner.
+  drive1:
+    driver: local
+    driver_opts:
+      type: cifs
+      device: "//${SMB_HOST}/Media1"
+      o: "username=${SMB_USER},password=${SMB_PASS},vers=3.0,ro,uid=0,gid=0,file_mode=0444,dir_mode=0555,nounix,noserverino"
+  drive2:
+    driver: local
+    driver_opts:
+      type: cifs
+      device: "//${SMB_HOST}/Media2"
+      o: "username=${SMB_USER},password=${SMB_PASS},vers=3.0,ro,uid=0,gid=0,file_mode=0444,dir_mode=0555,nounix,noserverino"
+  drive3:
+    driver: local
+    driver_opts:
+      type: cifs
+      device: "//${SMB_HOST}/Media3"
+      o: "username=${SMB_USER},password=${SMB_PASS},vers=3.0,ro,uid=0,gid=0,file_mode=0444,dir_mode=0555,nounix,noserverino"
+  drive4:
+    driver: local
+    driver_opts:
+      type: cifs
+      device: "//${SMB_HOST}/Media4"
+      o: "username=${SMB_USER},password=${SMB_PASS},vers=3.0,ro,uid=0,gid=0,file_mode=0444,dir_mode=0555,nounix,noserverino"
+  drive5:
+    driver: local
+    driver_opts:
+      type: cifs
+      device: "//${SMB_HOST}/Media5"
+      o: "username=${SMB_USER},password=${SMB_PASS},vers=3.0,ro,uid=0,gid=0,file_mode=0444,dir_mode=0555,nounix,noserverino"

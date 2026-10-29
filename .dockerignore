@@ -1,0 +1,9 @@
+target
+web/node_modules
+web/dist
+output
+data
+.git
+.github
+*.sqlite3
+.env

@@ -1,0 +1,150 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# Everything runs on GitHub-hosted Linux runners, so it also works for pull
+# requests from forks. The jobs are independent; the Docker job builds the
+# image once the code checks pass.
+jobs:
+  # The wiki is generated from docs/ (scripts/sync_wiki.py); this keeps every
+  # doc mapped to a page and every relative link in the docs resolvable.
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: python3 -m unittest discover -s scripts -v
+
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      # The pipeline tests run the real ffmpeg; they skip themselves silently
+      # without it, so install it and then fail loudly if it is missing.
+      # (gifsicle is optional: the export path skips GIF optimisation without it.)
+      - name: Install ffmpeg and gifsicle
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg gifsicle
+      - name: Require ffmpeg
+        run: ffmpeg -version | head -1 && ffprobe -version | head -1
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Test
+        run: cargo test --all
+
+  # Fails the build on any known-vulnerable crate in Cargo.lock, so an advisory
+  # shows up in the PR itself instead of only on the repo's Security tab.
+  # Reviewed exceptions (each with its justification) live in .cargo/audit.toml.
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+      - name: cargo audit
+        run: cargo audit
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Test and build SPA
+        working-directory: web
+        run: |
+          npm install
+          npm test
+          npm run build
+      - name: npm audit (fail on high/critical)
+        working-directory: web
+        run: npm audit --audit-level=high
+
+  # Builds the image with the same actions the release workflow uses (minus the
+  # registry login/push), so a breaking action upgrade fails on a PR rather
+  # than on the next tag, then smoke-tests it.
+  docker:
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check image metadata inputs
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=tag
+            type=raw,value=latest
+      - uses: docker/setup-buildx-action@v4
+      - name: Build image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: meme-arr:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      # The non-root entrypoint is exercised here, so this replays the actual
+      # upgrade path: a volume an older, root-running image already wrote to,
+      # then the new default on it.
+      - name: Smoke-test non-root runtime and upgrade from a root-owned volume
+        run: |
+          set -eu
+          img=meme-arr:ci
+          wait_healthy() {
+            for _ in $(seq 1 60); do
+              curl -fs http://localhost:8080/healthz >/dev/null && return 0
+              sleep 1
+            done
+            docker logs smoke
+            return 1
+          }
+          docker volume create memearr-data
+
+          # 1. Old behavior (PUID=0 keeps running as root) leaves a root-owned DB.
+          docker run -d --name smoke -p 8080:8080 -v memearr-data:/data \
+            -e PUID=0 -e INDEX_ON_START=false "$img"
+          wait_healthy
+          docker rm -f smoke
+          owner=$(docker run --rm -v memearr-data:/data --entrypoint stat "$img" -c %u /data/index.sqlite3)
+          [ "$owner" = 0 ] || { echo "expected a root-owned DB to start from, got uid $owner"; exit 1; }
+
+          # 2. The new default on that same volume: chown, drop to 1000, keep working.
+          docker run -d --name smoke -p 8080:8080 -v memearr-data:/data \
+            -e INDEX_ON_START=false "$img"
+          wait_healthy
+          uid=$(docker exec smoke grep '^Uid:' /proc/1/status | cut -f2)
+          [ "$uid" = 1000 ] || { echo "PID 1 runs as uid $uid, expected 1000"; exit 1; }
+          owner=$(docker exec smoke stat -c %u /data/index.sqlite3)
+          [ "$owner" = 1000 ] || { echo "DB still owned by uid $owner"; exit 1; }
+          # A real DB write as the non-root user (first-run admin password setup).
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:8080/api/auth/setup \
+            -H 'Content-Type: application/json' -d '{"password":"ci-smoke-test"}')
+          [ "$code" = 200 ] || { echo "setup returned $code"; docker logs smoke; exit 1; }
+
+          # 3. The Dockerfile's own HEALTHCHECK command has to work in this image.
+          docker exec smoke /bin/sh -c 'wget -qO- http://localhost:8080/healthz'
+
+          # 4. Subtitle burn-in (libass + fontconfig) as the non-root user -- the
+          #    export path most likely to trip over a missing writable home.
+          docker exec -u 1000:1000 -e HOME=/tmp smoke sh -c '
+            printf "1\n00:00:00,000 --> 00:00:01,000\nhello\n" > /tmp/t.srt &&
+            ffmpeg -v error -f lavfi -i testsrc=duration=1:size=320x240 \
+              -vf "subtitles=/tmp/t.srt:fontsdir=/app/fonts" -frames:v 5 -y /tmp/t.mp4'
+          docker rm -f smoke

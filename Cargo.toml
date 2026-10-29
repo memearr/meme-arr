@@ -1,0 +1,43 @@
+[package]
+name = "meme-arr"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+description = "Self-hosted clip & GIF/caption meme studio for Plex and Jellyfin, with dialogue search"
+license = "MIT"
+
+[[bin]]
+name = "meme-arr"
+path = "src/main.rs"
+
+[dependencies]
+softver = { git = "https://github.com/memearr/softver", rev = "846373d0fb8a5e4b7e025ec3e83c457ef8fdc758" }
+axum = { version = "0.8", features = ["macros"] }
+axum-extra = { version = "0.12", features = ["cookie"] }
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.7", features = ["fs", "trace"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "stream", "form", "query"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+fs4 = "1.1"
+rusqlite = { version = "0.40", features = ["bundled"] }
+r2d2 = "0.8"
+r2d2_sqlite = "0.35"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1"
+uuid = { version = "1", features = ["v4"] }
+urlencoding = "2"
+argon2 = "0.6"
+openidconnect = "4"
+sha2 = "0.11"
+time = "0.3"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>meme-arr</title>
+    <!-- The server fills in the URL base here (src/spa.rs matches this exact text). -->
+    <!-- Apply a saved light/dark choice before first paint, so a light-theme
+         user doesn't see a dark flash while the bundle loads. "auto" (or no
+         saved choice) leaves it to the stylesheet's prefers-color-scheme. -->
+    <script>
+      window.__MEMEARR_BASE__="";
+    </script>
+    <script>
+      try {
+        var t = localStorage.getItem("memearr:theme");
+        if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

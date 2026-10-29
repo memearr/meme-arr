@@ -1,0 +1,34 @@
+# meme-arr -- docker compose.
+#
+# 1. Change the last volume line to where your media is on THIS machine.
+# 2. docker compose up -d
+# 3. Open http://<this-machine>:8089, set a password, and follow the setup wizard
+#    (it asks for your Plex or Jellyfin address and token/API key, and which folder
+#    each library is mounted at).
+#
+# Everything else is configured in the app (Settings), not here.
+# Walkthrough with screenshots: docs/GETTING-STARTED.md
+# Media on a network share (SMB/CIFS) mounted by Docker itself: examples/smb/
+
+services:
+  meme-arr:
+    image: ghcr.io/memearr/meme-arr:latest
+    container_name: meme-arr
+    restart: unless-stopped
+    ports:
+      - "8089:8080" # open http://<host-ip>:8089
+    environment:
+      # The app runs as this user/group, not root. It must be able to READ your
+      # media: leave as is if the media is world-readable, else use the media's
+      # owner (see `id <user>`). /data and /output are fixed up automatically.
+      PUID: "1000"
+      PGID: "1000"
+      # Scan the libraries on the first start (afterwards System -> Tasks owns the
+      # schedule).
+      INDEX_ON_START: "true"
+    volumes:
+      - ./data:/data # settings and the subtitle index: keep this
+      - ./output:/output # finished memes
+      - /volume1/video:/media:ro # <- YOUR media, read-only
+      # Optional: drop an Impact.ttf here to use the classic meme font.
+      # - ./fonts:/app/fonts:ro

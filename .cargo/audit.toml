@@ -1,0 +1,22 @@
+# cargo-audit config, read by the `audit` CI job. Every ignore here is a
+# reviewed, explained exception -- not a way to quiet the gate. Re-check each
+# one whenever openidconnect, rsa, or the RustCrypto elliptic-curve crates
+# release a new version.
+
+[advisories]
+ignore = [
+    # rsa 0.9.x "Marvin Attack": timing side channel leaking an RSA *private*
+    # key during decryption. Pulled in only by openidconnect, which this app
+    # uses solely to *verify* Authentik's ID-token signatures against
+    # Authentik's public JWKS (client auth is a shared client_secret). No RSA
+    # private key ever exists in this process, so there is nothing to leak.
+    # No fixed rsa release exists (0.10 is still RC); openidconnect 4.0.1 is
+    # its latest version.
+    "RUSTSEC-2023-0071",
+
+    # crypto-bigint 0.5.x non-constant-time operations. Same reasoning: only
+    # reached via openidconnect -> p256/p384 ECDSA *verification* with public
+    # keys -- no secret-dependent arithmetic to time. The fix (0.7.6) needs
+    # the elliptic-curve 0.14 line, which openidconnect 4.0.1 doesn't use yet.
+    "RUSTSEC-2026-0387",
+]
