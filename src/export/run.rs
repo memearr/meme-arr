@@ -26,6 +26,7 @@ pub(super) fn write_caption_files(
     match caption {
         Some(Caption::Source {
             cues: override_cues,
+            ..
         }) => {
             // An edited line list (corrected/shortened/reworded in the
             // editor) replaces the indexed cues entirely; either way the
@@ -188,6 +189,9 @@ pub struct ResolvedSequenceClip {
     pub cues: Vec<Cue>,
     /// What this clip came from (see `source_label`), for the sequence's title tag.
     pub source: String,
+    /// The font file for this clip's caption when it chose one; otherwise the
+    /// sequence-wide default font is used.
+    pub font_path: Option<String>,
 }
 
 /// Render one sequence clip to an intermediate file matched to the shared
@@ -389,7 +393,7 @@ pub async fn run_sequence_export(
             clip,
             fps,
             canvas,
-            font_path,
+            clip.font_path.as_deref().unwrap_or(font_path),
             audio,
         )
         .await

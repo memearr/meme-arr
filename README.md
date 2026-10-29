@@ -45,6 +45,8 @@ Browser UI ──> Rust API (axum) ──> Plex / Jellyfin API (library/metadata
   languages and subtitle tracks are all removed, and the only thing a file may carry
   is the movie or show/episode it came from, as its `title` (MP4/WebM; you can
   untick *Name the source in the file's title*).
+- **Fonts and text size.** Pick a font and scale the text for burned subtitles and meme
+  text, per clip. Upload your own `.ttf` / `.otf` fonts in Settings.
 - **Subtitle sync correction.** If the indexed subtitle timing drifts from a
   particular video release, nudge it forward or backward (±100/500 ms) right in
   the editor — the correction applies to the preview and the final burned-in
@@ -179,7 +181,7 @@ infrastructure and first-run bootstrap only:
 | `PATH_MAP`        | –        | *(empty)*          | Optional first-run bootstrap of mappings (`plexPrefix=>containerPath`, comma-separated) |
 | `OUTPUT_DIR`      |          | `/output`          | Where finished memes are written |
 | `DATA_DIR`        |          | `/data`            | Settings + SQLite index + preview cache |
-| `FONTS_DIR`       |          | `/app/fonts`       | Caption fonts (mount your own Impact.ttf to override) |
+| `FONTS_DIR`       |          | `/app/fonts`       | Built-in caption fonts (mount your own Impact.ttf to make it the default). Fonts you upload live in `DATA_DIR/fonts` |
 | `URL_BASE`        |          | _(root)_           | Host under a sub-path like `/meme-arr` (proxy must keep the prefix) |
 | `INDEX_ON_START`  |          | `true`             | Start the scheduled Library scan enabled (first run only; then see System → Tasks). Restarts only scan when a scan is due |
 | `BIND_ADDR`       |          | `0.0.0.0:8080`     | Listen address inside the container |

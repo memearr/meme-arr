@@ -21,6 +21,12 @@ pub(super) struct PreviewParams {
     bottom: Option<String>,
     #[serde(default = "preview_font_size")]
     font_size: u32,
+    /// A font by file name (see `GET /api/fonts`); absent = the default font.
+    #[serde(default)]
+    font: Option<String>,
+    /// Text size, percent of normal.
+    #[serde(default = "preview_font_scale")]
+    font_scale: u32,
     /// Subtitle sync correction, same convention as `ExportRequest::subtitle_offset_ms`.
     #[serde(default)]
     offset_ms: i64,
@@ -45,6 +51,10 @@ pub(super) fn preview_caption_mode() -> String {
 
 pub(super) fn preview_font_size() -> u32 {
     36
+}
+
+pub(super) fn preview_font_scale() -> u32 {
+    100
 }
 
 pub(super) async fn preview(
@@ -90,11 +100,15 @@ pub(super) async fn preview(
     let caption: Option<export::Caption> = match p.caption_mode.as_str() {
         "source" => Some(export::Caption::Source {
             cues: override_cues,
+            font: p.font.clone(),
+            font_scale: p.font_scale,
         }),
         "meme" => Some(export::Caption::Meme {
             top: p.top.clone(),
             bottom: p.bottom.clone(),
             font_size: p.font_size,
+            font: p.font.clone(),
+            font_scale: p.font_scale,
         }),
         _ => None,
     };
@@ -103,7 +117,7 @@ pub(super) async fn preview(
     // by the offset so a cue shifted into/out of view is among the candidates
     // trimmed_srt sees. An override needs no DB round trip at all.
     let cues = match &caption {
-        Some(export::Caption::Source { cues: None }) => {
+        Some(export::Caption::Source { cues: None, .. }) => {
             let pool = st.pool.clone();
             let media_id = m.id;
             let pad = p.offset_ms.abs();
@@ -117,23 +131,20 @@ pub(super) async fn preview(
         _ => Vec::new(),
     };
 
+    let font_path = match caption_font_path(&st, caption.as_ref()) {
+        Ok(p) => p,
+        Err(msg) => return Ok(bad_request(msg)),
+    };
+
     // Cache previews by everything that affects the rendered frames: file,
     // window, size/fps, and the caption (mode/text/offset).
     let tmp = st.config.tmp_dir();
     std::fs::create_dir_all(&tmp)?;
     let mut h = DefaultHasher::new();
     (
-        &m.file_path,
-        p.start,
-        end,
-        p.width,
-        p.fps,
-        &p.caption_mode,
-        &p.top,
-        &p.bottom,
-        p.font_size,
-        p.offset_ms,
-        &p.cues_json,
+        (&m.file_path, p.start, end, p.width, p.fps, &p.caption_mode),
+        (&p.top, &p.bottom, p.font_size, &p.font, p.font_scale),
+        (p.offset_ms, &p.cues_json),
     )
         .hash(&mut h);
     let hash = h.finish();
@@ -146,7 +157,6 @@ pub(super) async fn preview(
     let t0 = std::time::Instant::now();
     let title = m.title.clone();
     preview_cache::ensure_rendered(hash, &cache, |out| async move {
-        let font_path = default_font(&st.config.fonts_dir);
         let frame_height_hint = (p.width as f32 * 0.5625) as u32;
         let (vf, caption_files) = export::prepare_captions(
             &tmp,
@@ -238,7 +248,10 @@ pub(super) async fn export_start(
     // edited override (an override needs no DB round trip; `run_export` uses
     // it directly from `req.caption`). Widen by the sync offset so a cue
     // shifted into/out of view is among the candidates `trimmed_srt` sees.
-    let cues = if matches!(req.caption, Some(export::Caption::Source { cues: None })) {
+    let cues = if matches!(
+        req.caption,
+        Some(export::Caption::Source { cues: None, .. })
+    ) {
         let pool = st.pool.clone();
         let media_id = m.id;
         let (start, end) = (req.start_ms, req.end_ms);
@@ -252,7 +265,10 @@ pub(super) async fn export_start(
         Vec::new()
     };
 
-    let font_path = default_font(&st.config.fonts_dir);
+    let font_path = match caption_font_path(&st, req.caption.as_ref()) {
+        Ok(p) => p,
+        Err(msg) => return Ok(bad_request(msg)),
+    };
     let frame_height_hint = (req.width as f32 * 0.5625) as u32;
     let tmp = st.config.tmp_dir();
     let ffmpeg_bin = st.config.ffmpeg_bin.clone();
@@ -343,6 +359,7 @@ pub(super) async fn sequence_export_start(
     let pool = st.pool.clone();
     let mappings = st.mappings();
     let clip_specs = req.clips.clone();
+    let fonts = st.config.fonts();
     let resolved = tokio::task::spawn_blocking(move || -> SequenceResolveResult {
         let conn = pool.get()?;
         let mut out = Vec::with_capacity(clip_specs.len());
@@ -369,7 +386,7 @@ pub(super) async fn sequence_export_start(
             };
             // An edited line list needs no DB round trip; write_caption_files
             // uses it straight from `caption` via ResolvedSequenceClip.
-            let cues = if matches!(spec.caption, Some(export::Caption::Source { cues: None })) {
+            let cues = if matches!(spec.caption, Some(export::Caption::Source { cues: None, .. })) {
                 // Widen the query by the offset so a cue that shifts into view
                 // (or out of it) is actually among the candidates trimmed_srt
                 // sees — the offset itself is applied there, not here.
@@ -378,7 +395,21 @@ pub(super) async fn sequence_export_start(
             } else {
                 Vec::new()
             };
+            // A clip may caption in its own font; the others use the default.
+            let font_path = match spec.caption.as_ref().and_then(|c| c.font_id()) {
+                Some(id) => match fonts.path_of(id) {
+                    Some(p) => Some(p.to_string_lossy().to_string()),
+                    None => {
+                        return Ok(Err(format!(
+                            "clip #{}: unknown font {id:?}; see Settings -> Fonts",
+                            i + 1
+                        )))
+                    }
+                },
+                None => None,
+            };
             out.push(export::ResolvedSequenceClip {
+                font_path,
                 file,
                 start_ms: spec.start_ms,
                 end_ms: spec.end_ms,

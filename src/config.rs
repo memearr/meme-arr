@@ -154,6 +154,16 @@ impl Config {
         self.data_dir.join("tmp")
     }
 
+    /// Fonts the admin has uploaded; kept in the data volume so they survive upgrades.
+    pub fn user_fonts_dir(&self) -> PathBuf {
+        self.data_dir.join("fonts")
+    }
+
+    /// The built-in and uploaded caption fonts.
+    pub fn fonts(&self) -> crate::fonts::Fonts {
+        crate::fonts::Fonts::new(self.fonts_dir.clone(), self.user_fonts_dir())
+    }
+
     /// Where the compact dialogue index (see `compactindex`) is persisted
     /// between restarts — a rebuildable cache, not authoritative storage, so
     /// deleting this file just costs one rebuild, never data.

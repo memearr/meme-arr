@@ -98,9 +98,15 @@ and WebM only; GIF and WebP can't carry audio). Finished files also land in your
 
 ![The editor: preview with the caption burned in, trim controls, caption and format choices, and the editable subtitle lines](images/editor.png)
 
+![The caption choices with the font picker and the text size slider](images/editor-fonts.png)
+
 - **Burn subtitles** puts the indexed line on the clip. Each line is editable: fix a
   typo, shorten it, or drop it. **Subtitle sync** shifts the timing if this release
   of the video drifts from the subtitle file.
+- **Font and text size.** With burned subtitles or meme text selected, **Font** picks the
+  typeface and **Text size** scales the text (50% to 300%; 100% is normal). Your choice is
+  remembered for next time, and each clip in a sequence keeps its own. Add fonts under
+  [Settings](#settings). Reload the preview to see a change.
 - **Exports are clean.** Nothing from the original file is copied into a meme: not its
   release name or other tags, comments, chapters, creation dates, track names or
   subtitle tracks. The one thing a file may carry is the movie or show/episode it came
@@ -192,8 +198,15 @@ indexing, subtitle requests, errors.
 ## Settings
 
 **Settings** holds the media server connection, the **library path mappings** (which
-folder the server reports, and where the same folder is mounted for this app), login
-options, the API key and trusted proxies.
+folder the server reports, and where the same folder is mounted for this app), the
+**caption fonts**, login options, the API key and trusted proxies.
+
+**Caption fonts** lists the fonts captions can use. The ones that come with the app are
+marked *built in*. **Upload a font** adds your own `.ttf` or `.otf` file (up to 16 MB, up to
+50 fonts); it then appears in the editor's **Font** picker. Delete an uploaded font with its
+**Delete** button. Only upload fonts you have the right to use.
+
+![The Caption fonts panel in Settings](images/settings-fonts.png)
 
 ![The Settings tab: media server, library path mappings and the optional .srt saving](images/settings.png)
 

@@ -2,9 +2,28 @@ import SubtitleSearch from "./SubtitleSearch.jsx";
 import { AUDIO_FORMATS } from "./clipSettings.js";
 import { PADDING_MS } from "./clipSettings.js";
 import { api } from "./api.js";
+import {
+  SCALE_DEFAULT,
+  SCALE_MAX,
+  SCALE_MIN,
+  SCALE_STEP,
+  fontOptions,
+  loadFontChoice,
+  saveFontChoice,
+  usableFont,
+} from "./fonts.js";
 import { episodeLabel, fmtTime } from "./format.js";
 import { findCueMatches, stepMatch } from "./cueFind.js";
 import { useEffect, useRef, useState } from "react";
+
+/** localStorage, or null where the browser won't give it out. */
+function browserStorage() {
+  try {
+    return window.localStorage;
+  } catch (_) {
+    return null;
+  }
+}
 
 function Nudge({ label, onNudge }) {
   const steps = [-500, -100, 100, 500];
@@ -31,6 +50,11 @@ export function Editor({ item, onJob, onClose, onAddToSequence }) {
   const [audio, setAudio] = useState(false);
   const [creditSource, setCreditSource] = useState(true); // the show/movie in the file's title tag
   const [captionMode, setCaptionMode] = useState(item.line ? "source" : "none");
+  // The caption font and text size (percent): remembered from last time, checked against the
+  // fonts that exist now.
+  const [font, setFont] = useState(() => loadFontChoice(browserStorage()).font);
+  const [fontScale, setFontScale] = useState(() => loadFontChoice(browserStorage()).scale);
+  const [fontList, setFontList] = useState({ fonts: [], default: null });
   const [top, setTop] = useState("");
   const [bottom, setBottom] = useState(item.line || "");
   const [subtitleOffsetMs, setSubtitleOffsetMs] = useState(0); // sync correction, ms
@@ -90,6 +114,25 @@ export function Editor({ item, onJob, onClose, onAddToSequence }) {
     setEditedCues(null);
   }
 
+  useEffect(() => {
+    let alive = true;
+    api
+      .fonts()
+      .then((d) => {
+        if (!alive) return;
+        setFontList(d);
+        setFont((f) => usableFont(f, d.fonts));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    saveFontChoice(browserStorage(), font, fontScale);
+  }, [font, fontScale]);
+
   // Trimming the clip invalidates any in-progress edits (the set of lines in
   // view may have changed) — start clean rather than risk stale/mismatched text.
   useEffect(() => {
@@ -125,6 +168,8 @@ export function Editor({ item, onJob, onClose, onAddToSequence }) {
           bottom: captionMode === "meme" ? bottom : undefined,
           offsetMs: captionMode === "source" ? subtitleOffsetMs : undefined,
           editedCues: captionMode === "source" ? editedCues : undefined,
+          font: captionMode !== "none" ? font : undefined,
+          fontScale: captionMode !== "none" ? fontScale : undefined,
         }),
         ctrl.signal
       );
@@ -274,8 +319,15 @@ export function Editor({ item, onJob, onClose, onAddToSequence }) {
     return captionMode === "none"
       ? { mode: "none" }
       : captionMode === "source"
-      ? { mode: "source", cues: editedCues }
-      : { mode: "meme", top: top || null, bottom: bottom || null, font_size: 36 };
+      ? { mode: "source", cues: editedCues, font: font || null, font_scale: fontScale }
+      : {
+          mode: "meme",
+          top: top || null,
+          bottom: bottom || null,
+          font_size: 36,
+          font: font || null,
+          font_scale: fontScale,
+        };
   }
 
   function handleAddToSequence() {
@@ -504,6 +556,37 @@ export function Editor({ item, onJob, onClose, onAddToSequence }) {
             <input type="radio" checked={captionMode === "meme"} onChange={() => setCaptionMode("meme")} />
             Meme text
           </label>
+          {captionMode !== "none" && (
+            <div className="font-controls">
+              <label>
+                Font
+                <select value={font} onChange={(e) => setFont(e.target.value)}>
+                  {fontOptions(fontList.fonts, fontList.default).map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Text size <b>{fontScale}%</b>
+                <input
+                  type="range"
+                  min={SCALE_MIN}
+                  max={SCALE_MAX}
+                  step={SCALE_STEP}
+                  value={fontScale}
+                  onChange={(e) => setFontScale(Number(e.target.value))}
+                />
+              </label>
+              {fontScale !== SCALE_DEFAULT && (
+                <button type="button" className="link" onClick={() => setFontScale(SCALE_DEFAULT)}>
+                  reset size
+                </button>
+              )}
+              <p className="hint tiny">Add fonts in Settings. Reload preview to see a change.</p>
+            </div>
+          )}
           {captionMode === "meme" && (
             <div className="meme-inputs">
               <input placeholder="Top text" value={top} onChange={(e) => setTop(e.target.value)} />

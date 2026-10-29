@@ -10,11 +10,11 @@ use crate::{
 };
 use axum::{
     body::Body,
-    extract::{ConnectInfo, Path, Query, RawQuery, Request, State},
+    extract::{ConnectInfo, DefaultBodyLimit, Path, Query, RawQuery, Request, State},
     http::{header, HeaderMap, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::{delete, get, post},
     Json, Router,
 };
 use axum_extra::extract::cookie::{Cookie, CookieJar};
@@ -27,6 +27,7 @@ use tracing::{info, warn};
 
 mod authentik;
 mod clips;
+mod fonts;
 mod library;
 mod plex_login;
 mod search;
@@ -36,6 +37,7 @@ mod subtitle_api;
 mod system;
 use self::authentik::*;
 use self::clips::*;
+use self::fonts::*;
 use self::library::*;
 use self::plex_login::*;
 use self::search::*;
@@ -101,6 +103,13 @@ pub fn router(state: AppState) -> Router {
             get(get_plex_login_settings).delete(delete_plex_login_settings),
         )
         .route("/api/settings/plex-login/link", get(plex_login_link_start))
+        .route(
+            "/api/fonts",
+            get(list_fonts)
+                .post(upload_font)
+                .layer(DefaultBodyLimit::max(crate::fonts::MAX_FONT_BYTES + 4096)),
+        )
+        .route("/api/fonts/{id}", delete(delete_font))
         .route("/api/libraries", get(libraries))
         .route("/api/search", get(search))
         .route("/api/search/title", get(search_title))

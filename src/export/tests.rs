@@ -18,7 +18,7 @@ fn source_caption_adds_subtitles_filter() {
     let core = core_chain(
         480,
         15,
-        Some(&Caption::Source { cues: None }),
+        Some(&Caption::source(None)),
         "/app/fonts/DejaVuSans.ttf",
         Some("/data/tmp/abc.srt"),
         None,
@@ -42,7 +42,7 @@ fn source_caption_with_override_cues_replaces_indexed_lines() {
         end_ms: 1000,
         text: "corrected and shortened".into(),
     }];
-    let caption = Caption::Source { cues: Some(edited) };
+    let caption = Caption::source(Some(edited));
     let (_core, files) = prepare_captions(
         dir.path(),
         "job",
@@ -70,7 +70,7 @@ fn source_caption_without_override_falls_back_to_passed_cues() {
         end_ms: 1000,
         text: "untouched indexed line".into(),
     }];
-    let caption = Caption::Source { cues: None };
+    let caption = Caption::source(None);
     let (_core, files) = prepare_captions(
         dir.path(),
         "job2",
@@ -91,11 +91,7 @@ fn source_caption_without_override_falls_back_to_passed_cues() {
 
 #[test]
 fn meme_caption_adds_two_drawtext() {
-    let cap = Caption::Meme {
-        top: Some("TOP".into()),
-        bottom: Some("BOT".into()),
-        font_size: 40,
-    };
+    let cap = Caption::meme(Some("TOP".into()), Some("BOT".into()), 40);
     let core = core_chain(
         480,
         15,
@@ -336,11 +332,7 @@ fn validate_sequence_accepts_reasonable_sequence() {
 
 #[test]
 fn clip_core_chain_still_supports_captions() {
-    let cap = Caption::Meme {
-        top: Some("TOP".into()),
-        bottom: None,
-        font_size: 30,
-    };
+    let cap = Caption::meme(Some("TOP".into()), None, 30);
     let core = clip_core_chain(
         480,
         270,
@@ -510,7 +502,7 @@ fn a_window_with_no_subtitle_lines_burns_nothing_instead_of_an_empty_srt() {
         "empty-window",
         480,
         15,
-        Some(&Caption::Source { cues: None }),
+        Some(&Caption::source(None)),
         &cues,
         0,
         1000,
@@ -529,7 +521,7 @@ fn a_window_with_no_subtitle_lines_burns_nothing_instead_of_an_empty_srt() {
         "all-deleted",
         480,
         15,
-        Some(&Caption::Source { cues: Some(vec![]) }),
+        Some(&Caption::source(Some(vec![]))),
         &cues,
         0,
         1000,
@@ -554,7 +546,7 @@ fn caption_files_are_removed_when_dropped() {
         "dropped",
         480,
         15,
-        Some(&Caption::Source { cues: None }),
+        Some(&Caption::source(None)),
         &cues,
         0,
         1000,
@@ -566,4 +558,112 @@ fn caption_files_are_removed_when_dropped() {
     assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
     drop(files);
     assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
+}
+
+const TEST_FONT: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/tests/fixtures/MemeTestSans.ttf"
+);
+
+#[test]
+fn the_default_subtitle_style_is_unchanged() {
+    // no font chosen, normal size: exactly what it was before fonts could be chosen
+    assert_eq!(
+        subtitle_style(&Caption::source(None), "/app/fonts/DejaVuSans.ttf"),
+        "Outline=2,Shadow=0,MarginV=10"
+    );
+}
+
+#[test]
+fn a_chosen_font_is_named_by_family_and_its_folder_is_searched() {
+    let cap = Caption::Source {
+        cues: None,
+        font: Some("MemeTestSans.ttf".into()),
+        font_scale: 100,
+    };
+    assert_eq!(
+        subtitle_style(&cap, TEST_FONT),
+        "FontName=Meme Test Sans,Outline=2,Shadow=0,MarginV=10"
+    );
+    let chain = core_chain(
+        480,
+        15,
+        Some(&cap),
+        TEST_FONT,
+        Some("/data/tmp/a.srt"),
+        None,
+        None,
+        270,
+    );
+    assert!(chain.contains("FontName=Meme Test Sans"), "{chain}");
+    assert!(
+        chain.contains("fontsdir='") && chain.contains("fixtures"),
+        "{chain}"
+    );
+    // a font that can't be read leaves the default font, rather than a broken name
+    assert_eq!(
+        subtitle_style(&cap, "/nonexistent/Gone.ttf"),
+        "Outline=2,Shadow=0,MarginV=10"
+    );
+}
+
+#[test]
+fn text_size_scales_subtitles_and_meme_text() {
+    let big = Caption::Source {
+        cues: None,
+        font: None,
+        font_scale: 150,
+    };
+    assert!(
+        subtitle_style(&big, "x.ttf").starts_with("FontSize=24,"),
+        "{}",
+        subtitle_style(&big, "x.ttf")
+    );
+    let small = Caption::Source {
+        cues: None,
+        font: None,
+        font_scale: 50,
+    };
+    assert!(subtitle_style(&small, "x.ttf").starts_with("FontSize=8,"));
+
+    let meme = |scale| Caption::Meme {
+        top: Some("T".into()),
+        bottom: None,
+        font_size: 36,
+        font: None,
+        font_scale: scale,
+    };
+    let chain =
+        |c: &Caption| core_chain(480, 15, Some(c), "/f.ttf", None, Some("/t.txt"), None, 270);
+    assert!(chain(&meme(100)).contains("fontsize=36"));
+    assert!(chain(&meme(150)).contains("fontsize=54"));
+    assert!(chain(&meme(50)).contains("fontsize=18"));
+}
+
+#[test]
+fn text_size_is_kept_within_limits() {
+    assert_eq!(Caption::source(None).font_scale_pct(), 100);
+    let wild = |s| Caption::Source {
+        cues: None,
+        font: None,
+        font_scale: s,
+    };
+    assert_eq!(wild(0).font_scale_pct(), MIN_FONT_SCALE);
+    assert_eq!(wild(100_000).font_scale_pct(), MAX_FONT_SCALE);
+    assert_eq!(Caption::None.font_scale_pct(), 100);
+}
+
+#[test]
+fn a_caption_request_without_font_fields_still_parses_with_the_defaults() {
+    let c: Caption = serde_json::from_str(r#"{"mode":"source"}"#).unwrap();
+    assert_eq!((c.font_id(), c.font_scale_pct()), (None, 100));
+    let c: Caption = serde_json::from_str(r#"{"mode":"meme","top":"hi"}"#).unwrap();
+    assert_eq!((c.font_id(), c.font_scale_pct()), (None, 100));
+    let c: Caption =
+        serde_json::from_str(r#"{"mode":"meme","top":"hi","font":"A.ttf","font_scale":150}"#)
+            .unwrap();
+    assert_eq!((c.font_id(), c.font_scale_pct()), (Some("A.ttf"), 150));
+    // a blank font name means "no font chosen"
+    let c: Caption = serde_json::from_str(r#"{"mode":"source","font":"  "}"#).unwrap();
+    assert_eq!(c.font_id(), None);
 }

@@ -192,9 +192,30 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload || {}),
     }),
+  fonts: () => json(`/api/fonts`),
+  uploadFont: (file) =>
+    json(`/api/fonts?name=${encodeURIComponent(file.name)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/octet-stream" },
+      body: file,
+    }),
+  deleteFont: async (id) => {
+    const res = await fetch(withBase(`/api/fonts/${encodeURIComponent(id)}`), { method: "DELETE" });
+    if (res.status === 401) window.dispatchEvent(new Event("memearr:unauthorized"));
+    if (!res.ok) {
+      let msg = res.statusText;
+      try {
+        const body = await res.json();
+        if (body.error) msg = body.error;
+      } catch (_) {
+        /* ignore */
+      }
+      throw new Error(msg);
+    }
+  },
   previewUrl: (
     ratingKey,
-    { start, end, width, fps, captionMode, top, bottom, fontSize, offsetMs, editedCues }
+    { start, end, width, fps, captionMode, top, bottom, fontSize, font, fontScale, offsetMs, editedCues }
   ) => {
     const params = new URLSearchParams({ start, end, width });
     if (fps != null) params.set("fps", fps);
@@ -202,6 +223,8 @@ export const api = {
     if (top) params.set("top", top);
     if (bottom) params.set("bottom", bottom);
     if (fontSize != null) params.set("font_size", fontSize);
+    if (font) params.set("font", font);
+    if (fontScale && fontScale !== 100) params.set("font_scale", fontScale);
     if (offsetMs) params.set("offset_ms", offsetMs);
     if (editedCues) params.set("cues_json", JSON.stringify(editedCues));
     return `/api/preview/${encodeURIComponent(ratingKey)}?${params.toString()}`;

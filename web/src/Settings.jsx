@@ -1,4 +1,5 @@
 import { SERVERS, serverPayload } from "./wizard.js";
+import { FontsPanel } from "./FontsPanel.jsx";
 import { api } from "./api.js";
 import { useEffect, useState } from "react";
 import { withBase } from "./base.js";
@@ -289,6 +290,7 @@ export function Settings({ onChange }) {
 
       {msg && <p className={msg.ok ? "test ok" : "error"}>{msg.text}</p>}
 
+      <FontsPanel />
       <ChangePasswordPanel />
       <AuthentikSettingsPanel />
       <PlexLoginPanel />

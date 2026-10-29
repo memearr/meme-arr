@@ -15,6 +15,7 @@ pub mod diagnose;
 pub mod diskstats;
 pub mod export;
 pub mod ffmpeg;
+pub mod fonts;
 pub mod health;
 pub mod index;
 pub mod jellyfin;

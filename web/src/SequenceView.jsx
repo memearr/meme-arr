@@ -116,6 +116,8 @@ export function SequenceView({ sequence, setSequence, onJob }) {
                       ? ` (${c.subtitle_offset_ms > 0 ? "+" : ""}${c.subtitle_offset_ms}ms)`
                       : ""}
                     {c.caption?.mode === "meme" && " · meme text"}
+                    {c.caption?.font ? ` · ${c.caption.font.replace(/\.(ttf|otf)$/i, "")}` : ""}
+                    {c.caption?.font_scale && c.caption.font_scale !== 100 ? ` · ${c.caption.font_scale}%` : ""}
                   </div>
                   {c.line && <div className="seq-line">“{c.line}”</div>}
                 </div>

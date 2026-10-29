@@ -217,13 +217,29 @@ async function main() {
   await shot("search-title");
   await page.click('form.search .seg button:has-text("Dialogue")');
 
+  // a font to pick from (a tiny made-up one, dev/mock/fonts)
+  await fetch(BASE + "/api/fonts?name=PosterBlock.ttf", {
+    method: "POST",
+    headers: { cookie, "Content-Type": "application/octet-stream" },
+    body: fs.readFileSync(path.join(__dirname, "fonts", "PosterBlock.ttf")),
+  });
+
   // editor
   await search('"zero gravity"');
   await page.waitForSelector("button.result");
   await page.locator("button.result").first().click();
   await page.waitForSelector("video");
   await page.waitForFunction(() => { const v = document.querySelector("video"); return v && v.readyState >= 2; }, null, { timeout: 90000 }).catch(() => {});
+  await page.selectOption(".font-controls select", "PosterBlock.ttf");
+  await page.locator(".font-controls input[type=range]").evaluate((el) => {
+    const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
+    set.call(el, "130");
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  });
   await shot("editor", { fullPage: true });
+  await page.waitForTimeout(300);
+  await page.locator(".font-controls").locator("xpath=..").screenshot({ path: path.join(outDir, "editor-fonts.png") });
+  console.log("  editor-fonts.png");
 
   // sequence: three clips from different shows
   for (const q of ['"zero gravity"', '"small fire"', '"tide for you"']) {
@@ -293,7 +309,10 @@ async function main() {
   await shot("system", { fullPage: true });
   await nav("Settings");
   await page.waitForSelector("text=Library path mappings");
+  await page.waitForSelector(".fonts-panel li");
   await shot("settings", { fullPage: true });
+  await page.locator(".fonts-panel").screenshot({ path: path.join(outDir, "settings-fonts.png") });
+  console.log("  settings-fonts.png");
   await nav("Activity");
   await page.waitForTimeout(1500);
   await shot("activity");

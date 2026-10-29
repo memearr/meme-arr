@@ -224,6 +224,7 @@ async fn sequence_export_with_audio_handles_a_mute_clip() {
             subtitle_offset_ms: 0,
             cues: vec![],
             source: String::new(),
+            font_path: None,
         },
         export::ResolvedSequenceClip {
             file: without_audio,
@@ -233,6 +234,7 @@ async fn sequence_export_with_audio_handles_a_mute_clip() {
             subtitle_offset_ms: 0,
             cues: vec![],
             source: String::new(),
+            font_path: None,
         },
     ];
 
@@ -555,6 +557,7 @@ async fn sequence_exports_keep_nothing_from_their_sources_either() {
         subtitle_offset_ms: 0,
         cues: vec![],
         source: source.into(),
+        font_path: None,
     };
     let clips = vec![clip(a, "A (2019)"), clip(b, "B - S01E02 - X")];
     for (format, name, audio) in [
@@ -718,6 +721,7 @@ async fn webm_sequence_with_audio_keeps_sound_across_a_silent_clip() {
         subtitle_offset_ms: 0,
         cues: vec![],
         source: String::new(),
+        font_path: None,
     };
     let clips = vec![clip(loud.clone()), clip(mute), clip(loud)];
     let out = tmp.path().join("seq.webm");
@@ -808,7 +812,7 @@ async fn burned_subtitles_over_a_window_with_no_lines_export_without_captions() 
             width: 240,
             fps: 10,
             quality: 70,
-            caption: Some(Caption::Source { cues: None }),
+            caption: Some(Caption::source(None)),
             subtitle_offset_ms: 0,
             audio: false,
             filename: None,
@@ -844,4 +848,114 @@ async fn burned_subtitles_over_a_window_with_no_lines_export_without_captions() 
         })
         .collect();
     assert!(leftovers.is_empty(), "{leftovers:?}");
+}
+
+#[tokio::test]
+async fn a_chosen_font_and_size_are_used_for_both_kinds_of_caption() {
+    if !ffmpeg_available() {
+        eprintln!("skipping pipeline test: ffmpeg not found on PATH");
+        return;
+    }
+    let tmp = tempfile::tempdir().unwrap();
+    let sample = make_sample(tmp.path(), "font-src", false);
+    let font = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/MemeTestSans.ttf"
+    );
+    let cues = vec![subtitles::Cue {
+        start_ms: 0,
+        end_ms: 1500,
+        text: "Hello there".into(),
+    }];
+    let captions = [
+        (
+            "subs",
+            Caption::Source {
+                cues: None,
+                font: Some("MemeTestSans.ttf".into()),
+                font_scale: 160,
+            },
+        ),
+        (
+            "meme",
+            Caption::Meme {
+                top: Some("TOP TEXT".into()),
+                bottom: Some("Bottom".into()),
+                font_size: 36,
+                font: Some("MemeTestSans.ttf".into()),
+                font_scale: 60,
+            },
+        ),
+    ];
+    let mut sizes = Vec::new();
+    for (name, caption) in captions {
+        let req = ExportRequest {
+            rating_key: "t".into(),
+            start_ms: 0,
+            end_ms: 1500,
+            format: Format::Mp4,
+            width: 320,
+            fps: 10,
+            quality: 70,
+            caption: Some(caption),
+            subtitle_offset_ms: 0,
+            audio: false,
+            filename: None,
+            credit_source: false,
+        };
+        let out = tmp.path().join(format!("{name}.mp4"));
+        export::run_export(
+            "ffmpeg",
+            "gifsicle",
+            tmp.path(),
+            &format!("job-{name}"),
+            &sample,
+            &req,
+            &cues,
+            font,
+            180,
+            None,
+            &out,
+        )
+        .await
+        .unwrap_or_else(|e| panic!("{name}: {e:#}"));
+        assert!(decodes_fully(&out), "{name}");
+        sizes.push(std::fs::metadata(&out).unwrap().len());
+    }
+    // the same clip with no caption at all, to show the text really was drawn
+    let plain = ExportRequest {
+        rating_key: "t".into(),
+        start_ms: 0,
+        end_ms: 1500,
+        format: Format::Mp4,
+        width: 320,
+        fps: 10,
+        quality: 70,
+        caption: Some(Caption::None),
+        subtitle_offset_ms: 0,
+        audio: false,
+        filename: None,
+        credit_source: false,
+    };
+    let out = tmp.path().join("plain.mp4");
+    export::run_export(
+        "ffmpeg",
+        "gifsicle",
+        tmp.path(),
+        "job-plain-font",
+        &sample,
+        &plain,
+        &[],
+        font,
+        180,
+        None,
+        &out,
+    )
+    .await
+    .unwrap();
+    let plain_size = std::fs::metadata(&out).unwrap().len();
+    assert!(
+        sizes.iter().all(|s| *s != plain_size),
+        "captions should change the picture: {sizes:?} vs {plain_size}"
+    );
 }

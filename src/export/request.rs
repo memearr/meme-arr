@@ -43,6 +43,12 @@ pub enum Caption {
     Source {
         #[serde(default)]
         cues: Option<Vec<Cue>>,
+        /// A font by file name (see `fonts`); `None` is the default font.
+        #[serde(default)]
+        font: Option<String>,
+        /// Text size as a percentage of the normal size.
+        #[serde(default = "default_font_scale")]
+        font_scale: u32,
     },
     /// Classic meme caption(s).
     Meme {
@@ -52,11 +58,65 @@ pub enum Caption {
         bottom: Option<String>,
         #[serde(default = "default_font_size")]
         font_size: u32,
+        #[serde(default)]
+        font: Option<String>,
+        #[serde(default = "default_font_scale")]
+        font_scale: u32,
     },
 }
 
 pub(super) fn default_font_size() -> u32 {
     36
+}
+
+/// Smallest and largest text size, as a percentage of normal.
+pub const MIN_FONT_SCALE: u32 = 25;
+pub const MAX_FONT_SCALE: u32 = 400;
+
+pub(super) fn default_font_scale() -> u32 {
+    100
+}
+
+impl Caption {
+    /// Burned subtitles in the default font at normal size.
+    pub fn source(cues: Option<Vec<Cue>>) -> Self {
+        Caption::Source {
+            cues,
+            font: None,
+            font_scale: default_font_scale(),
+        }
+    }
+
+    /// Meme text in the default font at normal size.
+    pub fn meme(top: Option<String>, bottom: Option<String>, font_size: u32) -> Self {
+        Caption::Meme {
+            top,
+            bottom,
+            font_size,
+            font: None,
+            font_scale: default_font_scale(),
+        }
+    }
+
+    /// The font chosen for this caption, by file name; `None` means the default font.
+    pub fn font_id(&self) -> Option<&str> {
+        match self {
+            Caption::Source { font, .. } | Caption::Meme { font, .. } => {
+                font.as_deref().filter(|f| !f.trim().is_empty())
+            }
+            Caption::None => None,
+        }
+    }
+
+    /// The text size as a percentage of normal, kept within sensible limits.
+    pub fn font_scale_pct(&self) -> u32 {
+        match self {
+            Caption::Source { font_scale, .. } | Caption::Meme { font_scale, .. } => {
+                (*font_scale).clamp(MIN_FONT_SCALE, MAX_FONT_SCALE)
+            }
+            Caption::None => 100,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]

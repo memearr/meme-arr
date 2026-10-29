@@ -230,14 +230,17 @@ Indexed cues overlapping a window. `404` if the media isn't indexed.
 { "cues": [{ "start_ms": 12000, "end_ms": 14000, "text": "..." }] }
 ```
 
-### `GET /api/preview/:rating_key?start=&end=&width=&fps=&caption_mode=&top=&bottom=&font_size=&offset_ms=&cues_json=`
+### `GET /api/preview/:rating_key?start=&end=&width=&fps=&caption_mode=&top=&bottom=&font_size=&font=&font_scale=&offset_ms=&cues_json=`
 Returns `video/mp4` bytes — a short, fast-seeked, browser-safe render of
 just that window, with the same caption treatment the real export would
 use. Cached on disk keyed by every parameter that affects the rendered
 frames. `caption_mode` is `"none"` (default) | `"source"` | `"meme"`.
 `cues_json` (URL-encoded JSON array of `{start_ms,end_ms,text}`) lets the
 editor preview its own edited subtitle lines instead of re-fetching the
-indexed ones.
+indexed ones. `font` is a font's file name from `GET /api/fonts` (default: the
+default font; `400` if there is no such font) and `font_scale` the text size in
+percent (default 100, kept between 25 and 400). If `caption_mode=source` and no
+subtitle line falls inside the window, nothing is burned in.
 
 ### `POST /api/export`
 Starts a background export job, returns immediately. `400` if the window is
@@ -257,7 +260,10 @@ Request (`ExportRequest`):
 - `caption`: `null` | `{"mode":"none"}` | `{"mode":"source","cues":null-or-[...]}` |
   `{"mode":"meme","top":"...","bottom":"...","font_size":48}`. `cues: null`
   under `"source"` means "burn whatever's indexed"; a real array means "burn
-  exactly this instead" (the editor's user-edited lines).
+  exactly this instead" (the editor's user-edited lines). Both burned modes also take
+  `"font"` (a file name from `GET /api/fonts`; absent or `null` is the default font) and
+  `"font_scale"` (text size in percent, default 100, kept between 25 and 400). An unknown
+  font is a `400`. When no subtitle line falls inside the clip, nothing is burned in.
 - `quality` drives libwebp's `-q:v` and x264/VP9 CRF for webp/mp4/webm, and
   (as of the gifsicle integration) a `gifsicle --lossy=N` post-process pass
   for GIF — ffmpeg's own palette pipeline for GIF has no quality lever of its
@@ -304,6 +310,29 @@ clip's source survives into the result. With `credit_source`, the `title` lists 
 distinct source once, joined with ` / ` (cut short past 200 characters).
 
 Response: same `{ "job_id": "..." }` shape.
+
+### `GET /api/fonts`
+The fonts a caption can use, built-in ones first, then uploaded ones:
+```json
+{
+  "fonts": [
+    { "id": "DejaVuSans.ttf", "family": "DejaVu Sans", "style": "Book", "builtin": true, "bytes": 757076 },
+    { "id": "Anton-Regular.ttf", "family": "Anton", "style": "Regular", "builtin": false, "bytes": 170812 }
+  ],
+  "default": { "id": "DejaVuSans.ttf", "family": "DejaVu Sans", "style": "Book", "builtin": true, "bytes": 757076 },
+  "max_bytes": 16777216, "max_fonts": 50
+}
+```
+`id` is the file name and what `font` in a caption refers to.
+
+### `POST /api/fonts?name=<file name>`
+Keeps an uploaded font. The body is the file's bytes (`Content-Type: application/octet-stream`).
+`201 {"font": {...}}`. `400` if the name isn't a plain `.ttf`/`.otf` file name (a folder in it is dropped)
+or the file isn't a usable font; `409` if a font with that name already exists (built in or uploaded) or
+the limit of 50 uploaded fonts is reached; `413` over 16 MB.
+
+### `DELETE /api/fonts/:id`
+Deletes an uploaded font: `204`; `404` if there is none; `400` for a built-in font.
 
 ### `GET /api/jobs/:id`
 ```json

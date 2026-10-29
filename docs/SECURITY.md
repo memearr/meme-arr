@@ -64,6 +64,10 @@ your monitoring system.
   a password file: don't share it, don't put it in a public cloud folder.
 - The **subtitle text** of your library is in the index. It is derived from your subtitle
   files and stays in `/data`.
+- **Fonts** you upload are kept in `/data/fonts`. Only the logged-in admin can upload or delete
+  them. An upload is accepted only if its name is a plain `.ttf`/`.otf` file name (any folder in it
+  is dropped), it is at most 16 MB, and it parses as a font; nothing is ever run, and fonts are not
+  served back to the browser. They are read by ffmpeg when a caption uses them.
 - **Memes** are written to `/output`. They carry none of the source file's metadata. The only
   thing a file may carry is a title naming the movie or show/episode; you can switch that off
   per export.

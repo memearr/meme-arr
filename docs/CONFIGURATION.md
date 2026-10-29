@@ -52,6 +52,15 @@ and indexes them. Optionally it can also **save each one as a `.srt` file next t
 That is off by default; it needs the media folder mounted writable, never overwrites an
 existing file, and Plex may then list the subtitle twice.
 
+### Caption fonts
+
+The fonts that burned subtitles and meme text can use. The image ships DejaVu Sans, and any
+font you mount over `/app/fonts` (for example an `Impact.ttf`) is listed as *built in*.
+**Upload a font** adds a `.ttf` or `.otf` file (up to 16 MB each, 50 in all). Uploaded fonts live
+in `/data/fonts`, so they survive upgrades, and they are **not** part of the settings backups: keep
+the folder (or the files) if you want them on a new machine. The font and text size are chosen
+per clip in the editor, not here.
+
 ### Trusted proxies
 
 If you run the app behind a reverse proxy, list the proxy's address (or network, such as
@@ -102,8 +111,9 @@ requests and logins. **Health** lists problems with how to fix them; see
 
 ## Other options
 
-- **A different font for captions.** Put an `Impact.ttf` in a folder, mount it over
-  `/app/fonts` (the commented line in the compose file), and it is used when present.
+- **A different default font for captions.** Put an `Impact.ttf` in a folder, mount it over
+  `/app/fonts` (the commented line in the compose file), and it becomes the default. You can also
+  upload fonts in **Settings → Caption fonts** and choose one per clip.
 - **Run under a sub-path** (`https://home.example.com/meme-arr/`): set `URL_BASE=/meme-arr`
   and see [Deployment](DEPLOYMENT.md#behind-a-reverse-proxy).
 - **A different port**: change the left side of `8089:8080`. Leave the right side alone.

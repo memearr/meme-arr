@@ -96,6 +96,7 @@ Orientation only: each file's own `//!` comment is the authoritative description
 | `api/settings.rs` | Media-server settings, the connection test and the folder browser. |
 | `api/session.rs` | Sessions, API keys, login/logout/password, trusted proxies and the `require_auth` middleware. |
 | `api/authentik.rs`, `api/plex_login.rs` | Authentik (OIDC) and Plex single sign-on: login, callback and their settings. |
+| `api/fonts.rs` | List, upload and delete caption fonts, and resolve the font a caption chose. |
 | `api/system.rs` | Health, status, metrics, activity and server logs, storage, backups and scheduled tasks. |
 
 **Storage** (`db/`; the only code that writes SQL against the app's tables)
@@ -123,6 +124,7 @@ Orientation only: each file's own `//!` comment is the authoritative description
 |---|---|
 | `mediaserver.rs` | The seam between the app and the server: `MediaServer` (Plex or Jellyfin) and the shared `Section` / `Item` types. Everything downstream is server-agnostic. |
 | `plex.rs`, `jellyfin.rs` | The minimal clients for each server: libraries, items with their on-disk path, subtitle streams and search. |
+| `fonts.rs` | Caption fonts: the built-in ones and the uploaded ones in `DATA_DIR/fonts`, how an upload is checked, and reading a font's family name. |
 | `paths.rs` | Translates the paths the server reports into paths reachable from this container. |
 
 **Exports and previews**
@@ -161,10 +163,10 @@ renders. Built with Vite; `npm run build` emits static files the Rust binary ser
   `SubtitleDiagnosis.jsx`, `ActivityView.jsx`, `Settings.jsx`, `SystemView.jsx` (with
   `TasksPanel.jsx`, `BackupsPanel.jsx`, `LogsPanel.jsx`), `SetupWizard.jsx`, `AuthScreen.jsx`,
   `Sidebar.jsx`, `TopBar.jsx`, `SearchScope.jsx` and `LibraryFilter.jsx` (the filter chips and
-  libraries picker).
+  libraries picker), and `FontsPanel.jsx` (Settings → Caption fonts).
 - **Pure, unit-tested logic** sits beside them with no React in it: `searchScope.js`,
   `searchTips.js`, `libraryFilter.js`, `wantedFocus.js`, `subtitles.js`, `clipSettings.js`,
-  `wizard.js`, `health.js`, `logs.js`, `theme.js`, `update.js`, `cueFind.js`, `format.js`,
+  `wizard.js`, `fonts.js`, `health.js`, `logs.js`, `theme.js`, `update.js`, `cueFind.js`, `format.js`,
   `base.js`.
 - `web/src/api.js` is a thin `fetch` wrapper: one function per endpoint, and a shared `json()`
   helper that throws on non-OK responses and fires a `memearr:unauthorized` window event on a

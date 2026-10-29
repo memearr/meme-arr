@@ -16,6 +16,40 @@ pub(super) fn escape_filter_path(p: &str) -> String {
         .replace('\'', "\\'")
 }
 
+/// libass's default subtitle size for an SRT (the `subtitles` filter's own default),
+/// in its 288-line coordinate space; scaling multiplies it.
+const DEFAULT_SUBTITLE_SIZE: u32 = 16;
+
+/// `size` scaled by a percentage, never smaller than a legible minimum.
+pub(super) fn scaled_size(size: u32, pct: u32) -> u32 {
+    ((size as f32 * pct as f32 / 100.0).round() as u32).max(6)
+}
+
+/// The `force_style` value for burned subtitles: the outline, plus the chosen font's
+/// family name (libass looks a font up by family, in the folder given as `fontsdir`)
+/// and a text size when it isn't the normal one.
+pub(super) fn subtitle_style(caption: &Caption, font_path: &str) -> String {
+    let mut style = String::new();
+    if caption.font_id().is_some() {
+        // A comma or quote in the name would break the style string; skip the name
+        // (the default font is used) rather than build a broken filter.
+        if let Some(family) = crate::fonts::family_of(Path::new(font_path))
+            .filter(|f| !f.contains([',', '\'', '\\', ':', '=']))
+        {
+            style.push_str(&format!("FontName={family},"));
+        }
+    }
+    let pct = caption.font_scale_pct();
+    if pct != 100 {
+        style.push_str(&format!(
+            "FontSize={},",
+            scaled_size(DEFAULT_SUBTITLE_SIZE, pct)
+        ));
+    }
+    style.push_str("Outline=2,Shadow=0,MarginV=10");
+    style
+}
+
 /// Build the caption portion of a filter chain (`subtitles=`/`drawtext=`),
 /// shared by every chain-builder below.
 #[allow(clippy::too_many_arguments)]
@@ -29,21 +63,22 @@ pub(super) fn caption_filters(
 ) -> Vec<String> {
     let mut parts = Vec::new();
     match caption {
-        Some(Caption::Source { .. }) => {
+        Some(c @ Caption::Source { .. }) => {
             if let Some(srt) = srt_path {
                 let fonts_dir = Path::new(font_path)
                     .parent()
                     .map(|p| p.to_string_lossy().to_string())
                     .unwrap_or_default();
                 parts.push(format!(
-                    "subtitles='{}':fontsdir='{}':force_style='Outline=2,Shadow=0,MarginV=10'",
+                    "subtitles='{}':fontsdir='{}':force_style='{}'",
                     escape_filter_path(srt),
                     escape_filter_path(&fonts_dir),
+                    subtitle_style(c, font_path),
                 ));
             }
         }
-        Some(Caption::Meme { font_size, .. }) => {
-            let fs = *font_size;
+        Some(c @ Caption::Meme { font_size, .. }) => {
+            let fs = scaled_size(*font_size, c.font_scale_pct());
             let margin = (frame_height_hint as f32 * 0.05).max(8.0) as u32;
             if let Some(tf) = top_text_file {
                 parts.push(drawtext(font_path, tf, fs, &format!("{margin}")));

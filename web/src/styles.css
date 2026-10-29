@@ -1932,3 +1932,50 @@ fieldset label.disabled {
 .addfilter-pop label { display: flex; flex-direction: column; gap: 4px; }
 .addfilter-pop .addfilter-not { flex-direction: row; align-items: center; gap: 8px; }
 .addfilter-actions { display: flex; justify-content: flex-end; }
+
+/* Caption font and text size, under the caption choices in the editor. */
+.font-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin: 0.5rem 0;
+}
+.font-controls label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+.font-controls input[type="range"] {
+  min-width: 6rem;
+  flex: 1;
+}
+.font-controls select {
+  max-width: 16rem;
+}
+.font-controls .hint {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+/* Settings: the list of caption fonts. */
+.font-list {
+  list-style: none;
+  margin: 0.5rem 0;
+  padding: 0;
+}
+.font-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  padding: 0.35rem 0;
+  border-top: 1px solid var(--border, rgba(127, 127, 127, 0.25));
+}
+.font-list .font-name {
+  font-weight: 600;
+}
+.font-list .muted {
+  margin-right: auto;
+}

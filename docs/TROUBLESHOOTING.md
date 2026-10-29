@@ -138,9 +138,20 @@ Subtitle timing can drift from a particular release of a video. Use the sync but
 editor (±100 / ±500 ms): the correction applies to the preview and the export.
 
 **The caption font is not the one I wanted.**
-The image ships DejaVu Sans. For the classic meme look, mount a folder containing an
-`Impact.ttf` over `/app/fonts` (the commented line in the compose file); it is used when
-present.
+Pick it in the editor: with burned subtitles or meme text selected there is a **Font** list and a
+**Text size** slider (reload the preview to see the change). Add your own `.ttf` or `.otf` files in
+**Settings → Caption fonts**. The default is DejaVu Sans, or an `Impact.ttf` if you mounted one
+over `/app/fonts`.
+
+**I uploaded a font but the subtitles still look the same.**
+Burned subtitles look a font up by its *family name* inside the font file. A few unusual fonts
+(a name containing a comma or a quote, or a file that is really a collection) can't be matched, and
+the default font is used instead; meme text uses the file directly and is not affected. Try another
+file for the same family, or use meme text.
+
+**"unknown font" when I export or preview.**
+The font you chose was deleted (a clip queued in a sequence can still refer to it). Choose another font
+for that clip.
 
 **An export fails.**
 The job shows the error. The usual causes are an unreadable source file (check the path
