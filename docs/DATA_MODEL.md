@@ -154,7 +154,7 @@ Same shape/purpose for the Plex PIN login flow.
 | `purpose` | TEXT — `"login"` or `"link"` (see AUTHENTICATION.md) |
 | `created_at`, `expires_at` | INTEGER — 10-minute TTL |
 
-## What's deliberately *not* here
+## What isn't stored in SQLite
 
 The research compact dialogue index (`compactindex/`) is **not** a SQLite
 table at all — it's a standalone binary file
@@ -162,4 +162,4 @@ table at all — it's a standalone binary file
 rebuildable derived cache, never authoritative: `subtitle_cue`/`subtitle_fts`
 stay the real source of truth, and the compact index can always be thrown
 away and rebuilt from them. See ARCHITECTURE.md for why it exists and what
-state it's actually in (shadow mode, not live).
+state it is in (shadow mode, not live).

@@ -26,8 +26,9 @@ you what the app itself thinks is wrong, and they are worth a look before anythi
 
 **`docker compose up` can't pull the image.**
 Check the image name is exactly `ghcr.io/memearr/meme-arr:latest` and that the machine
-can reach `ghcr.io`. If you see `unauthorized` or `denied`, the image is not yet public:
-open an issue on the repository. Pulling a public image needs no login.
+can reach `ghcr.io`. Pulling needs no login. If you see `unauthorized` or `denied`, run
+`docker logout ghcr.io` (an expired login for that registry gets in the way) and try again; if it
+still fails, open an issue.
 
 **`exec format error`, or the container restarts immediately on a Raspberry Pi or an Apple
 Silicon NAS.**

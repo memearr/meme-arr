@@ -37,10 +37,9 @@ the same port — there's no separate frontend server in production.
 - **Direct file access over Plex's own streaming/download.** Plex reports
   each file's path *on the Plex server*; this app mounts the same shares and
   rewrites that prefix to its own container path (`paths.rs`), so ffmpeg
-  seeks directly into the original file — instant, lossless. A Plex-API
-  download fallback is scaffolded (`plex::part_download_url`) but not wired
-  in; if a file isn't reachable on a mounted volume, that item is simply
-  marked unreachable rather than falling back to downloading it.
+  seeks directly into the original file — instant, lossless. If a file
+  isn't reachable on a mounted volume, that item is marked unreachable;
+  downloading it through the media server's API is not supported.
 - **SQLite + FTS5, not a separate DB server.** Embedded, no extra service,
   millisecond full-text search over tens of millions of subtitle cues, ships
   inside the one container. See `docs/OPERATIONS.md` and the project's deep
@@ -185,10 +184,10 @@ renders. Built with Vite; `npm run build` emits static files the Rust binary ser
 | Settings | Media-server connection, path mappings, admin password, Authentik, Plex login, API key, trusted proxies. |
 | System | Health, online-subtitle-search status, index and storage stats, tasks, backups, logs, the exported-memes browser. |
 
-## The compact dialogue index — what it actually is today
+## The compact dialogue index: what it is today
 
 `src/compactindex/` is a real, benchmarked, from-scratch inverted index
-built during a deep space/speed research investigation — see the file's own
+built during research into index size and speed — see the file's own
 module doc for the full design rationale (candidate-generation +
 verification, delta-encoded postings, an optional `block_size` grouping
 parameter, Golomb-Rice bit-packing). Measured against real data from this

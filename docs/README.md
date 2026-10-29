@@ -46,7 +46,7 @@ first meme, with a screenshot of every step. Something not working? Go to
 - **The one thing that makes this app exist**: dialogue search. The app walks
   a Plex or Jellyfin library, extracts subtitle text with ffmpeg, and indexes every line
   in SQLite FTS5, so "search a line you remember, jump straight to that
-  moment" actually works — Frinkiac, but for a private Plex or Jellyfin library.
+  moment" actually works — Frinkiac, but for your own Plex or Jellyfin library.
 - **Where things live**: `src/` is the whole Rust crate (binary = `src/main.rs`,
   everything else lives in the library at `src/lib.rs` so integration tests
   can reach it); `web/` is the frontend (the shell in `App.jsx`, one component file per area, small

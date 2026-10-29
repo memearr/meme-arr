@@ -5,10 +5,9 @@ password, Authentik (OIDC), or a linked Plex.tv account. All three are
 available side by side once configured — whichever are set up show up as
 options on the login screen.
 
-The design was grounded in Sonarr's own approach (checked, not assumed)
-before building: credentials live in the app's own database, never a config
-file, so they can't be read back — only replaced — and recovery is
-config/restart-driven, the same shape as editing Sonarr's `config.xml`.
+The design follows the \*arr apps' approach: credentials live in the app's own database, never
+in a config file, so they can't be read back, only replaced. Recovery is driven by configuration
+and a restart (see [Recovery](#password-auth-authrs) below).
 
 ## Sessions
 
@@ -50,8 +49,7 @@ config/restart-driven, the same shape as editing Sonarr's `config.xml`.
   indefinitely). In-memory only — a restart clears it.
   - Keyed on the TCP peer address by default, **not** `X-Forwarded-For`:
     that header is client-controlled, so trusting it would let an attacker
-    claim a new "IP" every attempt and bypass the limit entirely (Sonarr
-    shipped exactly this bug as CVE-2026-30975). Behind a reverse proxy,
+    claim a new "IP" every attempt and bypass the limit entirely. Behind a reverse proxy,
     all proxied traffic then shares the proxy's single bucket — stricter
     than ideal, but fail-safe.
   - **Trusted proxies** (Settings → Trusted proxies; like Sonarr's "Trusted

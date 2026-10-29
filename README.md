@@ -1,13 +1,13 @@
 # 🎬 meme-arr
 
 The meme member of the \*arr family. Turn any moment in your Plex or Jellyfin library into a
-shareable meme: search **by the dialogue that was actually spoken** —
-Frinkiac-style — jump straight to that line, trim the clip, burn in the real
-subtitles or your own caption, and export an animated **WebP / MP4 / WebM / GIF**.
+shareable meme: search for a line of dialogue (Frinkiac-style), jump straight to that moment,
+trim the clip, burn in the real subtitles or your own caption, and export an animated
+**WebP / MP4 / WebM / GIF**.
 
-Self-hosted, runs as a single Docker container on your NAS. Rust backend +
-ffmpeg, a React UI with the familiar \*arr sidebar layout, and a SQLite full-text
-index of every subtitle line.
+Self-hosted, in a single Docker container on a NAS or any Linux machine. It has a React UI with
+the familiar \*arr sidebar layout, a Rust backend that runs ffmpeg, and a SQLite full-text index
+of every subtitle line.
 
 **Documentation:** [Getting started](docs/GETTING-STARTED.md) ·
 [Using meme-arr](docs/USING.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) ·
@@ -245,20 +245,16 @@ cargo test --all
 - **Image-based subtitles** (PGS/VobSub, including `.sup` sidecars) can't be
   indexed for search without OCR, so they're skipped for dialogue search (they can
   still be burned at export). OCR is a possible future addition.
-- **Remote files.** Items not reachable on a mounted volume are recorded for
-  title search but aren't dialogue-indexed or exportable yet; a Plex-API download
-  fallback is scaffolded (`plex::part_download_url`) for a later phase.
+- **Files you can't reach.** Items that aren't on a mounted volume are listed for title
+  search but are not dialogue-indexed or exportable. Downloading the file through the
+  media server's API isn't supported.
 - **Preview errors are explained, not silent.** If a preview fails — source not
   mounted, ffmpeg couldn't transcode it, or (rarely) the browser can't decode the
   result — the editor shows the actual reason instead of a blank player.
-- **Storage breakdown is approximate for "index overhead."** The System tab shows
-  exact byte counts for the dialogue text and media catalog actually stored (real
-  `SUM(LENGTH(...))` queries), but the FTS5 search index itself isn't broken out
-  separately — that needs SQLite's `dbstat` virtual table, which requires a
-  special compile flag we don't currently enable. It's reported as a single
-  "search index & overhead" remainder instead, which is accurate in total (it's
-  real disk usage minus what we can account for exactly) even though it isn't
-  split further.
+- **Storage breakdown.** The System tab shows exact sizes for the dialogue text and the
+  media catalog. The search index itself isn't broken out (that needs SQLite's `dbstat`
+  table, which this build doesn't enable), so it is shown together with other overhead as a
+  single "search index & overhead" figure. The total is still accurate.
 - **Database maintenance.** SQLite doesn't return deleted rows' space to the OS
   on its own (reindexing replaces a changed item's cues — delete then
   re-insert — which leaves free pages behind), and that grows over time. The
