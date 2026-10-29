@@ -166,11 +166,9 @@ over from an earlier run before debugging the app itself.
 ## Git/PR workflow gotcha
 
 The stacked-PR merge trap (merging into a feature-branch base instead of
-`main`) is a recurring, real risk in this repo's history, not a one-off —
-see `docs/DEVELOPMENT.md`'s "Branch / PR workflow" section for the full
-explanation and the `git merge-base --is-ancestor` check that catches it
-before it causes real divergence between `main` and what GitHub's UI claims
-is merged.
+`main`) is an easy mistake to make: see `docs/DEVELOPMENT.md`'s "Branch / PR workflow"
+section for the explanation and the `git merge-base --is-ancestor` check that catches it
+before it causes real divergence between `main` and what GitHub's UI claims is merged.
 
 ## Dependency-bump gotcha (frontend)
 

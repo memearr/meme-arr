@@ -311,6 +311,13 @@ cargo test --all
   is a `title` tag naming the movie or show/episode the clip came from (MP4 and WebM
   only), taken from your library's metadata, not from the file.
 
+## Not affiliated
+
+meme-arr is an independent open-source project. It is not affiliated with, endorsed by or
+sponsored by Plex Inc., the Jellyfin project, or the Servarr (\*arr) projects. Plex, Jellyfin,
+Sonarr, Radarr and the other names mentioned are trademarks of their respective owners and
+are used only to say what meme-arr works with.
+
 ## License
 
 [MIT](LICENSE). The Docker image also contains ffmpeg, gifsicle and fonts from Debian,

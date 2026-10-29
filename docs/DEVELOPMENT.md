@@ -151,33 +151,24 @@ Notes:
   there's no API for that: if `…wiki.git` says "not found", open the repo's
   **Wiki** tab and click **Create the first page** (any text), then clone.
 
-## Branch / PR workflow actually used in this repo
+## Branch / PR workflow
 
-This isn't enforced by tooling, but every merged PR in this repo's history
-follows it:
+Nothing here is enforced by tooling, but this is the workflow the project follows:
 
-1. One feature branch per logical change, off `main` (or occasionally
-   stacked on another unmerged feature branch — see the gotcha below).
+1. One branch per logical change, off `main`.
 2. Full local verification (the four commands above) before pushing.
-3. `gh pr create` with a real summary + a test plan checklist in the
-   description, including explicitly calling out manual/smoke testing done
-   beyond the automated suite.
-4. Review and merge happen on GitHub (not something tooling does
-   automatically).
-5. After a merge, sync local `main`, re-verify, and — for anything meant to
-   ship — cut a `vX.Y.0` tag.
+3. A pull request with a real summary and a test plan, including any manual or smoke
+   testing done beyond the automated suite, and what was *not* verified.
+4. CI (`.github/workflows/ci.yml`) must be green before merging.
+5. After a merge, sync local `main`, re-verify, and for anything meant to ship cut a
+   `vX.Y.Z` tag (the release workflow builds and publishes the image).
 
-**The one sharp edge**: if a PR's base is another *unmerged* feature branch
-(a "stacked" PR) rather than `main`, GitHub's merge button merges into
-*that* base, not `main` — even after the underlying branch's own PR has
-merged. This has bitten this repo's history more than once. The fix each
-time was the same: verify with
-`git merge-base --is-ancestor <branch> origin/main` before trusting a
-"Merged" label, and if it's not actually an ancestor of `main`, merge the
-branch holding everything directly into `main`. **Prefer not stacking PRs
-across a review/merge boundary at all** if you can avoid it — retarget to
-`main` the moment the base actually lands, or just don't stack to begin
-with when a quick turnaround is likely.
+**One sharp edge**: if a PR's base is another *unmerged* feature branch (a "stacked" PR)
+rather than `main`, GitHub's merge button merges into *that* base, not `main`, even after
+the underlying branch's own PR has merged. Check with
+`git merge-base --is-ancestor <branch> origin/main` before trusting a "Merged" label, and
+prefer not to stack PRs across a review/merge boundary at all: retarget to `main` the
+moment the base lands.
 
 ## Code style notes specific to this repo
 

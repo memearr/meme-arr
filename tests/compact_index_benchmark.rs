@@ -583,14 +583,14 @@ fn compact_index_vs_fts5_benchmark_real_data() {
     };
     assert!(!lines.is_empty(), "{path} is empty");
 
-    // Phrases picked directly from the real sample (verified present by eye
-    // when the file was pulled), plus one that almost certainly isn't —
+    // Everyday phrases that are likely, but not guaranteed, to occur in a real
+    // dialogue sample, plus one that almost certainly isn't —
     // correctness doesn't depend on these guesses being right either way,
     // since FTS5 is the oracle both sides are checked against.
     let queries = [
-        "five centimeters per second",
-        "cherry blossoms fall",
-        "tetsuo shima calm yourself",
+        "what are you doing here",
+        "i think we should go",
+        "wait for me outside",
         "stay with me for a little while",
         "this phrase almost certainly does not exist in this corpus",
     ];
