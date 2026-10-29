@@ -54,9 +54,12 @@ existing file, and Plex may then list the subtitle twice.
 
 ### Caption fonts
 
-The fonts that burned subtitles and meme text can use. The image ships DejaVu Sans, and any
-font you mount over `/app/fonts` (for example an `Impact.ttf`) is listed as *built in*.
-**Upload a font** adds a `.ttf` or `.otf` file (up to 16 MB each, 50 in all). Uploaded fonts live
+The fonts that burned subtitles and meme text can use. The image ships DejaVu Sans (the default)
+and these open-source fonts, listed as *built in*: Anton, Bebas Neue, Bangers, Comic Neue and
+Luckiest Guy (their licenses are in [THIRD-PARTY-NOTICES.md](https://github.com/memearr/meme-arr/blob/main/THIRD-PARTY-NOTICES.md)).
+**Upload a font** adds your own TrueType or OpenType file: `.ttf` or `.otf`, up to 16 MB each, 50
+in all. Web fonts (`.woff`, `.woff2`), font collections (`.ttc`) and old Type 1 fonts aren't supported;
+convert them to `.ttf` or `.otf` first. Uploaded fonts live
 in `/data/fonts`, so they survive upgrades, and they are **not** part of the settings backups: keep
 the folder (or the files) if you want them on a new machine. The font and text size are chosen
 per clip in the editor, not here.
@@ -112,8 +115,9 @@ requests and logins. **Health** lists problems with how to fix them; see
 ## Other options
 
 - **A different default font for captions.** Put an `Impact.ttf` in a folder, mount it over
-  `/app/fonts` (the commented line in the compose file), and it becomes the default. You can also
-  upload fonts in **Settings → Caption fonts** and choose one per clip.
+  `/app/fonts` (the commented line in the compose file), and it becomes the default. Note that a
+  mount *replaces* the built-in fonts; uploading in **Settings → Caption fonts** keeps them and lets you
+  choose one per clip.
 - **Run under a sub-path** (`https://home.example.com/meme-arr/`): set `URL_BASE=/meme-arr`
   and see [Deployment](DEPLOYMENT.md#behind-a-reverse-proxy).
 - **A different port**: change the left side of `8089:8080`. Leave the right side alone.

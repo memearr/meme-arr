@@ -1,3 +1,7 @@
 # Shell scripts run inside the Linux container; a CRLF checkout on Windows
 # would break the shebang (`/bin/sh^M: not found`).
 *.sh text eol=lf
+
+# Fonts are binary: never touch their line endings.
+*.ttf binary
+*.otf binary

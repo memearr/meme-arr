@@ -143,6 +143,11 @@ Pick it in the editor: with burned subtitles or meme text selected there is a **
 **Settings → Caption fonts**. The default is DejaVu Sans, or an `Impact.ttf` if you mounted one
 over `/app/fonts`.
 
+**My font file is refused.**
+Only TrueType and OpenType files (`.ttf`, `.otf`) are accepted, up to 16 MB, and the file name may
+contain only letters, digits, spaces and `. _ - ( )`. Web fonts (`.woff`, `.woff2`) and collections
+(`.ttc`) can be converted to `.ttf`/`.otf` with a font tool first. The message says which check failed.
+
 **I uploaded a font but the subtitles still look the same.**
 Burned subtitles look a font up by its *family name* inside the font file. A few unusual fonts
 (a name containing a comma or a quote, or a file that is really a collection) can't be matched, and

@@ -46,7 +46,8 @@ Browser UI ──> Rust API (axum) ──> Plex / Jellyfin API (library/metadata
   is the movie or show/episode it came from, as its `title` (MP4/WebM; you can
   untick *Name the source in the file's title*).
 - **Fonts and text size.** Pick a font and scale the text for burned subtitles and meme
-  text, per clip. Upload your own `.ttf` / `.otf` fonts in Settings.
+  text, per clip. Five open-source fonts (Anton, Bebas Neue, Bangers, Comic Neue, Luckiest Guy)
+  come with the app, and you can upload your own `.ttf` / `.otf` fonts in Settings.
 - **Subtitle sync correction.** If the indexed subtitle timing drifts from a
   particular video release, nudge it forward or backward (±100/500 ms) right in
   the editor — the correction applies to the preview and the final burned-in
@@ -294,6 +295,7 @@ are used only to say what meme-arr works with.
 
 ## License
 
-[MIT](LICENSE). The Docker image also contains ffmpeg, gifsicle and fonts from Debian,
-which keep their own licenses; meme-arr runs ffmpeg as a separate program and does not
-link to it.
+[MIT](LICENSE). The Docker image also contains ffmpeg, gifsicle and a font from Debian, and the
+repository bundles five open-source fonts; they keep their own licenses (see
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)). meme-arr runs ffmpeg as a separate program and
+does not link to it.

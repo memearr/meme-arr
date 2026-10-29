@@ -202,8 +202,9 @@ folder the server reports, and where the same folder is mounted for this app), t
 **caption fonts**, login options, the API key and trusted proxies.
 
 **Caption fonts** lists the fonts captions can use. The ones that come with the app are
-marked *built in*. **Upload a font** adds your own `.ttf` or `.otf` file (up to 16 MB, up to
-50 fonts); it then appears in the editor's **Font** picker. Delete an uploaded font with its
+marked *built in*: DejaVu Sans (the default) and the open-source Anton, Bebas Neue, Bangers,
+Comic Neue and Luckiest Guy. **Upload a font** adds your own TrueType or OpenType file (`.ttf` or
+`.otf`, up to 16 MB, up to 50 fonts); it then appears in the editor's **Font** picker. Delete an uploaded font with its
 **Delete** button. Only upload fonts you have the right to use.
 
 ![The Caption fonts panel in Settings](images/settings-fonts.png)

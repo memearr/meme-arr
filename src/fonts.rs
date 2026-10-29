@@ -466,4 +466,30 @@ mod tests {
             Err(FontError::Limit)
         );
     }
+
+    #[test]
+    fn every_bundled_font_is_usable_and_has_its_license_and_notice() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let dir = root.join("assets/fonts");
+        let notices = std::fs::read_to_string(root.join("THIRD-PARTY-NOTICES.md")).unwrap();
+        let licenses: Vec<_> = std::fs::read_dir(dir.join("licenses"))
+            .expect("assets/fonts/licenses")
+            .flatten()
+            .collect();
+        assert!(
+            !licenses.is_empty(),
+            "bundled fonts need their license files"
+        );
+        let fonts = Fonts::new(dir, root.join("target/none"));
+        let list = fonts.list();
+        assert!(list.len() >= 5, "the bundled fonts are missing: {list:?}");
+        for f in list {
+            assert!(f.builtin);
+            assert!(
+                notices.contains(&f.family),
+                "{} is not in THIRD-PARTY-NOTICES.md",
+                f.family
+            );
+        }
+    }
 }

@@ -36,9 +36,11 @@ COPY --from=web /web/dist /app/web
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod 0755 /app/docker-entrypoint.sh
 
-# Fonts: bundled DejaVu is used by default. Mount your own (e.g. Impact.ttf)
-# over /app/fonts to override — Impact.ttf is preferred when present.
-RUN mkdir -p /app/fonts /data /output \
+# Fonts: the open-source caption fonts from assets/fonts (with their licenses), plus
+# DejaVu Sans from Debian, which is the default. Users add more in Settings; mounting a
+# folder over /app/fonts replaces this set (an Impact.ttf in it becomes the default).
+COPY assets/fonts/ /app/fonts/
+RUN mkdir -p /data /output \
     && cp /usr/share/fonts/truetype/dejavu/DejaVuSans*.ttf /app/fonts/ 2>/dev/null || true
 
 # Build-time version (the release workflow passes the git tag here).
