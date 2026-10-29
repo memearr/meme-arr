@@ -620,7 +620,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence }) {
         </div>
       )}
       {captionMode === "source" && displayCues.length === 0 && (
-        <p className="hint">No subtitle lines in this window to edit.</p>
+        <p className="hint">No subtitle lines fall inside this window, so no subtitles will be burned in.</p>
       )}
 
       <div className="export-row">

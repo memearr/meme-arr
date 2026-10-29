@@ -32,10 +32,15 @@ pub(super) fn write_caption_files(
             // offset still applies uniformly below.
             let effective: &[Cue] = override_cues.as_ref().map(|v| v.as_slice()).unwrap_or(cues);
             let srt = subtitles::trimmed_srt(effective, start_ms, end_ms, offset_ms);
-            let path = tmp_dir.join(format!("{id}.srt"));
-            std::fs::write(&path, srt)?;
-            srt_path = Some(path.to_string_lossy().to_string());
-            files.srt = Some(path);
+            // No line falls inside the window: there is nothing to burn. An empty
+            // SRT would make ffmpeg's subtitles filter fail ("Unable to open ...
+            // Invalid data found"), so no file is written and no filter is built.
+            if !srt.trim().is_empty() {
+                let path = tmp_dir.join(format!("{id}.srt"));
+                std::fs::write(&path, srt)?;
+                srt_path = Some(path.to_string_lossy().to_string());
+                files.srt = Some(path);
+            }
         }
         Some(Caption::Meme { top, bottom, .. }) => {
             if let Some(t) = top.as_ref().filter(|s| !s.trim().is_empty()) {

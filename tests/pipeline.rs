@@ -784,3 +784,64 @@ async fn webm_sequence_with_audio_keeps_sound_across_a_silent_clip() {
         probe.duration_ms
     );
 }
+
+#[tokio::test]
+async fn burned_subtitles_over_a_window_with_no_lines_export_without_captions() {
+    if !ffmpeg_available() {
+        eprintln!("skipping pipeline test: ffmpeg not found on PATH");
+        return;
+    }
+    let tmp = tempfile::tempdir().unwrap();
+    let sample = make_sample(tmp.path(), "nolines-src", false);
+    // the only line is at 2.5 s; the clip is 0.2-1.2 s
+    let cues = vec![subtitles::Cue {
+        start_ms: 2500,
+        end_ms: 2900,
+        text: "outside the window".into(),
+    }];
+    for (format, name) in [(Format::Mp4, "a.mp4"), (Format::Gif, "b.gif")] {
+        let req = ExportRequest {
+            rating_key: "t".into(),
+            start_ms: 200,
+            end_ms: 1200,
+            format,
+            width: 240,
+            fps: 10,
+            quality: 70,
+            caption: Some(Caption::Source { cues: None }),
+            subtitle_offset_ms: 0,
+            audio: false,
+            filename: None,
+            credit_source: true,
+        };
+        let out = tmp.path().join(name);
+        export::run_export(
+            "ffmpeg",
+            "gifsicle",
+            tmp.path(),
+            &format!("job-{name}"),
+            &sample,
+            &req,
+            &cues,
+            "/nonexistent/font.ttf",
+            135,
+            None,
+            &out,
+        )
+        .await
+        .unwrap_or_else(|e| {
+            panic!("{name}: an empty caption window must not fail the export: {e:#}")
+        });
+        assert!(decodes_fully(&out), "{name} should be a valid file");
+    }
+    // and no caption temp files were left behind
+    let leftovers: Vec<_> = std::fs::read_dir(tmp.path())
+        .unwrap()
+        .flatten()
+        .filter(|e| {
+            e.path().extension().is_some_and(|x| x == "srt")
+                && e.file_name().to_string_lossy().starts_with("job-")
+        })
+        .collect();
+    assert!(leftovers.is_empty(), "{leftovers:?}");
+}

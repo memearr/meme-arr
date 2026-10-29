@@ -364,6 +364,14 @@ pub fn export_args(
     args
 }
 
+/// The files go away with the value, so a request that is cancelled part way (the
+/// browser drops a preview when the slider moves) doesn't leave them behind.
+impl Drop for CaptionFiles {
+    fn drop(&mut self) {
+        self.cleanup();
+    }
+}
+
 impl CaptionFiles {
     pub fn cleanup(&self) {
         if let Some(p) = &self.srt {

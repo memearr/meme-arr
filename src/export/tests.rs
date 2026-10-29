@@ -496,3 +496,74 @@ fn credit_source_defaults_to_on() {
     .unwrap();
     assert!(!r.credit_source);
 }
+
+#[test]
+fn a_window_with_no_subtitle_lines_burns_nothing_instead_of_an_empty_srt() {
+    let dir = tempfile::tempdir().unwrap();
+    let cues = vec![Cue {
+        start_ms: 5000,
+        end_ms: 6000,
+        text: "a line that is outside the clip".into(),
+    }];
+    let (core, files) = prepare_captions(
+        dir.path(),
+        "empty-window",
+        480,
+        15,
+        Some(&Caption::Source { cues: None }),
+        &cues,
+        0,
+        1000,
+        0,
+        "/app/fonts/DejaVuSans.ttf",
+        270,
+    )
+    .unwrap();
+    assert!(files.srt.is_none());
+    assert!(!core.contains("subtitles="), "{core}");
+    assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
+
+    // every line deleted in the editor is the same thing
+    let (core, files) = prepare_captions(
+        dir.path(),
+        "all-deleted",
+        480,
+        15,
+        Some(&Caption::Source { cues: Some(vec![]) }),
+        &cues,
+        0,
+        1000,
+        0,
+        "/app/fonts/DejaVuSans.ttf",
+        270,
+    )
+    .unwrap();
+    assert!(files.srt.is_none() && !core.contains("subtitles="));
+}
+
+#[test]
+fn caption_files_are_removed_when_dropped() {
+    let dir = tempfile::tempdir().unwrap();
+    let cues = vec![Cue {
+        start_ms: 0,
+        end_ms: 1000,
+        text: "hello".into(),
+    }];
+    let (_core, files) = prepare_captions(
+        dir.path(),
+        "dropped",
+        480,
+        15,
+        Some(&Caption::Source { cues: None }),
+        &cues,
+        0,
+        1000,
+        0,
+        "/app/fonts/DejaVuSans.ttf",
+        270,
+    )
+    .unwrap();
+    assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+    drop(files);
+    assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
+}
