@@ -380,6 +380,12 @@ button.small {
   flex: 1;
 }
 .view {
+  /* Use the screen: wide monitors get wide pages. Forms and the Wanted list read
+     badly stretched out, so they keep a narrower column (below). */
+  max-width: min(100%, 2200px);
+}
+.view.settings,
+.view.wanted {
   max-width: 1100px;
 }
 .view-head {
@@ -883,7 +889,7 @@ button.small {
 }
 @media (min-width: 900px) {
   .make-body {
-    grid-template-columns: 360px minmax(0, 1fr);
+    grid-template-columns: clamp(360px, 26vw, 600px) minmax(0, 1fr);
   }
 }
 .results {

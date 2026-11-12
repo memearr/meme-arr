@@ -5,6 +5,7 @@ import { TrimPanel, ValueField } from "./TrimPanel.jsx";
 import { AUDIO_FORMATS } from "./clipSettings.js";
 import { PADDING_MS } from "./clipSettings.js";
 import { api } from "./api.js";
+import { captionMetrics, containedRect } from "./captionPreview.js";
 import { effective, newCue, overlaps, retimeCue, sortCues, splitCue, textAt } from "./cueEdit.js";
 import {
   SCALE_DEFAULT,
@@ -63,6 +64,23 @@ function Nudge({ label, onNudge }) {
 }
 
 /** True when a key press is meant for a text box, not for the editor's shortcuts. */
+function loadVolume(store) {
+  try {
+    const v = JSON.parse(store?.getItem("memearr.volume") || "null");
+    if (v && typeof v.level === "number") return { level: Math.min(1, Math.max(0, v.level)), muted: !!v.muted };
+  } catch (_) {
+    /* fall through */
+  }
+  return { level: 0.7, muted: false };
+}
+function saveVolume(store, v) {
+  try {
+    store?.setItem("memearr.volume", JSON.stringify(v));
+  } catch (_) {
+    /* a convenience only */
+  }
+}
+
 function typingInto(el) {
   if (!el) return false;
   const tag = el.tagName;
@@ -125,11 +143,11 @@ export function Editor({ item, onJob, onClose, onAddToSequence }) {
   const videoRef = useRef(null);
   const proxyRef = useRef(null);
   proxyRef.current = proxy;
-  // The exact render with the captions burned in, on request.
-  const [burned, setBurned] = useState(null); // object URL
-  const [burnedLoading, setBurnedLoading] = useState(false);
-  const burnedUrlRef = useRef(null);
-  const burnedAbort = useRef(null);
+  // Sound, for the player only (not the export). The preview carries the clip's audio.
+  const [volume, setVolume] = useState(() => loadVolume(browserStorage()));
+  // Where the picture sits inside the player (it is letterboxed), so the caption
+  // overlay can be sized and placed like the export.
+  const [pictureBox, setPictureBox] = useState(null);
 
   // Media-wide context: total runtime + every subtitle line, so the user can
   // jump to a specific moment instead of only nudging by fixed increments.
@@ -310,47 +328,34 @@ export function Editor({ item, onJob, onClose, onAddToSequence }) {
     return () => clearTimeout(t);
   }, [proxy]);
 
-  // The exact render, captions burned in, for checking before an export.
-  async function renderBurned() {
-    burnedAbort.current?.abort();
-    const ctrl = new AbortController();
-    burnedAbort.current = ctrl;
-    setBurnedLoading(true);
-    setPreviewError(null);
-    try {
-      const url = await api.fetchBlobUrl(
-        api.previewUrl(item.rating_key, {
-          start,
-          end,
-          width,
-          fps,
-          captionMode,
-          top: captionMode === "meme" ? top : undefined,
-          bottom: captionMode === "meme" ? bottom : undefined,
-          offsetMs: captionMode === "source" ? subtitleOffsetMs : undefined,
-          editedCues: captionMode === "source" ? editedCues : undefined,
-          font: captionMode !== "none" ? font : undefined,
-          fontScale: captionMode !== "none" ? fontScale : undefined,
-        }),
-        ctrl.signal
-      );
-      if (burnedUrlRef.current) URL.revokeObjectURL(burnedUrlRef.current);
-      burnedUrlRef.current = url;
-      setBurned(url);
-    } catch (e) {
-      if (e.name !== "AbortError") setPreviewError(e.message);
-    } finally {
-      if (burnedAbort.current === ctrl) setBurnedLoading(false);
-    }
-  }
-
-  // Any change to the clip or its captions makes an exact render out of date.
+  // Volume and mute apply to whichever video element is on screen.
   useEffect(() => {
-    burnedAbort.current?.abort();
-    setBurnedLoading(false);
-    setBurned(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [start, end, captionMode, top, bottom, subtitleOffsetMs, editedCues, font, fontScale, width, fps]);
+    const v = videoRef.current;
+    if (v) {
+      v.volume = volume.level;
+      v.muted = volume.muted;
+    }
+    saveVolume(browserStorage(), volume);
+  }, [volume, proxy]);
+
+  // Track where the picture is drawn, as the window or the layout changes.
+  function measurePicture() {
+    const v = videoRef.current;
+    if (!v) return;
+    const r = containedRect(v.clientWidth, v.clientHeight, v.videoWidth, v.videoHeight);
+    setPictureBox((old) =>
+      old && r && Math.abs(old.width - r.width) < 0.5 && Math.abs(old.height - r.height) < 0.5 && Math.abs(old.left - r.left) < 0.5 && Math.abs(old.top - r.top) < 0.5
+        ? old
+        : r
+    );
+  }
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v || typeof ResizeObserver === "undefined") return undefined;
+    const ro = new ResizeObserver(measurePicture);
+    ro.observe(v);
+    return () => ro.disconnect();
+  }, [proxy]);
 
   // ---- opening: runtime, frame rate, subtitle lines, and a starting window --
 
@@ -417,9 +422,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence }) {
     () => () => {
       clearInterval(pollRef.current);
       previewAbort.current?.abort();
-      burnedAbort.current?.abort();
       if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
-      if (burnedUrlRef.current) URL.revokeObjectURL(burnedUrlRef.current);
     },
     []
   );
@@ -692,6 +695,33 @@ export function Editor({ item, onJob, onClose, onAddToSequence }) {
 
   const overlayText =
     captionMode === "source" ? textAt(displayCues, playhead, subtitleOffsetMs) : "";
+  // The caption overlay: laid over the picture itself (not the letterbox) and
+  // sized the way the export sizes it.
+  const metrics =
+    pictureBox && captionMode !== "none"
+      ? captionMetrics({
+          mode: captionMode,
+          width: pictureBox.width,
+          height: pictureBox.height,
+          scalePct: fontScale,
+          memeSize: 36,
+          outWidth: width,
+        })
+      : null;
+  const capStyle = metrics
+    ? {
+        layer: {
+          left: pictureBox.left,
+          top: pictureBox.top,
+          width: pictureBox.width,
+          height: pictureBox.height,
+          fontSize: metrics.fontSize,
+          "--cap-outline": `${metrics.outline}px`,
+        },
+        bottom: { bottom: metrics.margin },
+        top: { top: metrics.margin },
+      }
+    : null;
   const timelineCues =
     captionMode === "source"
       ? [
@@ -746,25 +776,14 @@ export function Editor({ item, onJob, onClose, onAddToSequence }) {
                   <p className="error">{previewError}</p>
                 </div>
               )}
-              {!previewError && burned && (
-                <video
-                  key={burned}
-                  src={burned}
-                  controls
-                  autoPlay
-                  loop
-                  muted
-                  onError={() => setPreviewError("The exact render couldn't be played in this browser.")}
-                />
-              )}
-              {!previewError && !burned && proxy && (
+              {!previewError && proxy && (
                 <div className="player-stage">
                   <video
                     key={proxy.src}
                     ref={videoRef}
                     src={proxy.src}
-                    muted
                     playsInline
+                    onLoadedMetadata={measurePicture}
                     onLoadedData={proxyLoaded}
                     onPlay={() => setPlaying(true)}
                     onPause={() => setPlaying(false)}
@@ -782,21 +801,35 @@ export function Editor({ item, onJob, onClose, onAddToSequence }) {
                       )
                     }
                   />
-                  {captionMode === "source" && overlayText && (
-                    <div className="cap-overlay cap-bottom">{overlayText}</div>
+                  {capStyle && (
+                    <div className="cap-layer" style={capStyle.layer}>
+                      {captionMode === "source" && overlayText && (
+                        <div className="cap-overlay cap-bottom" style={capStyle.bottom}>
+                          {overlayText}
+                        </div>
+                      )}
+                      {captionMode === "meme" && top && (
+                        <div className="cap-overlay cap-top" style={capStyle.top}>
+                          {top}
+                        </div>
+                      )}
+                      {captionMode === "meme" && bottom && (
+                        <div className="cap-overlay cap-bottom" style={capStyle.bottom}>
+                          {bottom}
+                        </div>
+                      )}
+                    </div>
                   )}
-                  {captionMode === "meme" && top && <div className="cap-overlay cap-top">{top}</div>}
-                  {captionMode === "meme" && bottom && <div className="cap-overlay cap-bottom">{bottom}</div>}
                   <span className="player-chip mono">
                     {fmtTime(playhead)}
                     {srcFps ? ` · f${Math.round((playhead * srcFps.num) / (1000 * srcFps.den))}` : ""}
                   </span>
                 </div>
               )}
-              {!previewError && !burned && !proxy && (
+              {!previewError && !proxy && (
                 <div className="placeholder">{proxyLoading ? "Preparing the preview…" : "Preview will appear here"}</div>
               )}
-              {previewStalled && !previewError && !burned && (
+              {previewStalled && !previewError && (
                 <p className="hint preview-stalled" role="status">
                   The preview hasn't started. Move the clip a little to render it again; if it keeps happening,
                   the server log (System → Logs) says why.
@@ -817,7 +850,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence }) {
                 onClick={togglePlay}
                 aria-label={playing ? "Pause" : "Play the clip"}
                 title="Play / pause (Space)"
-                disabled={!proxy || !!burned}
+                disabled={!proxy}
               >
                 {playing ? "⏸" : "▶"}
               </button>
@@ -837,28 +870,35 @@ export function Editor({ item, onJob, onClose, onAddToSequence }) {
                   ))}
                 </select>
               </label>
+              <div className="tp-volume">
+                <button
+                  type="button"
+                  className="tp"
+                  onClick={() => setVolume((v) => ({ ...v, muted: !v.muted }))}
+                  aria-label={volume.muted || volume.level === 0 ? "Turn sound on" : "Mute"}
+                  aria-pressed={volume.muted}
+                  title={volume.muted ? "Sound is off (click to turn on)" : "Sound is on (click to mute)"}
+                >
+                  {volume.muted || volume.level === 0 ? "🔇" : volume.level < 0.4 ? "🔈" : "🔊"}
+                </button>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={volume.muted ? 0 : volume.level}
+                  aria-label="Volume"
+                  onChange={(e) => {
+                    const level = Number(e.target.value);
+                    setVolume({ level, muted: level === 0 });
+                  }}
+                />
+              </div>
               <span className="tp-spacer" />
               <span className={"player-status" + (proxyLoading ? " busy" : "")} role="status">
-                {proxyLoading ? "Updating preview…" : burned ? "Exact render" : "Preview in sync"}
+                {proxyLoading ? "Updating preview…" : "Preview in sync"}
               </span>
             </div>
-
-            {captionMode !== "none" && (
-              <div className="burn-check">
-                {burned ? (
-                  <button type="button" className="secondary" onClick={() => setBurned(null)}>
-                    ← Back to editing
-                  </button>
-                ) : (
-                  <button type="button" className="secondary" onClick={renderBurned} disabled={burnedLoading || tooLong}>
-                    {burnedLoading ? "Rendering…" : "Check with burned-in captions"}
-                  </button>
-                )}
-                <span className="hint tiny">
-                  The editing preview draws captions approximately; this renders exactly what will be exported.
-                </span>
-              </div>
-            )}
           </div>
         </div>
 
@@ -1031,7 +1071,10 @@ export function Editor({ item, onJob, onClose, onAddToSequence }) {
                       reset size
                     </button>
                   )}
-                  <p className="hint tiny">Add fonts in Settings. Use “Check with burned-in captions” to see a change.</p>
+                  <p className="hint tiny">
+                    Add fonts in Settings. The player shows the size and position the export will use; the
+                    typeface itself is only matched in the exported file.
+                  </p>
                 </div>
               )}
               {captionMode === "meme" && (
