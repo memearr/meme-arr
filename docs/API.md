@@ -230,6 +230,30 @@ Indexed cues overlapping a window. `404` if the media isn't indexed.
 { "cues": [{ "start_ms": 12000, "end_ms": 14000, "text": "..." }] }
 ```
 
+### `GET /api/media/:rating_key/video-info`
+The source video's frame rate, size and runtime, so the editor can count in
+frames. The rate is a fraction (`24000/1001` for "23.976") so frame numbers
+don't drift over a long film. `variable` is true when the file's frames aren't
+evenly spaced (frame numbers are then approximate). `404` if the media isn't
+indexed, `400` if its file isn't on a mounted volume. Probed once per file per
+run.
+```json
+{ "fps_num": 24000, "fps_den": 1001, "fps": 23.976, "width": 1920,
+  "height": 1080, "variable": false, "duration_ms": 2760000 }
+```
+
+### `GET /api/frame/:rating_key?t=<ms>&width=<px>`
+One picture from the source file at `t` (milliseconds), as `image/jpeg`,
+`width` px wide (default 320, kept between 80 and 1280). `400` for a negative
+`t` or one past the end of the media. At most four frame/filmstrip renders run
+at once; others wait.
+
+### `GET /api/filmstrip/:rating_key?start=<ms>&end=<ms>&count=<n>&height=<px>`
+`count` frames (default 12, kept between 2 and 40) evenly spread over
+`[start, end)`, side by side in one `image/jpeg`, each `height` px tall (default
+60, kept between 24 and 160). The span may be at most 120 seconds (`400`
+beyond that).
+
 ### `GET /api/preview/:rating_key?start=&end=&width=&fps=&caption_mode=&top=&bottom=&font_size=&font=&font_scale=&offset_ms=&cues_json=`
 Returns `video/mp4` bytes — a short, fast-seeked, browser-safe render of
 just that window, with the same caption treatment the real export would

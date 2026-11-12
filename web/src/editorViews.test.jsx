@@ -1,0 +1,128 @@
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it } from "vitest";
+import { FrameCheck } from "./FrameCheck.jsx";
+import { Timeline, tickStep } from "./Timeline.jsx";
+import { TrimPanel } from "./TrimPanel.jsx";
+
+const NTSC = { num: 24000, den: 1001 };
+const noop = () => {};
+
+describe("TrimPanel", () => {
+  const props = {
+    start: 2420,
+    end: 7100,
+    duration: 36_000,
+    fps: NTSC,
+    playhead: 3000,
+    lockLength: false,
+    onLock: noop,
+    snap: "frame",
+    onSnap: noop,
+    onTrim: noop,
+  };
+
+  it("shows the points as times and frame numbers, and the length in both", () => {
+    const html = renderToStaticMarkup(<TrimPanel {...props} />);
+    expect(html).toContain('value="0:02.420"'); // In time
+    expect(html).toContain('value="58"'); // In frame
+    expect(html).toContain('value="0:07.100"'); // Out time
+    expect(html).toContain('value="170"'); // Out frame
+    expect(html).toContain("4.680 s");
+    expect(html).toContain("112 frames");
+    expect(html).toContain("23.976 fps");
+  });
+
+  it("offers the nudges and the playhead shortcut for each point", () => {
+    const html = renderToStaticMarkup(<TrimPanel {...props} />);
+    for (const label of ["−1s", "−10f", "−1f", "+1f", "+10f", "+1s"]) {
+      expect(html.split(label).length - 1).toBe(2); // once for In, once for Out
+    }
+    expect(html.split("Set to playhead").length - 1).toBe(2);
+  });
+
+  it("falls back to milliseconds and disables frame boxes without a frame rate", () => {
+    const html = renderToStaticMarkup(<TrimPanel {...props} fps={null} />);
+    expect(html).toContain("disabled");
+    expect(html).not.toContain("frames</div>");
+    expect(html).not.toContain("source video (");
+  });
+
+  it("flags a clip over the 60 second limit", () => {
+    const html = renderToStaticMarkup(<TrimPanel {...props} end={70_000} />);
+    expect(html).toContain("trim-length-value error");
+  });
+});
+
+describe("Timeline", () => {
+  const cues = [
+    { start_ms: 3000, end_ms: 4600, text: "Zero gravity, full flavor.", index: 0 },
+    { start_ms: 9000, end_ms: 9500, text: "Out of view", index: null },
+  ];
+  const props = {
+    ratingKey: "k1",
+    view: { from: 0, to: 12_000 },
+    start: 2400,
+    end: 7100,
+    playhead: 3000,
+    fps: NTSC,
+    snap: "frame",
+    cues,
+    onTrim: noop,
+    onCueMove: noop,
+    onSeek: noop,
+    onZoom: noop,
+    onFit: noop,
+  };
+
+  it("labels both handles and flags the points with times and frames", () => {
+    const html = renderToStaticMarkup(<Timeline {...props} />);
+    expect(html).toContain('aria-label="In point 0:02.400"');
+    expect(html).toContain('aria-label="Out point 0:07.100"');
+    expect(html).toContain("IN 0:02.400 · f58");
+    expect(html).toContain("OUT 0:07.100 · f170");
+  });
+
+  it("places the handles and playhead by percentage of the view", () => {
+    const html = renderToStaticMarkup(<Timeline {...props} />);
+    expect(html).toContain("left:20%"); // In: 2.4 of 12 s
+    expect(html).toContain("left:25%"); // playhead: 3 of 12 s
+  });
+
+  it("draws the subtitle lines, the burned ones marked", () => {
+    const html = renderToStaticMarkup(<Timeline {...props} />);
+    expect(html).toContain("Zero gravity, full flavor.");
+    expect(html).toContain("tl-cue inside editable");
+  });
+
+  it("has zoom and fit controls", () => {
+    const html = renderToStaticMarkup(<Timeline {...props} />);
+    expect(html).toContain('aria-label="Zoom in"');
+    expect(html).toContain('aria-label="Zoom out"');
+    expect(html).toContain("Fit clip");
+  });
+});
+
+describe("tickStep", () => {
+  it("keeps labels roughly 80px apart", () => {
+    expect(tickStep(12_000, 800)).toBe(2000); // 15 ms/px * 80 = 1.2 s -> next step up, 2 s
+    expect(tickStep(1000, 800)).toBe(100);
+    expect(tickStep(120_000, 800)).toBe(15_000);
+    expect(tickStep(10_000_000, 800)).toBe(300_000); // never off the end of the table
+  });
+});
+
+describe("FrameCheck", () => {
+  it("shows the frames either side of both cuts, with their numbers", () => {
+    const html = renderToStaticMarkup(<FrameCheck ratingKey="k1" start={2420} end={7100} fps={NTSC} />);
+    for (const label of ["Last cut", "First kept", "Last kept", "First cut"]) expect(html).toContain(label);
+    expect(html).toContain("f57");
+    expect(html).toContain("f58");
+    expect(html).toContain("f169");
+    expect(html).toContain("f170");
+    expect(html).toContain("/api/frame/k1?t=");
+  });
+
+  it("draws nothing until the frame rate is known", () => {
+    expect(renderToStaticMarkup(<FrameCheck ratingKey="k1" start={0} end={1000} fps={null} />)).toBe("");
+  });
+});

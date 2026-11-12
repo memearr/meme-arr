@@ -959,3 +959,35 @@ async fn a_chosen_font_and_size_are_used_for_both_kinds_of_caption() {
         "captions should change the picture: {sizes:?} vs {plain_size}"
     );
 }
+
+#[tokio::test]
+async fn video_info_frames_and_filmstrips_come_from_the_real_file() {
+    if !ffmpeg_available() {
+        eprintln!("skipping pipeline test: ffmpeg not found on PATH");
+        return;
+    }
+    let tmp = tempfile::tempdir().unwrap();
+    let sample = make_sample(tmp.path(), "stills", false); // 320x240 at 10 fps, 3 s
+
+    let info = ffmpeg::probe_video("ffprobe", &sample)
+        .await
+        .expect("probe video");
+    assert_eq!((info.fps_num, info.fps_den), (10, 1));
+    assert_eq!((info.width, info.height), (320, 240));
+    assert!(!info.variable);
+
+    // one frame, scaled: a JPEG (starts with the SOI marker)
+    let args = ffmpeg::frame_args(&sample.to_string_lossy(), 1500, 160);
+    let jpg = ffmpeg::run_capture("ffmpeg", &args).await.expect("frame");
+    assert_eq!(&jpg[..2], &[0xFF, 0xD8]);
+
+    // a strip is one image wider than a single frame
+    let args = ffmpeg::filmstrip_args(&sample.to_string_lossy(), 0, 3000, 6, 60);
+    let strip = ffmpeg::run_capture("ffmpeg", &args).await.expect("strip");
+    assert_eq!(&strip[..2], &[0xFF, 0xD8]);
+    assert!(strip.len() > jpg.len() / 2);
+
+    // past the end of the file there is no frame, and that is an error, not an empty image
+    let args = ffmpeg::frame_args(&sample.to_string_lossy(), 60_000, 160);
+    assert!(ffmpeg::run_capture("ffmpeg", &args).await.is_err());
+}

@@ -121,13 +121,14 @@ re-scan.
 ## The editor and exports
 
 **The preview shows a player but pressing play does nothing.**
-Press **Reload preview**. If that doesn't help, **System → Tasks → Clear preview cache → Run
+Move the In or Out point a little so the editor renders the preview again. If that doesn't help, **System → Tasks → Clear preview cache → Run
 now**, then look in **System → Logs** for `preview render for … failed`: the message includes
 ffmpeg's own error. The details are in [Operations](OPERATIONS.md#the-editor-preview-doesnt-play).
 
 **The preview is slow to appear.**
-It is rendered on demand with ffmpeg, at the size and frame rate you chose. Big, high-frame-rate
-clips from a network share take longer. Choose a smaller size or lower fps while you trim.
+It is rendered on demand with ffmpeg, covering a few seconds either side of the clip so that
+trimming inside that is instant. Big, high-frame-rate clips from a network share take longer to
+prepare; the editing preview is always small (at most 480 px wide).
 
 **My MP4/WebM export has no sound.**
 Tick **Include audio**. GIF and WebP can't carry audio. A clip whose source file has no audio

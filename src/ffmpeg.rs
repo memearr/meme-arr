@@ -341,9 +341,254 @@ pub async fn gifsicle_optimize(gifsicle_bin: &str, path: &Path, quality: u32) ->
     Ok(())
 }
 
+// ---- video info, single frames and filmstrips ----------------------------
+
+/// What the editor needs to know about a file's picture to work in frames.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct VideoInfo {
+    /// Frame rate as a fraction (24000/1001 for "23.976"), so frame <-> time
+    /// conversions don't accumulate a rounding error.
+    pub fps_num: u32,
+    pub fps_den: u32,
+    pub fps: f64,
+    pub width: u32,
+    pub height: u32,
+    /// The stream's average and nominal rates disagree: frames are not evenly
+    /// spaced, so a frame number is only approximate.
+    pub variable: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct VideoProbeOutput {
+    #[serde(default)]
+    streams: Vec<VideoProbeStream>,
+}
+
+#[derive(Debug, Deserialize)]
+struct VideoProbeStream {
+    avg_frame_rate: Option<String>,
+    r_frame_rate: Option<String>,
+    width: Option<u32>,
+    height: Option<u32>,
+}
+
+/// `"24000/1001"` or `"25"` -> `(24000, 1001)`; `None` for `"0/0"`, zero or junk.
+fn parse_rate(s: &str) -> Option<(u32, u32)> {
+    let (n, d) = match s.split_once('/') {
+        Some((n, d)) => (n.trim().parse::<u32>().ok()?, d.trim().parse::<u32>().ok()?),
+        None => (s.trim().parse::<u32>().ok()?, 1),
+    };
+    if n == 0 || d == 0 {
+        return None;
+    }
+    Some((n, d))
+}
+
+fn rate_value((n, d): (u32, u32)) -> f64 {
+    n as f64 / d as f64
+}
+
+fn parse_video_info(parsed: VideoProbeOutput) -> Option<VideoInfo> {
+    let s = parsed.streams.into_iter().next()?;
+    let avg = s.avg_frame_rate.as_deref().and_then(parse_rate);
+    let nominal = s.r_frame_rate.as_deref().and_then(parse_rate);
+    let (fps_num, fps_den) = avg.or(nominal)?;
+    // Containers often report a doubled "nominal" rate (field rate) for
+    // evenly spaced video, so only a clearly different pair means VFR.
+    let variable = match (avg, nominal) {
+        (Some(a), Some(n)) => {
+            let (a, n) = (rate_value(a), rate_value(n));
+            (a - n).abs() / n > 0.02 && ((n / a) - 2.0).abs() > 0.02
+        }
+        _ => false,
+    };
+    Some(VideoInfo {
+        fps_num,
+        fps_den,
+        fps: fps_num as f64 / fps_den as f64,
+        width: s.width.unwrap_or(0),
+        height: s.height.unwrap_or(0),
+        variable,
+    })
+}
+
+pub fn video_probe_args(file: &str) -> Vec<String> {
+    vec![
+        "-v".into(),
+        "error".into(),
+        "-select_streams".into(),
+        "v:0".into(),
+        "-show_entries".into(),
+        "stream=avg_frame_rate,r_frame_rate,width,height".into(),
+        "-print_format".into(),
+        "json".into(),
+        file.into(),
+    ]
+}
+
+/// The first video stream's frame rate and size.
+pub async fn probe_video(ffprobe_bin: &str, file: &Path) -> Result<VideoInfo> {
+    let out = Command::new(ffprobe_bin)
+        .args(video_probe_args(&file.to_string_lossy()))
+        .kill_on_drop(true)
+        .output()
+        .await
+        .with_context(|| format!("failed to run {ffprobe_bin}"))?;
+    if !out.status.success() {
+        bail!(
+            "ffprobe failed for {} (exit {}): {}",
+            file.display(),
+            exit_code_display(&out.status),
+            stderr_or_fallback(&out.stderr),
+        );
+    }
+    let parsed: VideoProbeOutput = serde_json::from_slice(&out.stdout)
+        .with_context(|| format!("could not parse ffprobe output for {}", file.display()))?;
+    parse_video_info(parsed).with_context(|| format!("{} has no video stream", file.display()))
+}
+
+/// One frame at `t_ms`, scaled to `width`, as a JPEG on stdout. `-ss` before
+/// `-i` seeks fast and, because the frame is decoded rather than copied, lands
+/// on exactly the frame at (or just after) that time.
+pub fn frame_args(file: &str, t_ms: i64, width: u32) -> Vec<String> {
+    vec![
+        "-v".into(),
+        "error".into(),
+        "-ss".into(),
+        ms_to_secs(t_ms.max(0)),
+        "-i".into(),
+        file.into(),
+        "-frames:v".into(),
+        "1".into(),
+        "-vf".into(),
+        // yuvj420p: the full-range format a JPEG expects, whatever the source uses.
+        format!("scale={width}:-2:flags=bilinear,format=yuvj420p"),
+        "-q:v".into(),
+        "5".into(),
+        "-f".into(),
+        "mjpeg".into(),
+        "pipe:1".into(),
+    ]
+}
+
+/// `count` evenly spaced frames from `[start_ms, end_ms)` tiled into one
+/// horizontal JPEG strip, each `height` pixels tall, so a whole filmstrip is
+/// one request and one ffmpeg run.
+pub fn filmstrip_args(
+    file: &str,
+    start_ms: i64,
+    end_ms: i64,
+    count: u32,
+    height: u32,
+) -> Vec<String> {
+    let dur_s = ((end_ms - start_ms).max(1)) as f64 / 1000.0;
+    vec![
+        "-v".into(),
+        "error".into(),
+        "-ss".into(),
+        ms_to_secs(start_ms.max(0)),
+        "-t".into(),
+        ms_to_secs(end_ms - start_ms),
+        "-i".into(),
+        file.into(),
+        "-vf".into(),
+        format!("fps={count}/{dur_s:.3},scale=-2:{height}:flags=bilinear,tile={count}x1,format=yuvj420p"),
+        "-frames:v".into(),
+        "1".into(),
+        "-q:v".into(),
+        "6".into(),
+        "-f".into(),
+        "mjpeg".into(),
+        "pipe:1".into(),
+    ]
+}
+
+/// Run ffmpeg and return what it wrote to stdout (an image).
+pub async fn run_capture(ffmpeg_bin: &str, args: &[String]) -> Result<Vec<u8>> {
+    let out = Command::new(ffmpeg_bin)
+        .args(args)
+        .kill_on_drop(true)
+        .output()
+        .await
+        .with_context(|| format!("failed to run {ffmpeg_bin}"))?;
+    if !out.status.success() {
+        return Err(anyhow!(
+            "ffmpeg failed (exit {}): {}",
+            exit_code_display(&out.status),
+            stderr_or_fallback(&out.stderr),
+        ));
+    }
+    if out.stdout.is_empty() {
+        bail!("ffmpeg produced no image (is that time past the end of the file?)");
+    }
+    Ok(out.stdout)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn video_probe(json: &str) -> Option<VideoInfo> {
+        parse_video_info(serde_json::from_str(json).unwrap())
+    }
+
+    #[test]
+    fn parses_a_fractional_frame_rate() {
+        let v = video_probe(
+            r#"{"streams":[{"avg_frame_rate":"24000/1001","r_frame_rate":"24000/1001","width":1920,"height":1080}]}"#,
+        )
+        .unwrap();
+        assert_eq!((v.fps_num, v.fps_den), (24000, 1001));
+        assert!((v.fps - 23.976).abs() < 0.001);
+        assert_eq!((v.width, v.height), (1920, 1080));
+        assert!(!v.variable);
+    }
+
+    #[test]
+    fn falls_back_to_the_nominal_rate_when_the_average_is_unknown() {
+        let v =
+            video_probe(r#"{"streams":[{"avg_frame_rate":"0/0","r_frame_rate":"25/1"}]}"#).unwrap();
+        assert_eq!((v.fps_num, v.fps_den), (25, 1));
+    }
+
+    #[test]
+    fn a_doubled_nominal_rate_is_not_variable_frame_rate() {
+        let v = video_probe(r#"{"streams":[{"avg_frame_rate":"25/1","r_frame_rate":"50/1"}]}"#)
+            .unwrap();
+        assert!(!v.variable);
+        let v = video_probe(r#"{"streams":[{"avg_frame_rate":"20/1","r_frame_rate":"30/1"}]}"#)
+            .unwrap();
+        assert!(v.variable);
+    }
+
+    #[test]
+    fn no_usable_rate_or_stream_is_none() {
+        assert!(video_probe(r#"{"streams":[]}"#).is_none());
+        assert!(
+            video_probe(r#"{"streams":[{"avg_frame_rate":"0/0","r_frame_rate":"0/0"}]}"#).is_none()
+        );
+    }
+
+    #[test]
+    fn frame_args_seek_before_the_input_and_ask_for_one_jpeg() {
+        let a = frame_args("/m/x.mkv", 2419, 320);
+        let ss = a.iter().position(|x| x == "-ss").unwrap();
+        let i = a.iter().position(|x| x == "-i").unwrap();
+        assert!(ss < i);
+        assert_eq!(a[ss + 1], "2.419");
+        assert!(a.windows(2).any(|w| w == ["-frames:v", "1"]));
+        assert!(a.contains(&"scale=320:-2:flags=bilinear,format=yuvj420p".to_string()));
+        assert_eq!(a.last().unwrap(), "pipe:1");
+    }
+
+    #[test]
+    fn filmstrip_args_tile_the_requested_count_into_one_row() {
+        let a = filmstrip_args("/m/x.mkv", 1000, 7000, 12, 60);
+        let vf = &a[a.iter().position(|x| x == "-vf").unwrap() + 1];
+        assert!(vf.starts_with("fps=12/6.000,"));
+        assert!(vf.contains("scale=-2:60"));
+        assert!(vf.ends_with("tile=12x1,format=yuvj420p"));
+    }
 
     #[test]
     fn gifsicle_lossy_level_scales_opposite_to_quality() {

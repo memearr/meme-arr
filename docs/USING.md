@@ -91,22 +91,43 @@ A few things worth knowing:
 ## Make the clip
 
 Click a result. The editor opens with a preview of that moment, already trimmed to the
-line with a little padding. Nudge the in and out points, choose captions (none, the
-real subtitles, or your own top and bottom text), pick a format (WebP, MP4, WebM or
-GIF), size and quality, and export. Tick **Include audio** to keep the clip's sound (MP4
+line with a little padding. Trim it, choose captions (none, the real subtitles, or your
+own top and bottom text), pick a format (WebP, MP4, WebM or GIF), size and quality, and
+export. Tick **Include audio** to keep the clip's sound (MP4
 and WebM only; GIF and WebP can't carry audio). Finished files also land in your output folder.
 
 ![The editor: preview with the caption burned in, trim controls, caption and format choices, and the editable subtitle lines](images/editor.png)
 
 ![The caption choices with the font picker and the text size slider](images/editor-fonts.png)
 
+- **Trim without waiting.** The timeline shows a filmstrip of the part of the film around
+  the clip. Drag the **In** and **Out** handles (or focus one and use the arrow keys),
+  drag the highlighted band to slide the whole clip, or click the ruler to move the
+  playhead. Ctrl or Shift plus scroll zooms; **Fit clip** frames the clip again. Moving
+  the points inside the footage already prepared needs no new render, so the preview
+  stays in step as you drag; it only re-renders when you move beyond it.
+- **Exact times and frames.** Under the timeline, type an **In** or **Out** as a time
+  (`2.4`, `0:02.400`, `00:00:02.400`) or a frame number (`f58`); it takes effect as
+  soon as it reads. Nudge buttons step ±1 frame, ±10 frames or ±1 second, and **Set to
+  playhead** takes the current frame. **Lock length** moves In and Out together.
+  **Snap to** whole frames (the default), subtitle edges, or nothing. Frames are counted
+  in the source video, at its own frame rate. The **Cut check** shows the last frame
+  cut and the first frame kept at each end.
+- **Keys.** `I` and `O` set In and Out to the playhead, `,` and `.` step a frame (hold
+  Shift for ten), Space plays, and Ctrl+Z / Ctrl+Shift+Z undo and redo a trim.
+- **Frames and output fps.** Frame numbers refer to the source video. The export's
+  **FPS** slider re-samples the clip, so to keep every frame you picked, use
+  **match source** next to it (frame rates above 30 are capped at 30).
+- **Check the captions.** The editing preview draws subtitles approximately;
+  **Check with burned-in captions** renders exactly what an export will contain.
 - **Burn subtitles** puts the indexed line on the clip. Each line is editable: fix a
-  typo, shorten it, or drop it. **Subtitle sync** shifts the timing if this release
+  typo, shorten it, retime it (type a start and end, or drag its block on the timeline),
+  split it at the playhead, add a line, or drop it. **Subtitle sync** shifts the timing if this release
   of the video drifts from the subtitle file.
 - **Font and text size.** With burned subtitles or meme text selected, **Font** picks the
   typeface and **Text size** scales the text (50% to 300%; 100% is normal). Your choice is
   remembered for next time, and each clip in a sequence keeps its own. Add fonts under
-  [Settings](#settings). Reload the preview to see a change.
+  [Settings](#settings). Use **Check with burned-in captions** to see a change.
 - **Exports are clean.** Nothing from the original file is copied into a meme: not its
   release name or other tags, comments, chapters, creation dates, track names or
   subtitle tracks. The one thing a file may carry is the movie or show/episode it came
