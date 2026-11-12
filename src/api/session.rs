@@ -29,13 +29,18 @@ pub(super) fn request_is_https(headers: &HeaderMap) -> bool {
 
 /// The session cookie for a freshly created session.
 pub(super) fn session_cookie(token: String, secure: bool) -> Cookie<'static> {
-    Cookie::build((SESSION_COOKIE, token))
+    let mut cookie = Cookie::build((SESSION_COOKIE, token))
         .http_only(true)
-        .secure(secure)
+        .secure(true)
         .same_site(axum_extra::extract::cookie::SameSite::Lax)
         .path("/")
         .max_age(time::Duration::seconds(SESSION_TTL_SECS))
-        .build()
+        .build();
+    if !secure {
+        // Plain HTTP (a LAN install): a Secure cookie would never come back.
+        cookie.set_secure(false);
+    }
+    cookie
 }
 
 /// How long a session lasts from login. Fixed, not sliding (no refresh on

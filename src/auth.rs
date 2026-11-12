@@ -110,9 +110,13 @@ mod tests {
     /// The password behind `LEGACY_HASH`. It has to be that exact value (the
     /// hash was made from it), so it lives in a fixture file, not in the code.
     fn legacy_password() -> String {
-        include_str!("../tests/fixtures/legacy_password.txt")
-            .trim()
-            .to_string()
+        std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/legacy_password.txt"
+        ))
+        .expect("the legacy password fixture")
+        .trim()
+        .to_string()
     }
 
     #[test]

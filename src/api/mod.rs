@@ -324,8 +324,8 @@ fn default_font(fonts_dir: &std::path::Path) -> String {
         }
     }
     // Fall back to a common system path; drawtext will error clearly if absent.
-    fonts_dir
-        .join("DejaVuSans.ttf")
+    paths::confine(fonts_dir, &fonts_dir.join("DejaVuSans.ttf"))
+        .unwrap_or_else(|| std::path::PathBuf::from("/app/fonts/DejaVuSans.ttf"))
         .to_string_lossy()
         .to_string()
 }
