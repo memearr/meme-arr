@@ -737,7 +737,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence }) {
       </div>
 
       <div className="editor-grid">
-        <div className="editor-main">
+        <div className="editor-stage">
           <div className="player">
             <div className="preview">
               {previewError && (
@@ -860,7 +860,9 @@ export function Editor({ item, onJob, onClose, onAddToSequence }) {
               </div>
             )}
           </div>
+        </div>
 
+        <div className="editor-main">
           <Timeline
             ratingKey={item.rating_key}
             view={shownView}
