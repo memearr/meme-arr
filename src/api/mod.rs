@@ -317,15 +317,8 @@ fn content_type_for(filename: &str) -> &'static str {
 
 /// Pick a bundled font file for meme text / subtitle rendering.
 fn default_font(fonts_dir: &std::path::Path) -> String {
-    for candidate in ["Impact.ttf", "DejaVuSans-Bold.ttf", "DejaVuSans.ttf"] {
-        let p = fonts_dir.join(candidate);
-        if let Some(p) = paths::confine(fonts_dir, &p).filter(|p| p.is_file()) {
-            return p.to_string_lossy().to_string();
-        }
-    }
-    // Fall back to a common system path; drawtext will error clearly if absent.
-    paths::confine(fonts_dir, &fonts_dir.join("DejaVuSans.ttf"))
-        .unwrap_or_else(|| std::path::PathBuf::from("/app/fonts/DejaVuSans.ttf"))
+    crate::fonts::Fonts::new(fonts_dir.to_path_buf(), std::path::PathBuf::new())
+        .default_path()
         .to_string_lossy()
         .to_string()
 }

@@ -248,6 +248,19 @@ impl Fonts {
         all
     }
 
+    /// The built-in font used when a caption doesn't pick one: the first of
+    /// the bundled bold faces that is there (named, not searched for).
+    pub fn default_path(&self) -> PathBuf {
+        const CANDIDATES: [&str; 3] = ["Impact.ttf", "DejaVuSans-Bold.ttf", "DejaVuSans.ttf"];
+        CANDIDATES
+            .iter()
+            .filter_map(|name| safe_font_filename(name).ok())
+            .map(|name| self.app_dir.join(name))
+            .find(|p| p.is_file())
+            // Not found: drawtext reports the missing font clearly.
+            .unwrap_or_else(|| self.app_dir.join(CANDIDATES[2]))
+    }
+
     /// Where the font called `id` is on disk.
     pub fn path_of(&self, id: &str) -> Option<PathBuf> {
         let name = safe_font_filename(id).ok()?;
