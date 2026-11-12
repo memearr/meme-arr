@@ -31,10 +31,22 @@ jobs:
       # The pipeline tests run the real ffmpeg; they skip themselves silently
       # without it, so install it and then fail loudly if it is missing.
       # (gifsicle is optional: the export path skips GIF optimisation without it.)
-      - name: Install ffmpeg and gifsicle
+      #
+      # ffmpeg is pinned to the 9.0 series (BtbN static build, checksum-verified)
+      # rather than the runner's apt package: Ubuntu's ffmpeg 8.0.1 prints
+      # "Error parsing Opus packet header" when re-muxing our WebM sequence,
+      # which the WebM-sequence pipeline test treats as a failure.
+      - name: Install ffmpeg 9.0 and gifsicle
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg gifsicle
+          sudo apt-get install -y --no-install-recommends gifsicle xz-utils
+          base=https://github.com/BtbN/FFmpeg-Builds/releases/download/latest
+          f=ffmpeg-n9.0-latest-linux64-gpl-9.0.tar.xz
+          curl -fsSL --retry 5 -O "$base/$f" -O "$base/checksums.sha256"
+          grep " $f\$" checksums.sha256 | sha256sum -c -
+          mkdir -p "$HOME/ffmpeg"
+          tar -xJf "$f" -C "$HOME/ffmpeg" --strip-components=1
+          echo "$HOME/ffmpeg/bin" >> "$GITHUB_PATH"
       - name: Require ffmpeg
         run: ffmpeg -version | head -1 && ffprobe -version | head -1
       - name: Format
