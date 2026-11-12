@@ -21,8 +21,13 @@ jobs:
       - run: python3 -m unittest discover -s scripts -v
 
   backend:
-    runs-on: ubuntu-latest
-    # The pipeline tests run real ffmpeg; if one ever hangs, fail in minutes, not hours.
+    # Pinned to 24.04 on purpose: the pipeline tests run the distro's ffmpeg, and
+    # ubuntu-latest (26.04) now ships ffmpeg 8.0.1, which prints "Error parsing
+    # Opus packet header" when re-muxing our WebM sequence output. 24.04's 6.1 is
+    # what these tests were written against. (A BtbN static 9.0 build was tried
+    # and hung intermittently, so don't swap in a downloaded binary.)
+    runs-on: ubuntu-24.04
+    # If an ffmpeg-backed test ever hangs, fail in minutes, not hours.
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
