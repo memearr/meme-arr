@@ -21,7 +21,14 @@ jobs:
       - run: python3 -m unittest discover -s scripts -v
 
   backend:
-    runs-on: ubuntu-latest
+    # Pinned to 24.04 on purpose: the pipeline tests run the distro's ffmpeg, and
+    # ubuntu-latest (26.04) now ships ffmpeg 8.0.1, which prints "Error parsing
+    # Opus packet header" when re-muxing our WebM sequence output. 24.04's 6.1 is
+    # what these tests were written against. (A BtbN static 9.0 build was tried
+    # and hung intermittently, so don't swap in a downloaded binary.)
+    runs-on: ubuntu-24.04
+    # If an ffmpeg-backed test ever hangs, fail in minutes, not hours.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -31,22 +38,10 @@ jobs:
       # The pipeline tests run the real ffmpeg; they skip themselves silently
       # without it, so install it and then fail loudly if it is missing.
       # (gifsicle is optional: the export path skips GIF optimisation without it.)
-      #
-      # ffmpeg is pinned to the 9.0 series (BtbN static build, checksum-verified)
-      # rather than the runner's apt package: Ubuntu's ffmpeg 8.0.1 prints
-      # "Error parsing Opus packet header" when re-muxing our WebM sequence,
-      # which the WebM-sequence pipeline test treats as a failure.
-      - name: Install ffmpeg 9.0 and gifsicle
+      - name: Install ffmpeg and gifsicle
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends gifsicle xz-utils
-          base=https://github.com/BtbN/FFmpeg-Builds/releases/download/latest
-          f=ffmpeg-n9.0-latest-linux64-gpl-9.0.tar.xz
-          curl -fsSL --retry 5 -O "$base/$f" -O "$base/checksums.sha256"
-          grep " $f\$" checksums.sha256 | sha256sum -c -
-          mkdir -p "$HOME/ffmpeg"
-          tar -xJf "$f" -C "$HOME/ffmpeg" --strip-components=1
-          echo "$HOME/ffmpeg/bin" >> "$GITHUB_PATH"
+          sudo apt-get install -y --no-install-recommends ffmpeg gifsicle
       - name: Require ffmpeg
         run: ffmpeg -version | head -1 && ffprobe -version | head -1
       - name: Format
