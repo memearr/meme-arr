@@ -15,7 +15,7 @@
 }
 @media (min-width: 1100px) {
   .editor-grid {
-    grid-template-columns: minmax(0, 1fr) minmax(320px, 400px);
+    grid-template-columns: minmax(0, 1fr) clamp(320px, 24vw, 560px);
   }
   .editor-side .controls {
     grid-template-columns: 1fr;
@@ -35,9 +35,6 @@
 .editor-stage .player-stage video {
   max-height: min(72vh, 780px);
   width: 100%;
-}
-.editor-stage .cap-overlay {
-  font-size: clamp(16px, 2.6vw, 40px);
 }
 .editor-main,
 .editor-side {
@@ -70,6 +67,11 @@
 .player-stage video {
   display: block;
 }
+.cap-layer {
+  position: absolute;
+  pointer-events: none;
+  overflow: hidden;
+}
 .cap-overlay {
   position: absolute;
   left: 4%;
@@ -77,17 +79,23 @@
   text-align: center;
   color: #fff;
   font-weight: 700;
-  font-size: clamp(14px, 3.2vw, 28px);
   line-height: 1.2;
-  text-shadow: 0 2px 0 #000, 0 0 6px #000;
+  /* the export's outline (Outline=2), scaled with the picture */
+  text-shadow:
+    0 var(--cap-outline, 2px) 0 #000,
+    0 calc(var(--cap-outline, 2px) * -1) 0 #000,
+    var(--cap-outline, 2px) 0 0 #000,
+    calc(var(--cap-outline, 2px) * -1) 0 0 #000;
   white-space: pre-line;
   pointer-events: none;
 }
-.cap-bottom {
-  bottom: 8%;
+.tp-volume {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
-.cap-top {
-  top: 6%;
+.tp-volume input[type="range"] {
+  width: 90px;
 }
 .player-chip {
   position: absolute;

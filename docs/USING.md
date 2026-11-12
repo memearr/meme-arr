@@ -118,8 +118,11 @@ and WebM only; GIF and WebP can't carry audio). Finished files also land in your
 - **Frames and output fps.** Frame numbers refer to the source video. The export's
   **FPS** slider re-samples the clip, so to keep every frame you picked, use
   **match source** next to it (frame rates above 30 are capped at 30).
-- **Check the captions.** The editing preview draws subtitles approximately;
-  **Check with burned-in captions** renders exactly what an export will contain.
+- **Captions and sound in the player.** Subtitles and meme text are drawn over the video at
+  the size and position the export will use, and follow the **Text size** slider as you move
+  it (the typeface itself is applied in the exported file). The speaker button and volume
+  slider next to the transport controls turn the clip's sound on and off and set its level;
+  they only affect the player, and are remembered.
 - **Burn subtitles** puts the indexed line on the clip. Each line is editable: fix a
   typo, shorten it, retime it (type a start and end, or drag its block on the timeline),
   split it at the playhead, add a line, or drop it. **Subtitle sync** shifts the timing if this release
@@ -127,7 +130,7 @@ and WebM only; GIF and WebP can't carry audio). Finished files also land in your
 - **Font and text size.** With burned subtitles or meme text selected, **Font** picks the
   typeface and **Text size** scales the text (50% to 300%; 100% is normal). Your choice is
   remembered for next time, and each clip in a sequence keeps its own. Add fonts under
-  [Settings](#settings). Use **Check with burned-in captions** to see a change.
+  [Settings](#settings).
 - **Exports are clean.** Nothing from the original file is copied into a meme: not its
   release name or other tags, comments, chapters, creation dates, track names or
   subtitle tracks. The one thing a file may carry is the movie or show/episode it came
