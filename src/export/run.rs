@@ -316,11 +316,15 @@ pub(super) fn sequence_clip_args_with_audio(
             "0:a:0".into(),
         ]);
     } else {
-        // A second, infinite silent input (input 1) -- `-shortest` below
-        // caps it to the real video's duration.
+        // A second, silent input (input 1), bounded to the clip's own length
+        // with `-t`: an unbounded `anullsrc` leaves ending the encode entirely
+        // to `-shortest`, which hangs on some ffmpeg builds. `-shortest` stays
+        // as a guard for a clip that runs past the end of its source file.
         args.extend([
             "-f".into(),
             "lavfi".into(),
+            "-t".into(),
+            ms_to_secs(dur),
             "-i".into(),
             "anullsrc=channel_layout=stereo:sample_rate=48000".into(),
             "-vf".into(),

@@ -212,6 +212,14 @@ fn sequence_clip_audio_args_substitute_silence_when_absent() {
         .iter()
         .any(|a| a.starts_with("anullsrc=channel_layout=stereo")));
     assert!(args.contains(&"-shortest".to_string()));
+    // the silent input is bounded to the clip's length, not left infinite
+    let src = args
+        .iter()
+        .position(|a| a.starts_with("anullsrc="))
+        .expect("anullsrc input");
+    assert_eq!(args[src - 1], "-i");
+    assert_eq!(args[src - 3], "-t");
+    assert_eq!(args[src - 2], "3.000");
 }
 
 #[test]
