@@ -25,6 +25,20 @@
     top: 12px;
   }
 }
+/* The player spans the full width of the editor (both columns) and grows with
+   it; the height is capped to the window so the timeline stays in reach. */
+.editor-stage {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+.editor-stage .preview video,
+.editor-stage .player-stage video {
+  max-height: min(72vh, 780px);
+  width: 100%;
+}
+.editor-stage .cap-overlay {
+  font-size: clamp(16px, 2.6vw, 40px);
+}
 .editor-main,
 .editor-side {
   display: flex;
