@@ -26,6 +26,17 @@ function pct(ms, view) {
 }
 
 /**
+ * Where an In/Out flag sits. Normally hanging off its handle (In to the left of
+ * it, Out to the right); when the point is outside the view it stays at the
+ * edge, so the flag never leaves the timeline.
+ */
+export function flagPos(which, ms, view) {
+  const p = toPercent(ms, view.from, view.to);
+  if (which === "in") return p <= 0 ? { left: 0 } : { right: `${100 - Math.min(p, 100)}%` };
+  return p >= 100 ? { right: 0 } : { left: `${Math.max(p, 0)}%` };
+}
+
+/**
  * The editing timeline: a filmstrip of the part of the film in view, the clip's
  * In/Out handles, the playhead and the subtitle lines. Everything is dragged;
  * the handles also answer the arrow keys. Times are reported through
@@ -182,11 +193,11 @@ export function Timeline({
         }}
       >
         <div className="tl-flags">
-          <span className="tl-flag in" style={{ right: `${100 - toPercent(start, view.from, view.to)}%` }}>
+          <span className="tl-flag in" style={flagPos("in", start, view)}>
             IN {fmtTime(start)}
             {fps ? ` · f${msToFrame(start, fps)}` : ""}
           </span>
-          <span className="tl-flag out" style={{ left: pct(end, view) }}>
+          <span className="tl-flag out" style={flagPos("out", end, view)}>
             OUT {fmtTime(end)}
             {fps ? ` · f${msToFrame(end, fps)}` : ""}
           </span>
@@ -282,7 +293,9 @@ export function Timeline({
           })}
         </div>
 
-        <div className="tl-playhead" style={{ left: pct(playhead, view) }} aria-hidden="true" />
+        {playhead >= view.from && playhead <= view.to && (
+          <div className="tl-playhead" style={{ left: pct(playhead, view) }} aria-hidden="true" />
+        )}
       </div>
 
       <p className="hint tiny tl-help">
