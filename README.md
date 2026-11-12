@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/images/logo.png" alt="meme-arr logo" width="200"></p>
+
 # 🎬 meme-arr
 
 The meme member of the \*arr family. Turn any moment in your Plex or Jellyfin library into a
