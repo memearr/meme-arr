@@ -43,6 +43,33 @@ pub fn contained_file(dir: &Path, name: &str) -> Option<PathBuf> {
     (file.starts_with(&base) && file.is_file()).then_some(file)
 }
 
+/// `path` resolved (symlinks and `..` followed) and required to sit inside
+/// `base`; `None` otherwise. The last part of `path` need not exist yet, but the
+/// folder holding it must. Use this on a path before touching the disk with it.
+pub fn confine(base: &Path, path: &Path) -> Option<PathBuf> {
+    let base = base.canonicalize().ok()?;
+    let resolved = match path.canonicalize() {
+        Ok(p) => p,
+        // Not there yet: resolve the folder it will be created in.
+        Err(_) => path.parent()?.canonicalize().ok()?.join(path.file_name()?),
+    };
+    resolved.starts_with(&base).then_some(resolved)
+}
+
+/// Like `confine`, but the path may sit inside any one of `roots`.
+pub fn confine_any(roots: &[PathBuf], path: &Path) -> Option<PathBuf> {
+    roots.iter().find_map(|r| confine(r, path))
+}
+
+/// Folders from a comma- or semicolon-separated list (`BROWSE_ROOTS`).
+pub fn parse_roots(list: &str) -> Vec<PathBuf> {
+    list.split([',', ';'])
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from)
+        .collect()
+}
+
 /// Apply the first matching prefix rewrite to a server-reported path. If no rule
 /// matches, the original path is returned unchanged (it may still exist if the
 /// server and this container happen to share the same mount layout).
@@ -95,6 +122,37 @@ pub fn has_mapping_for(location: &str, rules: &[PathRewrite]) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn confine_keeps_paths_inside_the_base() {
+        let dir = std::env::temp_dir().join(format!("memearr-confine-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("in")).unwrap();
+        let base = dir.join("in");
+        assert!(confine(&base, &base).is_some());
+        assert!(
+            confine(&base, &base.join("new.mp4")).is_some(),
+            "a file not made yet"
+        );
+        assert!(confine(&base, &base.join("..")).is_none());
+        assert!(confine(&base, &base.join("..").join("in").join("x")).is_some());
+        assert!(confine(&base, &dir).is_none());
+        assert!(confine(&base, &dir.join("other.mp4")).is_none());
+        assert!(confine(&base, &base.join("no-such-folder").join("f")).is_none());
+        let roots = [dir.join("nowhere"), base.clone()];
+        assert!(confine_any(&roots, &base.join("a")).is_some());
+        assert!(confine_any(&roots, &dir.join("a")).is_none());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn roots_are_split_on_commas_and_semicolons() {
+        assert_eq!(
+            parse_roots("/media, /mnt;/data"),
+            ["/media", "/mnt", "/data"].map(PathBuf::from)
+        );
+        assert!(parse_roots(" , ").is_empty());
+    }
+
     #[test]
     fn contained_file_only_finds_plain_files_inside_the_folder() {
         let dir = std::env::temp_dir().join(format!("memearr-contained-{}", std::process::id()));

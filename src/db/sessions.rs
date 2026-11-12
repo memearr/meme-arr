@@ -192,6 +192,12 @@ pub fn prune_expired_oidc_flows(conn: &rusqlite::Connection, now: i64) -> Result
 mod tests {
     use super::*;
 
+    /// A throwaway value, different every run (no test carries a nonce or
+    /// verifier literal in its source).
+    fn random() -> String {
+        crate::auth::new_session_token()
+    }
+
     #[test]
     fn admin_password_hash_roundtrip() {
         let pool = mem_pool();
@@ -299,29 +305,32 @@ mod tests {
     fn oidc_flow_is_one_time_use() {
         let pool = mem_pool();
         let conn = pool.get().unwrap();
-        create_oidc_flow(&conn, "state1", "nonce1", "verifier1", 0, 1000).unwrap();
+        let (state, nonce, verifier) = (random(), random(), random());
+        create_oidc_flow(&conn, &state, &nonce, &verifier, 0, 1000).unwrap();
 
-        let found = take_oidc_flow(&conn, "state1", 500).unwrap();
-        assert_eq!(found, Some(("nonce1".to_string(), "verifier1".to_string())));
+        let found = take_oidc_flow(&conn, &state, 500).unwrap();
+        assert_eq!(found, Some((nonce, verifier)));
 
         // Second lookup of the same state finds nothing -- consumed above.
-        assert_eq!(take_oidc_flow(&conn, "state1", 500).unwrap(), None);
+        assert_eq!(take_oidc_flow(&conn, &state, 500).unwrap(), None);
     }
 
     #[test]
     fn oidc_flow_expired_is_treated_as_missing() {
         let pool = mem_pool();
         let conn = pool.get().unwrap();
-        create_oidc_flow(&conn, "state1", "nonce1", "verifier1", 0, 100).unwrap();
-        assert_eq!(take_oidc_flow(&conn, "state1", 500).unwrap(), None);
+        let state = random();
+        create_oidc_flow(&conn, &state, &random(), &random(), 0, 100).unwrap();
+        assert_eq!(take_oidc_flow(&conn, &state, 500).unwrap(), None);
     }
 
     #[test]
     fn prune_expired_oidc_flows_removes_only_expired() {
         let pool = mem_pool();
         let conn = pool.get().unwrap();
-        create_oidc_flow(&conn, "expired", "n", "v", 0, 100).unwrap();
-        create_oidc_flow(&conn, "still-good", "n", "v", 0, 9999).unwrap();
+        let (expired, still_good) = (random(), random());
+        create_oidc_flow(&conn, &expired, &random(), &random(), 0, 100).unwrap();
+        create_oidc_flow(&conn, &still_good, &random(), &random(), 0, 9999).unwrap();
 
         prune_expired_oidc_flows(&conn, 500).unwrap();
 
@@ -329,6 +338,6 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM oidc_flows", [], |r| r.get(0))
             .unwrap();
         assert_eq!(count, 1);
-        assert!(take_oidc_flow(&conn, "still-good", 600).unwrap().is_some());
+        assert!(take_oidc_flow(&conn, &still_good, 600).unwrap().is_some());
     }
 }

@@ -138,7 +138,9 @@ pub(super) async fn preview(
 
     // Cache previews by everything that affects the rendered frames: file,
     // window, size/fps, and the caption (mode/text/offset).
-    let tmp = st.config.tmp_dir();
+    let Some(tmp) = paths::confine(&st.config.data_dir, &st.config.tmp_dir()) else {
+        return Err(anyhow::anyhow!("the data folder isn't usable").into());
+    };
     std::fs::create_dir_all(&tmp)?;
     let mut h = DefaultHasher::new();
     (

@@ -100,6 +100,7 @@ vars on an already-configured deployment does nothing.
 | `OUTPUT_DIR` | `/output` | finished exports land here |
 | `WEB_DIR` | `/app/web` | built SPA static files |
 | `FONTS_DIR` | `/app/fonts` | caption fonts |
+| `BROWSE_ROOTS` | `/` | comma-separated folders the setup wizard's folder picker may browse; set e.g. `/media,/mnt` to keep it out of the rest of the container |
 | `INDEX_ON_START` | `true` | whether the **Library scan** task starts enabled when it's first created; after that its schedule lives in System → Tasks. A restart no longer rescans unconditionally — the scan runs on boot only if it's due (or has never run) |
 | `FFMPEG_BIN` / `FFPROBE_BIN` | `ffmpeg` / `ffprobe` | overridable for non-standard installs |
 | `GIFSICLE_BIN` | `gifsicle` | post-process lossy recompression pass on GIF exports; a missing/misconfigured binary just skips the optimization (logged, non-fatal) rather than failing the export |
