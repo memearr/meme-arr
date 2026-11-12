@@ -27,6 +27,22 @@ impl AccessMode {
     }
 }
 
+/// The regular file called `name` directly inside `dir`, or `None`.
+///
+/// `name` must be a single plain file name, and the resolved file (symlinks
+/// followed) must still be inside `dir`, so a link in the folder can't be used
+/// to read something elsewhere.
+pub fn contained_file(dir: &Path, name: &str) -> Option<PathBuf> {
+    let mut parts = Path::new(name).components();
+    match (parts.next(), parts.next()) {
+        (Some(std::path::Component::Normal(_)), None) => {}
+        _ => return None,
+    }
+    let base = dir.canonicalize().ok()?;
+    let file = base.join(name).canonicalize().ok()?;
+    (file.starts_with(&base) && file.is_file()).then_some(file)
+}
+
 /// Apply the first matching prefix rewrite to a server-reported path. If no rule
 /// matches, the original path is returned unchanged (it may still exist if the
 /// server and this container happen to share the same mount layout).
@@ -79,6 +95,26 @@ pub fn has_mapping_for(location: &str, rules: &[PathRewrite]) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn contained_file_only_finds_plain_files_inside_the_folder() {
+        let dir = std::env::temp_dir().join(format!("memearr-contained-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("sub")).unwrap();
+        std::fs::write(dir.join("a.mp4"), b"x").unwrap();
+        std::fs::write(dir.join("sub").join("b.mp4"), b"x").unwrap();
+        assert!(contained_file(&dir, "a.mp4").is_some());
+        assert!(contained_file(&dir, "missing.mp4").is_none());
+        assert!(
+            contained_file(&dir, "sub").is_none(),
+            "a folder is not a file"
+        );
+        assert!(contained_file(&dir, "sub/b.mp4").is_none());
+        assert!(contained_file(&dir, "../a.mp4").is_none());
+        assert!(contained_file(&dir, "/etc/passwd").is_none());
+        assert!(contained_file(&dir, "").is_none());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     use super::*;
 
     fn rules() -> Vec<PathRewrite> {

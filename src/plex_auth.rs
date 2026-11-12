@@ -84,8 +84,15 @@ struct CheckPinResponse {
 /// yet. `None` means not yet, denied, or expired — all indistinguishable
 /// from Plex's response, and all mean "not logged in."
 pub async fn check_pin(client_identifier: &str, pin_id: i64, code: &str) -> Result<Option<String>> {
+    // The PIN id is a number we were given by Plex (and looked up in our own
+    // database before getting here); it still goes in as one URL path segment.
+    let mut url =
+        reqwest::Url::parse("https://plex.tv/api/v2/pins").context("building the PIN URL")?;
+    url.path_segments_mut()
+        .map_err(|_| anyhow::anyhow!("building the PIN URL"))?
+        .push(&pin_id.to_string());
     let resp = reqwest::Client::new()
-        .get(format!("https://plex.tv/api/v2/pins/{pin_id}"))
+        .get(url)
         .header("accept", "application/json")
         .query(&[
             ("code", code),

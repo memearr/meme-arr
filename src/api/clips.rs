@@ -362,7 +362,7 @@ pub(super) async fn sequence_export_start(
     let fonts = st.config.fonts();
     let resolved = tokio::task::spawn_blocking(move || -> SequenceResolveResult {
         let conn = pool.get()?;
-        let mut out = Vec::with_capacity(clip_specs.len());
+        let mut out = Vec::new(); // bounded by validate_sequence above
         for (i, spec) in clip_specs.iter().enumerate() {
             let media = match db::get_media(&conn, &spec.rating_key)? {
                 Some(m) => m,
@@ -525,10 +525,10 @@ pub(super) async fn download(
     if filename.contains('/') || filename.contains('\\') || filename.contains("..") {
         return Ok(bad_request("invalid filename"));
     }
-    let path = st.config.output_dir.join(&filename);
-    if !path.is_file() {
+    // The file has to really live in the output folder (a symlink can't lead out of it).
+    let Some(path) = paths::contained_file(&st.config.output_dir, &filename) else {
         return Ok(not_found("file not found"));
-    }
+    };
     let ct = content_type_for(&filename);
     let mut resp = serve_file(&path, ct, &headers).await?;
     resp.headers_mut().insert(

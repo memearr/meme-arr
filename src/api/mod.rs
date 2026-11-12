@@ -339,6 +339,29 @@ mod tests {
     }
 
     #[test]
+    fn the_session_cookie_is_secure_only_behind_https() {
+        let mut h = HeaderMap::new();
+        assert!(!request_is_https(&h));
+        h.insert("x-forwarded-proto", "http".parse().unwrap());
+        assert!(!request_is_https(&h));
+        h.insert("x-forwarded-proto", "HTTPS".parse().unwrap());
+        assert!(request_is_https(&h));
+        h.insert("x-forwarded-proto", "https, http".parse().unwrap());
+        assert!(request_is_https(&h), "first hop is what the client used");
+
+        let mut f = HeaderMap::new();
+        f.insert(
+            header::FORWARDED,
+            "for=1.2.3.4;proto=https".parse().unwrap(),
+        );
+        assert!(request_is_https(&f));
+
+        assert_eq!(session_cookie("t".into(), true).secure(), Some(true));
+        assert_eq!(session_cookie("t".into(), false).secure(), Some(false));
+        assert_eq!(session_cookie("t".into(), true).http_only(), Some(true));
+    }
+
+    #[test]
     fn libraries_come_from_every_library_parameter() {
         assert_eq!(libs("q=x&library=TV&library=Anime"), ["TV", "Anime"]);
         assert_eq!(libs("library=TV"), ["TV"]);
