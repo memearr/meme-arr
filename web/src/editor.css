@@ -194,6 +194,8 @@
   user-select: none;
   touch-action: none;
   padding-top: 22px;
+  /* Nothing drawn for a time outside the view may leave the timeline. */
+  overflow: hidden;
 }
 .tl-flags {
   position: absolute;
@@ -220,6 +222,7 @@
 .tl-ruler {
   position: relative;
   height: 22px;
+  overflow: hidden;
   border-bottom: 1px solid var(--border);
   cursor: pointer;
 }
@@ -299,6 +302,7 @@
   position: relative;
   height: 44px;
   margin-top: 6px;
+  overflow: hidden;
 }
 .tl-cue {
   position: absolute;

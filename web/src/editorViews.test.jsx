@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { FrameCheck } from "./FrameCheck.jsx";
-import { Timeline, tickStep } from "./Timeline.jsx";
+import { Timeline, flagPos, tickStep } from "./Timeline.jsx";
 import { TrimPanel } from "./TrimPanel.jsx";
 
 const NTSC = { num: 24000, den: 1001 };
@@ -124,5 +124,19 @@ describe("FrameCheck", () => {
 
   it("draws nothing until the frame rate is known", () => {
     expect(renderToStaticMarkup(<FrameCheck ratingKey="k1" start={0} end={1000} fps={null} />)).toBe("");
+  });
+});
+
+describe("flagPos", () => {
+  const view = { from: 1000, to: 11_000 };
+  it("hangs the flags off the handles", () => {
+    expect(flagPos("in", 3000, view)).toEqual({ right: "80%" });
+    expect(flagPos("out", 6000, view)).toEqual({ left: "50%" });
+  });
+  it("keeps a flag at the edge when its point is out of view", () => {
+    expect(flagPos("in", 0, view)).toEqual({ left: 0 });
+    expect(flagPos("out", 20_000, view)).toEqual({ right: 0 });
+    expect(flagPos("in", 20_000, view)).toEqual({ right: "0%" });
+    expect(flagPos("out", 0, view)).toEqual({ left: "0%" });
   });
 });
