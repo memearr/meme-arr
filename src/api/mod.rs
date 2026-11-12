@@ -28,6 +28,7 @@ use tracing::{info, warn};
 mod authentik;
 mod clips;
 mod fonts;
+mod frames;
 mod library;
 mod plex_login;
 mod search;
@@ -38,6 +39,7 @@ mod system;
 use self::authentik::*;
 use self::clips::*;
 use self::fonts::*;
+use self::frames::*;
 use self::library::*;
 use self::plex_login::*;
 use self::search::*;
@@ -140,6 +142,9 @@ pub fn router(state: AppState) -> Router {
             post(subtitle_download),
         )
         .route("/api/preview/{rating_key}", get(preview))
+        .route("/api/media/{rating_key}/video-info", get(video_info))
+        .route("/api/frame/{rating_key}", get(frame))
+        .route("/api/filmstrip/{rating_key}", get(filmstrip))
         .route("/api/export", post(export_start))
         .route("/api/sequence/export", post(sequence_export_start))
         .route("/api/jobs/{id}", get(job_status))

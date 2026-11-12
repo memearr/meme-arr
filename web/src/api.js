@@ -40,7 +40,7 @@ async function fetchBlobUrl(url, signal) {
     throw new Error(msg);
   }
   const blob = await res.blob();
-  if (blob.size === 0) throw new Error("The server sent an empty preview. Try Reload preview.");
+  if (blob.size === 0) throw new Error("The server sent an empty preview. Move the In or Out point to try again.");
   return URL.createObjectURL(blob);
 }
 
@@ -82,6 +82,17 @@ export const api = {
   searchTitle: (q, { libraries = [], offset = 0, limit = 50 } = {}) =>
     json(`/api/search/title?q=${encodeURIComponent(q)}&offset=${offset}&limit=${limit}${libraryParams(libraries)}`),
   media: (ratingKey) => json(`/api/media/${encodeURIComponent(ratingKey)}`),
+  // Frame rate (as a fraction), size and runtime: what frame-exact trimming counts in.
+  videoInfo: (ratingKey) => json(`/api/media/${encodeURIComponent(ratingKey)}/video-info`),
+  // One picture at a moment, for <img src>. The server draws it from the source file.
+  frameUrl: (ratingKey, t, width = 320) =>
+    withBase(`/api/frame/${encodeURIComponent(ratingKey)}?t=${Math.round(t)}&width=${width}`),
+  // `count` pictures spread over [start, end) side by side in one image.
+  filmstripUrl: (ratingKey, start, end, count, height = 60) =>
+    withBase(
+      `/api/filmstrip/${encodeURIComponent(ratingKey)}` +
+        `?start=${Math.round(start)}&end=${Math.round(end)}&count=${count}&height=${height}`
+    ),
   mediaSubtitles: (ratingKey, start, end) =>
     json(`/api/media/${encodeURIComponent(ratingKey)}/subtitles?start=${start}&end=${end}`),
   fetchBlobUrl,

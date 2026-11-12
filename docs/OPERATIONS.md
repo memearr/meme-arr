@@ -117,7 +117,7 @@ file, and a cached file is checked before it is served. Preview audio is stereo,
 track can stop a browser starting playback. If a preview still doesn't start, the editor says so
 after a few seconds; then:
 
-1. Press **Reload preview**.
+1. Nudge the In or Out point (or **Fit clip**) so the editor renders the preview again.
 2. **System → Tasks → Clear preview cache → Run now** removes every cached preview.
 3. Look at **System → Logs** for `preview render for … failed` (the message includes
    ffmpeg's own error, for example a missing font or an unreadable file).
