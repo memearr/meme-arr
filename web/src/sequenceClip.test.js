@@ -5,7 +5,7 @@ const base = {
   id: "c1",
   rating_key: "k1",
   title: "Pilot",
-  line: "Say my name",
+  line: "Say it with pie",
   start_ms: 1000,
   end_ms: 4000,
   subtitle_offset_ms: 250,
@@ -13,7 +13,7 @@ const base = {
 
 describe("editorSeed", () => {
   it("restores burned subtitles with their edited lines, font, size and sync", () => {
-    const cues = [{ start_ms: 1100, end_ms: 2000, text: "Say my name" }];
+    const cues = [{ start_ms: 1100, end_ms: 2000, text: "Say it with pie" }];
     const s = editorSeed({
       ...base,
       caption: { mode: "source", cues, font: "Impact.ttf", font_scale: 120 },
@@ -38,7 +38,7 @@ describe("editorSeed", () => {
 
   it("falls back to no captions, the found line as bottom text, and no forced font", () => {
     const s = editorSeed({ ...base, caption: { mode: "none" } });
-    expect(s).toMatchObject({ captionMode: "none", top: "", bottom: "Say my name" });
+    expect(s).toMatchObject({ captionMode: "none", top: "", bottom: "Say it with pie" });
     expect(s.font).toBeUndefined();
     expect(s.fontScale).toBeUndefined();
     expect(editorSeed({ ...base }).captionMode).toBe("none");

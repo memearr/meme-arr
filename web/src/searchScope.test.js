@@ -62,7 +62,7 @@ describe("scope editing", () => {
 describe("typedOnly", () => {
   it("leaves out what the chips already show, keeping operators typed in the box", () => {
     const scope = [makeFilter("show", "Lantern Cove")];
-    expect(typedOnly(["show: Lantern Cove", "without “walter”"], scope)).toEqual(["without “walter”"]);
+    expect(typedOnly(["show: Lantern Cove", "without “dale”"], scope)).toEqual(["without “dale”"]);
     expect(typedOnly(["show: Lantern Cove"], scope)).toEqual([]);
     expect(typedOnly(["show: Lantern Cove", "show: Lantern Cove"], scope)).toEqual(["show: Lantern Cove"]);
     expect(typedOnly(["season: 2"], [])).toEqual(["season: 2"]);

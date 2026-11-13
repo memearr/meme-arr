@@ -13,8 +13,8 @@ fn row_count_tracks_largest_row_id_plus_one() {
 #[test]
 fn to_bytes_from_bytes_roundtrip_preserves_everything() {
     let mut idx = CompactIndex::with_block_size(4);
-    idx.index_line(0, "I am the one who knocks");
-    idx.index_line(1, "Say my name");
+    idx.index_line(0, "I am the one who whistles");
+    idx.index_line(1, "Say it with pie");
     idx.index_line(2, "I know who you are");
     idx.index_line(9, "A much later row");
 
@@ -24,8 +24,8 @@ fn to_bytes_from_bytes_roundtrip_preserves_everything() {
     assert_eq!(loaded, idx);
     // And not just structurally equal — actually usable for queries.
     assert_eq!(
-        loaded.query_candidate_blocks(&["name"]),
-        idx.query_candidate_blocks(&["name"])
+        loaded.query_candidate_blocks(&["pie"]),
+        idx.query_candidate_blocks(&["pie"])
     );
 }
 
@@ -83,8 +83,8 @@ fn rebuild_from_db_matches_a_manual_build() {
     conn.execute_batch("CREATE TABLE subtitle_cue (id INTEGER PRIMARY KEY, text TEXT NOT NULL)")
         .unwrap();
     let lines = [
-        "I am the one who knocks",
-        "Say my name",
+        "I am the one who whistles",
+        "Say it with pie",
         "I know who you are",
     ];
     for line in &lines {
@@ -108,8 +108,8 @@ fn rebuild_from_db_matches_a_manual_build() {
         manual.query_candidate_blocks(&["who"])
     );
     assert_eq!(
-        rebuilt.query_candidate_blocks(&["name"]),
-        manual.query_candidate_blocks(&["name"])
+        rebuilt.query_candidate_blocks(&["pie"]),
+        manual.query_candidate_blocks(&["pie"])
     );
 }
 
@@ -224,8 +224,8 @@ fn intersect_empty_list_is_empty() {
 #[test]
 fn tokenize_lowercases_and_splits_on_punctuation() {
     assert_eq!(
-        tokenize("I am the one who knocks."),
-        vec!["i", "am", "the", "one", "who", "knocks"]
+        tokenize("I am the one who whistles."),
+        vec!["i", "am", "the", "one", "who", "whistles"]
     );
     assert_eq!(
         tokenize("Don't!! stop--now"),
@@ -236,17 +236,17 @@ fn tokenize_lowercases_and_splits_on_punctuation() {
 #[test]
 fn index_and_query_roundtrip() {
     let mut idx = CompactIndex::new();
-    idx.index_line(0, "I am the one who knocks");
-    idx.index_line(1, "Say my name");
+    idx.index_line(0, "I am the one who whistles");
+    idx.index_line(1, "Say it with pie");
     idx.index_line(2, "I know who you are");
 
-    let hits = idx.query_candidate_blocks(&["knocks"]);
+    let hits = idx.query_candidate_blocks(&["whistles"]);
     assert_eq!(hits, vec![0]);
 
     let hits = idx.query_candidate_blocks(&["who"]);
     assert_eq!(hits, vec![0, 2]); // "who" appears in rows 0 and 2
 
-    let hits = idx.query_candidate_blocks(&["name"]);
+    let hits = idx.query_candidate_blocks(&["pie"]);
     assert_eq!(hits, vec![1]);
 
     let hits = idx.query_candidate_blocks(&["nonexistent"]);
@@ -256,14 +256,14 @@ fn index_and_query_roundtrip() {
 #[test]
 fn stopwords_are_indexed_but_excluded_from_the_hot_path() {
     let mut idx = CompactIndex::new();
-    idx.index_line(0, "the one who knocks");
+    idx.index_line(0, "the one who whistles");
     idx.index_line(1, "the quick fox");
     // "the" IS in the dictionary (needed for the all-stopword fallback)...
     assert!(idx.term_to_id.contains_key("the"));
     // ...but a mixed query only narrows on the real term, same result
     // whether or not the stopword is included.
-    assert_eq!(idx.query_candidate_blocks(&["the", "knocks"]), vec![0]);
-    assert_eq!(idx.query_candidate_blocks(&["knocks"]), vec![0]);
+    assert_eq!(idx.query_candidate_blocks(&["the", "whistles"]), vec![0]);
+    assert_eq!(idx.query_candidate_blocks(&["whistles"]), vec![0]);
 }
 
 #[test]
@@ -280,10 +280,10 @@ fn all_stopword_query_falls_back_instead_of_returning_nothing() {
 
 #[test]
 fn phrase_verification_rejects_out_of_order_matches() {
-    let terms = vec!["one".to_string(), "who".to_string(), "knocks".to_string()];
-    assert!(phrase_matches("I am the one who knocks", &terms));
-    assert!(!phrase_matches("who knocks is not the one", &terms));
-    assert!(!phrase_matches("the one who definitely knocks", &terms));
+    let terms = vec!["one".to_string(), "who".to_string(), "whistles".to_string()];
+    assert!(phrase_matches("I am the one who whistles", &terms));
+    assert!(!phrase_matches("who whistles is not the one", &terms));
+    assert!(!phrase_matches("the one who definitely whistles", &terms));
 }
 
 #[test]

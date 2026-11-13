@@ -283,7 +283,7 @@ mod tests {
             language_tag(Some("Portuguese (Brazil)")).as_deref(),
             Some("pt")
         );
-        assert_eq!(language_tag(Some("Klingon")), None);
+        assert_eq!(language_tag(Some("Zorbish")), None);
         assert_eq!(language_tag(None), None);
         // nothing path-like can slip into a file name
         assert_eq!(language_tag(Some("../../x")), None);
@@ -302,7 +302,7 @@ mod tests {
             counterpart_path(video, &forced).unwrap(),
             Path::new("/media/Show/S01E02.en.forced.srt")
         );
-        let unknown = stream("Klingon", "srt", true, false);
+        let unknown = stream("Zorbish", "srt", true, false);
         assert_eq!(
             counterpart_path(video, &unknown).unwrap(),
             Path::new("/media/Show/S01E02.srt")
@@ -341,13 +341,13 @@ mod tests {
 
     #[tokio::test]
     async fn srt_bytes_become_timed_cues() {
-        let srt = b"1\n00:00:01,000 --> 00:00:03,500\nI am the one who knocks\n\n2\n00:00:04,000 --> 00:00:05,000\nSay my name\n\n";
+        let srt = b"1\n00:00:01,000 --> 00:00:03,500\nI am the one who whistles\n\n2\n00:00:04,000 --> 00:00:05,000\nSay it with pie\n\n";
         let cues = cues_from_bytes("ffmpeg-not-needed", Some("srt"), srt)
             .await
             .unwrap();
         assert_eq!(cues.len(), 2);
         assert_eq!((cues[0].start_ms, cues[0].end_ms), (1000, 3500));
-        assert_eq!(cues[1].text, "Say my name");
+        assert_eq!(cues[1].text, "Say it with pie");
     }
 
     #[tokio::test]

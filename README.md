@@ -30,10 +30,10 @@ Browser UI ──> Rust API (axum) ──> Plex / Jellyfin API (library/metadata
 
 - **Dialogue search.** On first run the app walks your whole library, extracts
   each item's subtitle track with ffmpeg, and indexes every line in SQLite FTS5.
-  Searching "I am the one who knocks" returns the exact episode and timestamp.
+  Searching "I am the one who whistles" returns the exact episode and timestamp.
   Narrow it first with filter chips (a show, a season, only movies…) or like a web
   search (`show:"Orbital Diner"`, `-show:"Lantern Cove"`, `ep:docking`, `movie:`,
-  `-walter`…), then search the dialogue inside that subset; see [Searching](#searching).
+  `-dale`…), then search the dialogue inside that subset; see [Searching](#searching).
 - **Direct file access.** It mounts the same media shares Plex uses and reads the
   original files directly, so ffmpeg seeks are instant and lossless. A
   `PATH_MAP` rewrites the paths Plex reports to where they're mounted here.
@@ -110,7 +110,7 @@ is the text to search for (dialogue in Dialogue mode, titles in Title mode):
 | `movie:lighthouse` | movies whose title contains "lighthouse" |
 | `movie:` or `ep:` alone | only movies, or only episodes |
 | `library:Anime`, `season:2` | one library, one season number |
-| `-walter`, `-"say my name"` | leave out dialogue lines (or titles) containing a word or phrase |
+| `-dale`, `-"say it with pie"` | leave out dialogue lines (or titles) containing a word or phrase |
 | `-ep:docking` | put `-` in front of any operator to turn it around |
 
 Examples (from the [mock library](docs/DEVELOPMENT.md#mock-library-and-screenshots)
@@ -124,10 +124,10 @@ Diner · not episode: docking").
 
 Good to know:
 
-- Put text in quotes to search it literally: `"show:me the money"` and
+- Put text in quotes to search it literally: `"show:me the pie"` and
   `"-5 degrees"` are searched as words, not read as operators. Words with a colon
   that aren't operators (`note: hello`, `12:30`) are ordinary text.
-- With operators but **no dialogue text** (`show:"Breaking Bad"` alone), Dialogue
+- With operators but **no dialogue text** (`show:"The Lantern Cove"` alone), Dialogue
   mode lists the matching *items* instead of nothing; add some words to search the
   lines inside them.
 - Excluding a word in Dialogue mode drops only the *lines* containing it, and needs

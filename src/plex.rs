@@ -547,7 +547,7 @@ mod tests {
     fn flattens_episode_with_part() {
         let json = r#"{"MediaContainer":{"Metadata":[{
             "ratingKey":"555","type":"episode","title":"Pilot",
-            "grandparentTitle":"Breaking Bad","parentIndex":1,"index":1,"year":2008,
+            "grandparentTitle":"The Lantern Cove","parentIndex":1,"index":1,"year":2008,
             "duration":2820000,
             "Media":[{"Part":[{"file":"/volume1/media/BB/S01E01.mkv","key":"/library/parts/1/123/file.mkv"}]}]
         }]}}"#;
@@ -558,7 +558,7 @@ mod tests {
         );
         assert_eq!(item.rating_key, "555");
         assert_eq!(item.library, "TV Shows");
-        assert_eq!(item.show.as_deref(), Some("Breaking Bad"));
+        assert_eq!(item.show.as_deref(), Some("The Lantern Cove"));
         assert_eq!(item.season, Some(1));
         assert_eq!(item.episode, Some(1));
         assert_eq!(item.file.as_deref(), Some("/volume1/media/BB/S01E01.mkv"));

@@ -195,7 +195,7 @@ describe("wanted list text", () => {
       sub: "Pilot",
     });
     expect(wantedTitle({ show: "Show A", title: "Special" })).toEqual({ main: "Show A", sub: "Special" });
-    expect(wantedTitle({ title: "Dune", year: 2021 })).toEqual({ main: "Dune (2021)", sub: null });
+    expect(wantedTitle({ title: "Paper Moon Heist", year: 2021 })).toEqual({ main: "Paper Moon Heist (2021)", sub: null });
     expect(wantedTitle({ title: "Untitled" })).toEqual({ main: "Untitled", sub: null });
   });
 
@@ -284,7 +284,7 @@ describe("subtitle requests", () => {
       main: "Show A S01E02",
       sub: "Pilot",
     });
-    expect(requestItemTitle(req({ item_title: "Dune", year: 2021 }))).toEqual({ main: "Dune (2021)", sub: null });
+    expect(requestItemTitle(req({ item_title: "Paper Moon Heist", year: 2021 }))).toEqual({ main: "Paper Moon Heist (2021)", sub: null });
     // item not in the index any more: fall back to the key rather than "undefined"
     expect(requestItemTitle(req({ item_title: null })).main).toBe("42");
     expect(requestedSubtitleText(req({ provider: "OpenSubtitles", language: "en" }))).toBe("Rel.WEB · OpenSubtitles · en");

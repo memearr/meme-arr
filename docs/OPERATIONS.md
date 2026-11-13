@@ -37,7 +37,7 @@ volumes. Exact commands: [Getting started → Media on a network share](GETTING-
 
 ### Plex on Windows reports `D:\...` paths
 If the Plex server runs on Windows, every file path it reports looks like
-`D:\Movies\Dune.mkv`. Map the drive in Settings → path mappings (`D:\` or
+`D:\Movies\Paper Moon Heist.mkv`. Map the drive in Settings → path mappings (`D:\` or
 `D:` → `/media/d`); `paths.rs` normalizes `\` to `/` and matches the drive
 letter case-insensitively. Without that, Windows paths would match no mapping, every item
 would resolve as unreachable, and the UI would show titles indexed but "0 lines indexed". If you

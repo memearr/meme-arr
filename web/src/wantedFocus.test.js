@@ -6,7 +6,7 @@ const ep = { rating_key: "e1", title: "Tideline", show: "The Lantern Cove", libr
 describe("focus builders", () => {
   it("an item filters by its title, selects its library and names the row to open", () => {
     expect(focusForItem(ep)).toMatchObject({ query: "Tideline", libraries: ["TV Shows"], openKey: "e1" });
-    expect(focusForItem({ rating_key: "m1", title: "Dune" })).toMatchObject({ libraries: [], openKey: "m1" });
+    expect(focusForItem({ rating_key: "m1", title: "Paper Moon Heist" })).toMatchObject({ libraries: [], openKey: "m1" });
   });
   it("a show filters by name and opens the row only if one episode is missing", () => {
     expect(focusForShow("Orbital Diner")).toMatchObject({ query: "Orbital Diner", single: true, openKey: null });

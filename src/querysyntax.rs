@@ -1,11 +1,11 @@
 //! Search operators, in the style of a web search engine.
 //!
 //! ```text
-//! show:"Breaking Bad" ep:pilot        only that show's episodes titled like "pilot"
-//! -show:friends                       everything except that show
+//! show:"The Lantern Cove" ep:pilot        only that show's episodes titled like "pilot"
+//! -show:diner                       everything except that show
 //! movie:                              only movies         (ep: = only episodes)
 //! library:Anime season:2              a library, a season number
-//! "i am the one" -walter              dialogue (or title) text, minus a word
+//! "i am the one" -dale              dialogue (or title) text, minus a word
 //! ```
 //!
 //! Whatever is left after the operators are taken out is the text to search
@@ -205,51 +205,51 @@ mod tests {
 
     #[test]
     fn plain_text_is_just_text() {
-        let p = parse("I am the one who knocks");
-        assert_eq!(p.text, "I am the one who knocks");
+        let p = parse("I am the one who whistles");
+        assert_eq!(p.text, "I am the one who whistles");
         assert!(!p.has_operators());
     }
 
     #[test]
     fn show_ep_and_movie_operators_with_and_without_quotes() {
-        let p = parse(r#"show:"Breaking Bad" ep:pilot movie:dune"#);
+        let p = parse(r#"show:"The Lantern Cove" ep:pilot movie:heist"#);
         assert_eq!(p.text, "");
         assert_eq!(
             p.filters,
             [
-                f(Field::Show, "Breaking Bad", false),
+                f(Field::Show, "The Lantern Cove", false),
                 f(Field::Episode, "pilot", false),
-                f(Field::Movie, "dune", false),
+                f(Field::Movie, "heist", false),
             ]
         );
     }
 
     #[test]
     fn a_minus_excludes() {
-        let p = parse("knock -show:friends -ep:\"the pilot\" -movie:dune");
+        let p = parse("knock -show:diner -ep:\"the pilot\" -movie:heist");
         assert_eq!(p.text, "knock");
         assert_eq!(
             p.filters,
             [
-                f(Field::Show, "friends", true),
+                f(Field::Show, "diner", true),
                 f(Field::Episode, "the pilot", true),
-                f(Field::Movie, "dune", true),
+                f(Field::Movie, "heist", true),
             ]
         );
     }
 
     #[test]
     fn operators_can_surround_the_text_in_any_order() {
-        let p = parse(r#"show:office i am "the one" ep:pilot who knocks"#);
-        assert_eq!(p.text, "i am the one who knocks");
+        let p = parse(r#"show:lantern i am "the one" ep:pilot who whistles"#);
+        assert_eq!(p.text, "i am the one who whistles");
         assert_eq!(p.filters.len(), 2);
     }
 
     #[test]
     fn excluded_words_and_phrases() {
-        let p = parse(r#"knock -walter -"say my name""#);
+        let p = parse(r#"knock -dale -"say it with pie""#);
         assert_eq!(p.text, "knock");
-        assert_eq!(p.excluded, ["walter", "say my name"]);
+        assert_eq!(p.excluded, ["dale", "say it with pie"]);
         assert!(p.has_operators());
     }
 
@@ -305,15 +305,15 @@ mod tests {
 
     #[test]
     fn quotes_keep_operator_looking_text_as_text() {
-        let p = parse(r#""show:me the money" "-5 degrees""#);
-        assert_eq!(p.text, "show:me the money -5 degrees");
+        let p = parse(r#""show:me the pie" "-5 degrees""#);
+        assert_eq!(p.text, "show:me the pie -5 degrees");
         assert!(!p.has_operators());
     }
 
     #[test]
     fn an_unclosed_quote_runs_to_the_end() {
-        let p = parse(r#"show:"Breaking Ba"#);
-        assert_eq!(p.filters, [f(Field::Show, "Breaking Ba", false)]);
+        let p = parse(r#"show:"The Lantern Co"#);
+        assert_eq!(p.filters, [f(Field::Show, "The Lantern Co", false)]);
         let p = parse(r#"hello "big wor"#);
         assert_eq!(p.text, "hello big wor");
     }
@@ -327,15 +327,15 @@ mod tests {
 
     #[test]
     fn describe_reads_back_what_was_understood() {
-        let p = parse(r#"knock show:"Breaking Bad" -ep:pilot -walter season:2 movie:"#);
+        let p = parse(r#"knock show:"The Lantern Cove" -ep:pilot -dale season:2 movie:"#);
         assert_eq!(
             p.describe(),
             [
-                "show: Breaking Bad",
+                "show: The Lantern Cove",
                 "not episode: pilot",
                 "season: 2",
                 "movies only",
-                "without “walter”"
+                "without “dale”"
             ]
         );
     }

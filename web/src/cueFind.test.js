@@ -4,10 +4,10 @@ import { findCueMatches, stepMatch } from "./cueFind.js";
 const cue = (text) => ({ start_ms: 0, end_ms: 0, text });
 
 describe("findCueMatches", () => {
-  const cues = [cue("I am the one who knocks"), cue("Say my name"), cue("Who knocks?")];
+  const cues = [cue("I am the one who whistles"), cue("Say it with pie"), cue("Who whistles?")];
 
   it("returns the indices of every matching line, in order", () => {
-    expect(findCueMatches(cues, "knocks")).toEqual([0, 2]);
+    expect(findCueMatches(cues, "whistles")).toEqual([0, 2]);
   });
 
   it("is case-insensitive and ignores surrounding whitespace", () => {
