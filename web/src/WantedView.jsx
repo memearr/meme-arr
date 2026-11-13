@@ -234,8 +234,8 @@ export default function WantedView({ onOpen, focus, onFocusHandled }) {
                     <button type="button" className="link" onClick={() => onOpen(item)}>
                       Open
                     </button>
-                    </div>
                     <BazarrActions itemId={item.rating_key} compact />
+                    </div>
                   </td>
                 </tr>,
               ];

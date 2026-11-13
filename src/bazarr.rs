@@ -231,6 +231,17 @@ impl Client {
         }
     }
 
+    /// The same client with another request time limit (Bazarr's searches are slow).
+    pub fn with_timeout(&self, timeout: Duration) -> Self {
+        Client {
+            http: crate::tls::client()
+                .timeout(timeout)
+                .build()
+                .unwrap_or_default(),
+            ..self.clone()
+        }
+    }
+
     fn url(&self, path: &str) -> String {
         format!("{}/api/{path}", self.base)
     }

@@ -61,16 +61,40 @@ export default function BazarrActions({ itemId, compact = false, onChanged }) {
 
   const found = compact ? true : info?.found;
   const missing = info?.target?.missing || [];
+
+  // In a list row: just the button, in the row's own line of buttons, and its
+  // answer under them (a fragment, so it lines up with Find subtitles and Open).
+  if (compact) {
+    return (
+      <>
+        <button
+          type="button"
+          className="small secondary"
+          disabled={busy != null}
+          onClick={() => run("search", () => api.bazarrSearch(itemId))}
+          title="Ask Bazarr to search its providers for the missing subtitles"
+        >
+          {busy === "search" ? "Asking…" : "Search with Bazarr"}
+        </button>
+        {note && (
+          <span className={"bazarr-note " + (note.ok ? "hint tiny" : "error")} role="status">
+            {note.text}
+          </span>
+        )}
+      </>
+    );
+  }
+
   return (
-    <div className={"bazarr" + (compact ? " compact" : "")}>
-      {!compact && <h4>Bazarr</h4>}
+    <div className="bazarr">
+      <h4>Bazarr</h4>
       {err && <p className="hint tiny">Bazarr: {err}</p>}
       {info && !found && (
         <p className="hint tiny">
           Bazarr doesn't have this file, or couldn't tell it apart from another.
         </p>
       )}
-      {found && !compact && (
+      {found && (
         <p className="hint tiny">
           {info.target.title}
           {missing.length > 0 ? ` — missing: ${missingLabel(missing)}` : " — nothing missing in Bazarr"}
@@ -86,8 +110,7 @@ export default function BazarrActions({ itemId, compact = false, onChanged }) {
         >
           {busy === "search" ? "Asking…" : "Search with Bazarr"}
         </button>
-        {!compact && (
-          <>
+        <>
             <button
               type="button"
               className="small secondary"
@@ -104,8 +127,7 @@ export default function BazarrActions({ itemId, compact = false, onChanged }) {
             <button type="button" className="small secondary" disabled={busy != null} onClick={reread}>
               {busy === "reindex" ? "Reading…" : "Re-read subtitles"}
             </button>
-          </>
-        )}
+        </>
       </div>
       {note && (
         <p className={note.ok ? "hint tiny" : "error"} role="status">

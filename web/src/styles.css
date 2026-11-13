@@ -1695,9 +1695,15 @@ fieldset label.disabled {
 }
 .wanted-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   justify-content: flex-end;
   align-items: center;
+}
+/* The answer to a button in the row goes on a line of its own, under the buttons. */
+.wanted-actions .bazarr-note {
+  flex-basis: 100%;
+  text-align: right;
 }
 .wanted-table td.wanted-search-cell {
   text-align: left;
@@ -1991,9 +1997,6 @@ fieldset label.disabled {
 .bazarr-hook h4 {
   margin: 8px 0 4px;
   font-size: 13px;
-}
-.bazarr.compact {
-  margin-top: 4px;
 }
 .bazarr-hook {
   margin-top: 14px;
