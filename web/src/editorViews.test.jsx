@@ -1,6 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { Editor } from "./Editor.jsx";
 import { FrameCheck } from "./FrameCheck.jsx";
+import { SequenceView } from "./SequenceView.jsx";
 import { Timeline, flagPos, tickStep } from "./Timeline.jsx";
 import { TrimPanel } from "./TrimPanel.jsx";
 
@@ -138,5 +140,54 @@ describe("flagPos", () => {
     expect(flagPos("out", 20_000, view)).toEqual({ right: 0 });
     expect(flagPos("in", 20_000, view)).toEqual({ right: "0%" });
     expect(flagPos("out", 0, view)).toEqual({ left: "0%" });
+  });
+});
+
+describe("sequence editing", () => {
+  const clip = {
+    id: "c1",
+    rating_key: "k1",
+    title: "Pilot",
+    line: "Say my name",
+    start_ms: 1000,
+    end_ms: 4000,
+    caption: { mode: "meme", top: "TOP", bottom: "BOTTOM", font_scale: 100 },
+    subtitle_offset_ms: 0,
+  };
+  const seq = { clip, index: 1, count: 3, hasNext: true, output: { width: 640, fps: 12 }, onSave: noop };
+
+  it("opens a stored clip in the full editor with save in place of export", () => {
+    const html = renderToStaticMarkup(<Editor item={clip} onClose={noop} onJob={noop} sequenceEdit={seq} />);
+    expect(html).toContain("Editing clip 2 of 3 in your sequence");
+    expect(html).toContain("Save to sequence");
+    expect(html).toContain("Save and edit next clip");
+    expect(html).toContain("Back without saving");
+    expect(html).not.toContain("Add to sequence");
+    expect(html).not.toContain(">Export ");
+    // the stored meme text is what the boxes start with
+    expect(html).toContain('value="TOP"');
+    expect(html).toContain('value="BOTTOM"');
+    // the sequence-wide output settings are hidden
+    expect(html).not.toContain("<legend>Output</legend>");
+    expect(html).not.toContain("<legend>Format</legend>");
+  });
+
+  it("offers no 'next' on the last clip", () => {
+    const html = renderToStaticMarkup(
+      <Editor item={clip} onClose={noop} onJob={noop} sequenceEdit={{ ...seq, hasNext: false }} />
+    );
+    expect(html).not.toContain("Save and edit next clip");
+  });
+
+  it("is the normal editor, with export and add-to-sequence, without it", () => {
+    const html = renderToStaticMarkup(<Editor item={clip} onClose={noop} onJob={noop} />);
+    expect(html).toContain("Add to sequence");
+    expect(html).toContain("<legend>Output</legend>");
+  });
+
+  it("puts an Edit button on every clip of the Sequence tab", () => {
+    const clips = [clip, { ...clip, id: "c2" }];
+    const html = renderToStaticMarkup(<SequenceView sequence={clips} setSequence={noop} onJob={noop} />);
+    expect(html.split("✎ Edit").length - 1).toBe(2);
   });
 });
