@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { effective, newCue, overlaps, retimeCue, sortCues, splitCue, textAt } from "./cueEdit.js";
+import { effective, newCue, overlaps, retimeCue, shiftCues, sortCues, splitCue, textAt } from "./cueEdit.js";
 
 const cue = { start_ms: 3000, end_ms: 4600, text: "Zero gravity, full flavor." };
 
@@ -61,6 +61,16 @@ describe("splitCue", () => {
     expect(splitCue(cue, 3000)).toBeNull();
     expect(splitCue(cue, 9000)).toBeNull();
     expect(splitCue(cue, 4580)).toBeNull();
+  });
+});
+
+describe("shiftCues", () => {
+  it("moves every line and keeps the text", () => {
+    expect(shiftCues([cue], 500)).toEqual([{ ...cue, start_ms: 3500, end_ms: 5100 }]);
+    expect(shiftCues([cue], -1000)[0]).toMatchObject({ start_ms: 2000, end_ms: 3600 });
+  });
+  it("never goes before the start", () => {
+    expect(shiftCues([cue], -5000)[0]).toMatchObject({ start_ms: 0, end_ms: 0 });
   });
 });
 

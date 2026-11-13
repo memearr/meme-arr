@@ -85,6 +85,12 @@ export const api = {
   rotateBazarrHook: () => json(`/api/settings/bazarr/rotate-hook`, { method: "POST" }),
   itemBazarr: (id) => json(`/api/media/${encodeURIComponent(id)}/bazarr`),
   bazarrSearch: (id) => json(`/api/media/${encodeURIComponent(id)}/bazarr/search`, { method: "POST" }),
+  bazarrShift: (id, offset_ms) =>
+    json(`/api/media/${encodeURIComponent(id)}/bazarr/shift`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ offset_ms }),
+    }),
   bazarrSync: (id) => json(`/api/media/${encodeURIComponent(id)}/bazarr/sync`, { method: "POST" }),
   getPlexLoginSettings: () => json(`/api/settings/plex-login`),
   deletePlexLoginSettings: () => json(`/api/settings/plex-login`, { method: "DELETE" }),

@@ -224,6 +224,12 @@ reads those files with or without the connection; connecting it adds:
   Bazarr re-times it against the audio, then **Re-read subtitles** picks up the
   corrected file. This is for a subtitle that drifts; **Subtitle sync** in the
   editor still shifts one by hand for a single clip.
+- **Apply to the subtitle file**, under **Subtitle sync** in the editor (only with Bazarr
+  connected). The sync you set there normally only changes the clip you are making. This
+  button asks Bazarr to shift the `.srt` beside the video by that amount, so the correction
+  is permanent: search results open at the right moment, and other players get it too. The
+  item is re-read afterwards and the sync box resets to 0. It changes the whole subtitle
+  file, and only `.srt` files (not subtitles inside the video).
 - **Instant refresh.** The settings panel shows an address to add in Bazarr under
   *Settings → Notifications* (an Apprise `json://` URL). When Bazarr writes a
   subtitle it calls it, and the library is scanned a few seconds later instead of at

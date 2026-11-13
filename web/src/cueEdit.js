@@ -15,6 +15,19 @@ export function overlaps(cue, start, end, offset = 0) {
 }
 
 /** Lines in time order. */
+/**
+ * Every line moved by `ms` (never before 0). Used when the subtitle file itself
+ * has been shifted: lines already edited in the editor are kept in the file's
+ * own times, so they move with it.
+ */
+export function shiftCues(cues, ms) {
+  return cues.map((c) => ({
+    ...c,
+    start_ms: Math.max(0, Math.round(c.start_ms + ms)),
+    end_ms: Math.max(0, Math.round(c.end_ms + ms)),
+  }));
+}
+
 export function sortCues(cues) {
   return [...cues].sort((a, b) => a.start_ms - b.start_ms || a.end_ms - b.end_ms);
 }
