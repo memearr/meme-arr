@@ -305,6 +305,57 @@ pub(super) async fn media_bazarr_sync(
     }
 }
 
+#[derive(Debug, Deserialize)]
+pub(super) struct ShiftBody {
+    /// Milliseconds to move every subtitle line: positive = later.
+    offset_ms: i64,
+}
+
+/// `POST /api/media/{rating_key}/bazarr/shift`: make the editor's subtitle sync
+/// permanent by asking Bazarr to shift the `.srt` beside the video, then
+/// re-index the item so search results and the editor use the new timing.
+pub(super) async fn media_bazarr_shift(
+    State(st): State<AppState>,
+    Path(rating_key): Path<String>,
+    Json(body): Json<ShiftBody>,
+) -> Result<Response, AppError> {
+    let Some(client) = st.settings().bazarr() else {
+        return Ok(conflict("Bazarr isn't set up (Settings → Bazarr)"));
+    };
+    let Some(item) = load_item(&st, &rating_key).await? else {
+        return Ok(not_found("unknown item"));
+    };
+    let Some(sidecar) = item.sidecar else {
+        return Ok(bad_request(
+            "There's no subtitle file beside this video to change (subtitles inside the video can't be).",
+        ));
+    };
+    let target = match client.find(&item.server_path).await {
+        Ok(Some(t)) => t,
+        Ok(None) => return Ok(not_found("Bazarr doesn't have this file")),
+        Err(e) => return Ok(upstream(format!("{e:#}"))),
+    };
+    if let Err(e) = client.shift(&target, &sidecar, body.offset_ms).await {
+        return Ok(upstream(format!("{e:#}")));
+    }
+    st.log_event(
+        LogLevel::Info,
+        format!(
+            "Asked Bazarr to shift the subtitle for '{}' by {} ms",
+            target.title, body.offset_ms
+        ),
+    );
+    // Bazarr has rewritten the file by now; read it again.
+    let reindexed = crate::index::index_item(&st, &rating_key).await?;
+    Ok(Json(json!({
+        "ok": true,
+        "file": sidecar,
+        "reindexed": reindexed,
+        "message": "The subtitle file was shifted and re-read.",
+    }))
+    .into_response())
+}
+
 // ---- the webhook ---------------------------------------------------------------
 
 /// Equal without leaking, through timing, how much of a guess was right.

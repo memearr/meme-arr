@@ -7,7 +7,8 @@ import { AUDIO_FORMATS } from "./clipSettings.js";
 import { PADDING_MS } from "./clipSettings.js";
 import { api } from "./api.js";
 import { captionMetrics, containedRect } from "./captionPreview.js";
-import { effective, newCue, overlaps, retimeCue, sortCues, splitCue, textAt } from "./cueEdit.js";
+import { effective, newCue, overlaps, retimeCue, shiftCues, sortCues, splitCue, textAt } from "./cueEdit.js";
+import { useBazarrConfigured } from "./bazarr.js";
 import {
   SCALE_DEFAULT,
   SCALE_MAX,
@@ -107,6 +108,9 @@ export function Editor({ item, onJob, onClose, onAddToSequence }) {
   const [top, setTop] = useState("");
   const [bottom, setBottom] = useState(item.line || "");
   const [subtitleOffsetMs, setSubtitleOffsetMs] = useState(0); // sync correction, ms
+  const bazarrOn = useBazarrConfigured();
+  const [applying, setApplying] = useState(false);
+  const [applyNote, setApplyNote] = useState(null);
   // Edited burned-subtitle lines (correct/shorten/reword/retime/split or drop a line).
   // null = use the indexed lines as-is; an array = burn exactly these instead.
   const [editedCues, setEditedCues] = useState(null);
@@ -260,6 +264,33 @@ export function Editor({ item, onJob, onClose, onAddToSequence }) {
       alive = false;
     };
   }, []);
+
+  // Make the subtitle sync permanent: Bazarr shifts the .srt beside the video,
+  // the item is re-read, and the correction now lives in the lines themselves.
+  async function applyToSubtitleFile() {
+    const ms = subtitleOffsetMs;
+    if (!ms) return;
+    const ok = window.confirm(
+      `Shift the subtitle file for this video by ${ms > 0 ? "+" : ""}${ms} ms?\n\n` +
+        "This changes the file itself, for everything that uses it (search results, other players), not only this clip."
+    );
+    if (!ok) return;
+    setApplying(true);
+    setApplyNote(null);
+    try {
+      await api.bazarrShift(item.rating_key, ms);
+      // The lines now carry the shift; lines already edited here are in the
+      // file's own times and move with it.
+      setEditedCues((cur) => (cur ? shiftCues(cur, ms) : cur));
+      setSubtitleOffsetMs(0);
+      setCuesReload((n) => n + 1);
+      setApplyNote({ ok: true, text: "Done: the subtitle file was shifted and re-read." });
+    } catch (e) {
+      setApplyNote({ ok: false, text: e.message });
+    } finally {
+      setApplying(false);
+    }
+  }
 
   useEffect(() => {
     saveFontChoice(browserStorage(), font, fontScale);
@@ -1100,6 +1131,24 @@ export function Editor({ item, onJob, onClose, onAddToSequence }) {
                     )}
                   </div>
                   <Nudge label="Sync" onNudge={(d) => setSubtitleOffsetMs((v) => v + d)} />
+                  {bazarrOn && (
+                    <div className="btn-row">
+                      <button
+                        type="button"
+                        className="small secondary"
+                        disabled={subtitleOffsetMs === 0 || applying}
+                        onClick={applyToSubtitleFile}
+                        title="Ask Bazarr to shift the subtitle file itself by this amount"
+                      >
+                        {applying ? "Applying…" : "Apply to the subtitle file (Bazarr)"}
+                      </button>
+                    </div>
+                  )}
+                  {applyNote && (
+                    <p className={applyNote.ok ? "hint tiny" : "error"} role="status">
+                      {applyNote.text}
+                    </p>
+                  )}
                   <p className="hint tiny">
                     Positive delays subtitles (later), negative advances them (earlier) — use if the
                     indexed timing drifts from this video. The timeline and player show the change as you make it.

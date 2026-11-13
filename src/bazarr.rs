@@ -411,6 +411,27 @@ impl Client {
     /// as it is on our side) against the video's audio. Bazarr does the work
     /// in the background; the corrected file replaces the old one.
     pub async fn sync(&self, t: &Target, subtitle_file: &str) -> Result<()> {
+        self.subtitle_action(t, subtitle_file, "sync".to_string())
+            .await
+    }
+
+    /// Ask Bazarr to move every line of `subtitle_file` (an `.srt` beside the
+    /// video) by `offset_ms` (positive = later). Bazarr rewrites the file
+    /// before it answers.
+    pub async fn shift(&self, t: &Target, subtitle_file: &str, offset_ms: i64) -> Result<()> {
+        if !subtitle_file.to_lowercase().ends_with(".srt") {
+            bail!("Bazarr can only change the timing of .srt files");
+        }
+        if offset_ms == 0 || offset_ms.abs() > MAX_SHIFT_MS {
+            bail!("the shift has to be between 1 ms and 10 minutes, earlier or later");
+        }
+        self.subtitle_action(t, subtitle_file, shift_action(offset_ms))
+            .await
+    }
+
+    /// `PATCH subtitles` for a file beside the video: the part of "sync" and
+    /// the timing mods that is the same.
+    async fn subtitle_action(&self, t: &Target, subtitle_file: &str, action: String) -> Result<()> {
         let dir = components_dir(&t.path);
         let path = format!("{dir}{subtitle_file}");
         let stem = std::path::Path::new(&t.path)
@@ -426,7 +447,7 @@ impl Client {
         self.patch(
             "subtitles",
             &[
-                ("action", "sync".into()),
+                ("action", action),
                 ("language", language),
                 ("path", path),
                 (
@@ -443,6 +464,20 @@ impl Client {
         )
         .await
     }
+}
+
+/// The longest shift we will ask for: a subtitle that is further out than this
+/// belongs to a different cut of the film, and re-timing it would not help.
+const MAX_SHIFT_MS: i64 = 10 * 60 * 1000;
+
+/// Bazarr's "adjust times" action for an offset in milliseconds, written the way
+/// its mod parser reads it (no spaces; seconds and milliseconds keep the sign).
+pub fn shift_action(offset_ms: i64) -> String {
+    format!(
+        "shift_offset(h=0,m=0,s={},ms={})",
+        offset_ms / 1000,
+        offset_ms % 1000
+    )
 }
 
 fn flag(b: bool) -> String {
@@ -475,6 +510,14 @@ mod tests {
         );
         // Different file name: no match at all, even if the folders agree.
         assert_eq!(tail_score(ours, "/movies/Dune (2021)/Other.mkv"), 0);
+    }
+
+    #[test]
+    fn a_shift_is_written_the_way_bazarr_parses_it() {
+        assert_eq!(shift_action(1500), "shift_offset(h=0,m=0,s=1,ms=500)");
+        assert_eq!(shift_action(-2250), "shift_offset(h=0,m=0,s=-2,ms=-250)");
+        assert_eq!(shift_action(-40), "shift_offset(h=0,m=0,s=0,ms=-40)");
+        assert!(!shift_action(1500).contains(' '));
     }
 
     #[test]
@@ -711,6 +754,32 @@ mod tests {
             ),
             "{log:?}"
         );
+    }
+
+    #[tokio::test]
+    async fn shifts_an_srt_and_refuses_what_bazarr_cannot_or_should_not() {
+        let calls = Calls::default();
+        let url = serve(calls.clone()).await;
+        let c = Client::new(&url, "sekrit");
+        let t = c
+            .find("/media/Movies/Dune (2021)/Dune (2021).mkv")
+            .await
+            .unwrap()
+            .unwrap();
+        c.shift(&t, "Dune (2021).en.srt", -1500).await.unwrap();
+        let log = calls.lock().unwrap().clone();
+        let want = "SYNC shift_offset(h=0,m=0,s=-1,ms=-500) movie 7 en \
+                    /movies/Dune (2021)/Dune (2021).en.srt";
+        assert!(log.contains(&want.to_string()), "{log:?}");
+        // Not an .srt, nothing to shift, or an absurd shift: never sent.
+        let before = calls.lock().unwrap().len();
+        assert!(c.shift(&t, "Dune (2021).en.ass", 500).await.is_err());
+        assert!(c.shift(&t, "Dune (2021).en.srt", 0).await.is_err());
+        assert!(c
+            .shift(&t, "Dune (2021).en.srt", 11 * 60 * 1000)
+            .await
+            .is_err());
+        assert_eq!(calls.lock().unwrap().len(), before);
     }
 
     #[tokio::test]
