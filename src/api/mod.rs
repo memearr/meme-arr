@@ -352,6 +352,12 @@ mod tests {
         assert_eq!(session_cookie("t".into(), true).secure(), Some(true));
         assert_eq!(session_cookie("t".into(), false).secure(), Some(false));
         assert_eq!(session_cookie("t".into(), true).http_only(), Some(true));
+        assert_eq!(session_removal_cookie(true).secure(), Some(true));
+        assert_eq!(session_removal_cookie(false).secure(), Some(false));
+        assert_eq!(
+            session_removal_cookie(true).max_age(),
+            Some(time::Duration::ZERO)
+        );
     }
 
     #[test]
