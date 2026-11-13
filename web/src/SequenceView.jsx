@@ -1,10 +1,32 @@
 import { AUDIO_FORMATS } from "./clipSettings.js";
 import { Editor, JobResult } from "./Editor.jsx";
+import { SectionEditor } from "./SectionEditor.jsx";
+import { SequenceBulkEdit } from "./SequenceBulkEdit.jsx";
+import SequencePlayer from "./SequencePlayer.jsx";
+import { SequenceTimeline } from "./SequenceTimeline.jsx";
 import { replaceClip } from "./sequenceClip.js";
+import {
+  MAX_SECTIONS,
+  MAX_TOTAL_MS,
+  duplicate,
+  move,
+  problems,
+  remove,
+  totalMs,
+  trim,
+} from "./sequenceModel.js";
 import { api } from "./api.js";
-import { episodeLabel, fmtTime } from "./format.js";
 import { useEffect, useRef, useState } from "react";
 
+function newSectionId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/**
+ * The Sequence tab: the whole set of sections as one thing to edit. Play it
+ * back to back, see it as a strip, reorder, trim or caption one section or all
+ * of them, then export. A section's full editor is one click away.
+ */
 export function SequenceView({ sequence, setSequence, onJob }) {
   const [format, setFormat] = useState("gif");
   const [width, setWidth] = useState(480);
@@ -17,8 +39,57 @@ export function SequenceView({ sequence, setSequence, onJob }) {
   const [error, setError] = useState(null);
   const pollRef = useRef(null);
   const [editingId, setEditingId] = useState(null); // the clip open in the full editor
+  const [selectedId, setSelectedId] = useState(null); // the section being edited and shown
+  const [progressMs, setProgressMs] = useState(0);
+  // Undo / redo of the edits made here (not of clips added from elsewhere).
+  const [history, setHistory] = useState({ past: [], future: [] });
+  const lastGroup = useRef({ key: null, at: 0 });
 
   useEffect(() => () => clearInterval(pollRef.current), []);
+
+  // The selection follows the set: a first section is picked, a removed one is dropped.
+  const selectedIndex = sequence.findIndex((c) => c.id === selectedId);
+  useEffect(() => {
+    if (sequence.length === 0) {
+      if (selectedId !== null) setSelectedId(null);
+    } else if (selectedIndex < 0) {
+      setSelectedId(sequence[0].id);
+    }
+  }, [sequence, selectedId, selectedIndex]);
+  const index = Math.max(0, selectedIndex);
+  const selected = sequence[index];
+
+  /**
+   * Change the sequence as one undoable step. Edits in a row with the same
+   * `group` within a second (typing a time, dragging a slider) are one step.
+   */
+  function commit(next, group = null) {
+    const now = Date.now();
+    const joined = group && lastGroup.current.key === group && now - lastGroup.current.at < 1000;
+    lastGroup.current = { key: group, at: now };
+    if (!joined) {
+      setHistory((h) => ({ past: [...h.past.slice(-49), sequence], future: [] }));
+    }
+    setSequence(next);
+  }
+  function undo() {
+    setHistory((h) => {
+      if (h.past.length === 0) return h;
+      const prev = h.past[h.past.length - 1];
+      setSequence(prev);
+      return { past: h.past.slice(0, -1), future: [sequence, ...h.future] };
+    });
+    lastGroup.current = { key: null, at: 0 };
+  }
+  function redo() {
+    setHistory((h) => {
+      if (h.future.length === 0) return h;
+      const [next, ...rest] = h.future;
+      setSequence(next);
+      return { past: [...h.past, sequence], future: rest };
+    });
+    lastGroup.current = { key: null, at: 0 };
+  }
 
   // One clip open in the full editor: the same trimming, captions and subtitle
   // lines as when it was made, saved back into its place in the sequence.
@@ -39,8 +110,9 @@ export function SequenceView({ sequence, setSequence, onJob }) {
             output: { width, fps },
             hasNext: editingIndex < sequence.length - 1,
             onSave: (updated, andNext) => {
-              setSequence((seq) => replaceClip(seq, updated));
+              commit(replaceClip(sequence, updated));
               setEditingId(andNext ? sequence[editingIndex + 1].id : null);
+              setSelectedId(andNext ? sequence[editingIndex + 1].id : updated.id);
             },
           }}
         />
@@ -48,28 +120,16 @@ export function SequenceView({ sequence, setSequence, onJob }) {
     );
   }
 
-  function move(id, dir) {
-    setSequence((seq) => {
-      const i = seq.findIndex((c) => c.id === id);
-      const j = i + dir;
-      if (i < 0 || j < 0 || j >= seq.length) return seq;
-      const copy = [...seq];
-      [copy[i], copy[j]] = [copy[j], copy[i]];
-      return copy;
-    });
-  }
-  function remove(id) {
-    setSequence((seq) => seq.filter((c) => c.id !== id));
-  }
   function clearAll() {
     if (sequence.length && !window.confirm("Clear all clips from the sequence?")) return;
-    setSequence([]);
+    commit([]);
     setJob(null);
   }
 
-  const totalMs = sequence.reduce((sum, c) => sum + Math.max(0, c.end_ms - c.start_ms), 0);
-  const tooLong = totalMs > 180_000;
-  const tooMany = sequence.length > 20;
+  const total = totalMs(sequence);
+  const blocking = problems(sequence);
+  const tooLong = total > MAX_TOTAL_MS;
+  const tooMany = sequence.length > MAX_SECTIONS;
 
   function pushJob(j) {
     setJob(j);
@@ -120,9 +180,17 @@ export function SequenceView({ sequence, setSequence, onJob }) {
       <div className="view-head">
         <h2>Sequence</h2>
         {sequence.length > 0 && (
-          <button type="button" className="danger small" onClick={clearAll}>
-            Clear all
-          </button>
+          <div className="editor-head-actions">
+            <button type="button" className="secondary" onClick={undo} disabled={history.past.length === 0} title="Undo the last change to the sequence">
+              ↶ Undo
+            </button>
+            <button type="button" className="secondary" onClick={redo} disabled={history.future.length === 0} title="Redo">
+              ↷ Redo
+            </button>
+            <button type="button" className="danger small" onClick={clearAll}>
+              Clear all
+            </button>
+          </div>
         )}
       </div>
 
@@ -133,69 +201,42 @@ export function SequenceView({ sequence, setSequence, onJob }) {
         </p>
       ) : (
         <>
-          <ul className="seq-list">
-            {sequence.map((c, i) => (
-              <li key={c.id} className="seq-item">
-                <span className="seq-index">{i + 1}</span>
-                <div className="seq-info">
-                  <div className="seq-title">{episodeLabel(c)}</div>
-                  <div className="seq-sub">
-                    {fmtTime(c.start_ms)}–{fmtTime(c.end_ms)} (len {fmtTime(c.end_ms - c.start_ms)})
-                    {c.caption?.mode === "source" && " · burned subs"}
-                    {c.caption?.mode === "source" && c.subtitle_offset_ms
-                      ? ` (${c.subtitle_offset_ms > 0 ? "+" : ""}${c.subtitle_offset_ms}ms)`
-                      : ""}
-                    {c.caption?.mode === "meme" && " · meme text"}
-                    {c.caption?.font ? ` · ${c.caption.font.replace(/\.(ttf|otf)$/i, "")}` : ""}
-                    {c.caption?.font_scale && c.caption.font_scale !== 100 ? ` · ${c.caption.font_scale}%` : ""}
-                  </div>
-                  {c.line && <div className="seq-line">“{c.line}”</div>}
-                </div>
-                <div className="seq-controls">
-                  <button
-                    type="button"
-                    className="secondary small"
-                    onClick={() => setEditingId(c.id)}
-                    title="Open this clip in the full editor"
-                  >
-                    ✎ Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary small"
-                    onClick={() => move(c.id, -1)}
-                    disabled={i === 0}
-                    title="Move up"
-                  >
-                    ▲
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary small"
-                    onClick={() => move(c.id, 1)}
-                    disabled={i === sequence.length - 1}
-                    title="Move down"
-                  >
-                    ▼
-                  </button>
-                  <button
-                    type="button"
-                    className="danger small"
-                    onClick={() => remove(c.id)}
-                    title="Remove"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <SequencePlayer
+            sequence={sequence}
+            width={width}
+            fps={fps}
+            index={index}
+            onIndex={(i) => sequence[i] && setSelectedId(sequence[i].id)}
+            onProgress={setProgressMs}
+          />
 
-          <p className={tooLong ? "error" : "muted"}>
-            {sequence.length} clip{sequence.length === 1 ? "" : "s"} · total{" "}
-            {fmtTime(totalMs)}
-            {tooLong && " — over the 3-minute sequence limit"}
-          </p>
+          <SequenceTimeline
+            sequence={sequence}
+            selectedId={selected?.id}
+            progressMs={progressMs}
+            onSelect={setSelectedId}
+            onMove={(from, to) => commit(move(sequence, from, to))}
+            onDuplicate={(id) => commit(duplicate(sequence, id, newSectionId()))}
+            onRemove={(id) => commit(remove(sequence, id))}
+          />
+          {blocking.map((m) => (
+            <p key={m} className="error">
+              {m}
+            </p>
+          ))}
+
+          <div className="seq-edit-grid">
+            {selected && (
+              <SectionEditor
+                clip={selected}
+                index={index}
+                count={sequence.length}
+                onChange={(updated) => commit(replaceClip(sequence, updated), `section:${updated.id}`)}
+                onDetailed={() => setEditingId(selected.id)}
+              />
+            )}
+            <SequenceBulkEdit sequence={sequence} onChange={(next) => commit(next)} />
+          </div>
 
           <div className="controls">
             <fieldset>
