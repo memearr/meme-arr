@@ -313,6 +313,11 @@ pub fn validate_sequence(clips: &[SequenceClipSpec]) -> std::result::Result<(), 
 /// Sanitize a user-supplied filename to a safe base name (no directories, no
 /// traversal), then force the format's extension.
 pub fn safe_filename(requested: Option<&str>, format: Format, fallback: &str) -> String {
+    safe_filename_ext(requested, format.ext(), fallback)
+}
+
+/// [`safe_filename`] for any extension (single-frame pictures have their own formats).
+pub fn safe_filename_ext(requested: Option<&str>, ext: &str, fallback: &str) -> String {
     let base = requested
         .map(|s| s.trim())
         .filter(|s| !s.is_empty())
@@ -338,5 +343,5 @@ pub fn safe_filename(requested: Option<&str>, format: Format, fallback: &str) ->
     let name = cleaned.trim().trim_matches('.');
     let name = if name.is_empty() { fallback } else { name };
     let name = if name.is_empty() { "clip" } else { name };
-    format!("{name}.{}", format.ext())
+    format!("{name}.{ext}")
 }

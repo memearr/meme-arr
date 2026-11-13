@@ -1302,6 +1302,32 @@ fieldset label.disabled {
 .export {
   white-space: nowrap;
 }
+/* Save this frame: format, width and the button on one line that wraps on a phone. */
+.frame-saver-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+.frame-saver-row .radio-row {
+  display: flex;
+  gap: 12px;
+}
+.frame-saver-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.still-out {
+  margin-top: 10px;
+}
+.still-out img {
+  display: block;
+  max-width: 100%;
+  max-height: 360px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
 .result-out {
   margin-top: 16px;
   border-top: 1px solid var(--border);

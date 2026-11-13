@@ -310,6 +310,39 @@ at once; others wait.
 60, kept between 24 and 160). The span may be at most 120 seconds (`400`
 beyond that).
 
+### `POST /api/still`
+One frame as a picture, with its caption drawn on. It takes a moment, so it
+answers with the finished file rather than a job to poll. `400` if `t_ms` is
+negative or past the end of the media, the font is unknown, or the source isn't
+on a mounted volume; `404` if the media isn't indexed.
+
+Request:
+
+```json
+{ "rating_key": "12345", "t_ms": 62500, "format": "png", "width": 960,
+  "quality": 90,
+  "caption": { "mode": "source", "font": null, "font_scale": 100 },
+  "subtitle_offset_ms": 0, "filename": "the-pie-line" }
+```
+
+- `format`: `"png"`, `"jpg"` or `"gif"` (a one-frame GIF).
+- `width`: 960 by default, kept between 160 and 3840; the height follows.
+- `quality`: 1 to 100, JPEG only (default 90).
+- `caption`: the same object as in `/api/export`. With `mode: "source"` the
+  line on screen at `t_ms` is drawn (the indexed lines, or `cues` if you send
+  your own, moved by `subtitle_offset_ms`); `mode: "meme"` draws `top`/`bottom`,
+  sized to the picture's width as it is in a 480 px clip. Omit it or use
+  `"none"` for the bare frame.
+- `filename`: optional base name; the extension is set from `format`.
+
+```json
+{ "filename": "the-pie-line.png", "format": "png",
+  "download_path": "/api/download/the-pie-line.png" }
+```
+
+The file is in the output folder like any export. Nothing from the source is
+written into it. Frame renders share the four slots of `/api/frame`.
+
 ### `GET /api/preview/:rating_key?start=&end=&width=&fps=&caption_mode=&top=&bottom=&font_size=&font=&font_scale=&offset_ms=&cues_json=`
 Returns `video/mp4` bytes — a short, fast-seeked, browser-safe render of
 just that window, with the same caption treatment the real export would

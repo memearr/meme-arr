@@ -131,6 +131,11 @@ and WebM only; GIF and WebP can't carry audio). Finished files also land in your
   typeface and **Text size** scales the text (50% to 300%; 100% is normal). Your choice is
   remembered for next time, and each clip in a sequence keeps its own. Add fonts under
   [Settings](#settings).
+- **Save this frame.** Park the playhead on a frame (step with `,` and `.`) and **Save frame**
+  makes a still picture of it as a **PNG**, **JPG** or **GIF**, 480 to 1920 px wide. It
+  carries whatever caption is selected: the subtitle that is on screen at that moment
+  (with your edits, sync shift, font and size), or your meme text, or nothing. The picture
+  appears below the button to preview and download, and carries no tags from the source.
 - **Exports are clean.** Nothing from the original file is copied into a meme: not its
   release name or other tags, comments, chapters, creation dates, track names or
   subtitle tracks. The one thing a file may carry is the movie or show/episode it came

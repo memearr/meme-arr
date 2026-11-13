@@ -131,6 +131,10 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   const [job, setJob] = useState(null);
   const [error, setError] = useState(null);
   const pollRef = useRef(null);
+  // "Save this frame": the picture's format and width, and the last one made.
+  const [stillFormat, setStillFormat] = useState("png");
+  const [stillWidth, setStillWidth] = useState(960);
+  const [still, setStill] = useState(null); // { busy } | { error } | { filename, download_path, at }
 
   // ---- the file's own frame rate, the timeline and the playhead ------------
   const [videoInfo, setVideoInfo] = useState(null);
@@ -749,6 +753,26 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
     }
   }
 
+  // The frame on screen, with the caption chosen above drawn on it.
+  async function saveFrame() {
+    const at = Math.max(0, Math.round(mediaTimeNow() ?? playhead));
+    setStill({ busy: true });
+    try {
+      const r = await api.saveFrame({
+        rating_key: item.rating_key,
+        t_ms: at,
+        format: stillFormat,
+        width: stillWidth,
+        caption: buildCaption(),
+        subtitle_offset_ms: captionMode === "source" ? subtitleOffsetMs : 0,
+        filename: filename || null,
+      });
+      setStill({ ...r, at });
+    } catch (err) {
+      setStill({ error: err.message });
+    }
+  }
+
   // ---- what the player and timeline draw ---------------------------------------
 
   const overlayText =
@@ -1353,6 +1377,19 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
               </button>
             </div>
           ) : (
+            <FrameSaver
+              format={stillFormat}
+              onFormat={setStillFormat}
+              width={stillWidth}
+              onWidth={setStillWidth}
+              captionMode={captionMode}
+              playhead={playhead}
+              srcFps={srcFps}
+              state={still}
+              onSave={saveFrame}
+            />
+          )}
+          {!sequenceEdit && (
             <div className="export-row">
               <input
                 className="filename"
@@ -1374,6 +1411,62 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
 
       {job && <JobResult job={job} />}
     </section>
+  );
+}
+
+const FRAME_FORMATS = [
+  ["png", "PNG", "sharp, any size"],
+  ["jpg", "JPG", "smallest file"],
+  ["gif", "GIF", "pastes anywhere"],
+];
+const FRAME_WIDTHS = [480, 720, 960, 1280, 1920];
+
+/** Take the frame the player is on, with the caption chosen above, as a picture. */
+export function FrameSaver({ format, onFormat, width, onWidth, captionMode, playhead, srcFps, state, onSave }) {
+  const caption =
+    captionMode === "source"
+      ? "with the subtitle that is on screen"
+      : captionMode === "meme"
+      ? "with your meme text"
+      : "with no caption (choose one above to add it)";
+  const frameNo = srcFps ? ` · f${Math.round((playhead * srcFps.num) / (1000 * srcFps.den))}` : "";
+  return (
+    <fieldset className="frame-saver">
+      <legend>Save this frame</legend>
+      <div className="frame-saver-row">
+        <div className="radio-row" role="radiogroup" aria-label="Picture format">
+          {FRAME_FORMATS.map(([id, label, hint]) => (
+            <label key={id} title={hint}>
+              <input type="radio" checked={format === id} onChange={() => onFormat(id)} />
+              {label}
+            </label>
+          ))}
+        </div>
+        <label className="frame-width">
+          Width
+          <select value={width} onChange={(e) => onWidth(+e.target.value)}>
+            {FRAME_WIDTHS.map((w) => (
+              <option key={w} value={w}>
+                {w}px
+              </option>
+            ))}
+          </select>
+        </label>
+        <button type="button" className="secondary" onClick={onSave} disabled={state?.busy}>
+          {state?.busy ? "Saving…" : `📷 Save frame at ${fmtTime(playhead)}${frameNo}`}
+        </button>
+      </div>
+      <p className="hint tiny">The picture is made {caption}. Move the playhead to pick the frame.</p>
+      {state?.error && <p className="error">{state.error}</p>}
+      {state?.download_path && (
+        <div className="still-out">
+          <img src={state.download_path} alt={`Frame at ${fmtTime(state.at)}`} />
+          <a className="download" href={state.download_path} download={state.filename}>
+            ⬇ Download {state.filename}
+          </a>
+        </div>
+      )}
+    </fieldset>
   );
 }
 

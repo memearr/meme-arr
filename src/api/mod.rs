@@ -171,6 +171,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/frame/{rating_key}", get(frame))
         .route("/api/filmstrip/{rating_key}", get(filmstrip))
         .route("/api/export", post(export_start))
+        .route("/api/still", post(still_export))
         .route("/api/sequence/export", post(sequence_export_start))
         .route("/api/jobs/{id}", get(job_status))
         .route("/api/download/{filename}", get(download))
@@ -360,6 +361,8 @@ async fn serve_file(
 fn content_type_for(filename: &str) -> &'static str {
     match filename.rsplit('.').next() {
         Some("gif") => "image/gif",
+        Some("png") => "image/png",
+        Some("jpg") => "image/jpeg",
         Some("webp") => "image/webp",
         Some("mp4") => "video/mp4",
         Some("webm") => "video/webm",
