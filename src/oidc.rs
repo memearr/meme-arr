@@ -42,7 +42,7 @@ pub struct LoginStart {
 /// An HTTP client with redirects disabled — required by `openidconnect`'s
 /// own docs to avoid SSRF via a malicious redirect from the issuer.
 fn http_client() -> Result<openidconnect::reqwest::Client> {
-    Ok(openidconnect::reqwest::ClientBuilder::new()
+    Ok(crate::tls::oidc_client()
         .redirect(openidconnect::reqwest::redirect::Policy::none())
         .build()?)
 }

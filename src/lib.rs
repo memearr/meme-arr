@@ -38,6 +38,7 @@ pub mod state;
 pub mod subtitles;
 pub mod sync;
 pub mod tasks;
+pub mod tls;
 pub mod version;
 
 use anyhow::{Context, Result};
@@ -84,6 +85,19 @@ pub async fn run(logs: Arc<logs::LogControl>) -> Result<()> {
              Remove this env var and restart once you've logged in with the new password."
         );
     }
+
+    // Which HTTPS certificates to trust when talking to other servers.
+    let extra_ca_pem = match &config.extra_ca_certs {
+        Some(spec) => tls::load_extra_ca(spec).context("EXTRA_CA_CERTS")?,
+        None => Vec::new(),
+    };
+    if !extra_ca_pem.is_empty() {
+        info!(
+            "trusting {} extra CA certificate file(s) from EXTRA_CA_CERTS",
+            extra_ca_pem.len()
+        );
+    }
+    tls::init(tls::Options { extra_ca_pem });
 
     let state = AppState {
         config: Arc::new(config.clone()),
@@ -183,14 +197,39 @@ pub async fn run(logs: Arc<logs::LogControl>) -> Result<()> {
         }
     );
 
+    // ConnectInfo gives handlers the real TCP peer address -- the login rate
+    // limiter keys on it (see ratelimit.rs for why not X-Forwarded-For).
+    let service = app.into_make_service_with_connect_info::<std::net::SocketAddr>();
+
+    if let (Some(cert), Some(key)) = (config.tls_cert.clone(), config.tls_key.clone()) {
+        // HTTPS served by the app itself (TLS_CERT / TLS_KEY).
+        let addr: std::net::SocketAddr = config.bind_addr.parse().with_context(|| {
+            format!(
+                "BIND_ADDR '{}' must be an IP:port to serve HTTPS",
+                config.bind_addr
+            )
+        })?;
+        let tls = axum_server::tls_rustls::RustlsConfig::from_pem_file(&cert, &key)
+            .await
+            .with_context(|| {
+                format!(
+                    "loading TLS_CERT {} and TLS_KEY {}",
+                    cert.display(),
+                    key.display()
+                )
+            })?;
+        tokio::spawn(tls::watch_certificate(tls.clone(), cert, key));
+        info!("listening on https://{addr}");
+        if let Err(e) = axum_server::bind_rustls(addr, tls).serve(service).await {
+            warn!("server error: {e:#}");
+        }
+        return Ok(());
+    }
+
     let listener = tokio::net::TcpListener::bind(&config.bind_addr)
         .await
         .with_context(|| format!("binding {}", config.bind_addr))?;
     info!("listening on http://{}", config.bind_addr);
-
-    // ConnectInfo gives handlers the real TCP peer address -- the login rate
-    // limiter keys on it (see ratelimit.rs for why not X-Forwarded-For).
-    let service = app.into_make_service_with_connect_info::<std::net::SocketAddr>();
     if let Err(e) = axum::serve(listener, service).await {
         warn!("server error: {e:#}");
     }
@@ -240,6 +279,7 @@ async fn hsts(
         &st.settings().trusted_proxies,
         st.config.public_url.as_ref(),
         &st.config.url_base,
+        st.config.tls_cert.is_some(),
     )
     .https;
     let mut resp = next.run(req).await;

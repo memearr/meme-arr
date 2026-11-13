@@ -61,7 +61,7 @@ VOLUME ["/data", "/output"]
 # Needs `wget` in this image (installed above): bookworm-slim has neither wget nor
 # curl, so this check used to fail on every container (reported as unhealthy).
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
-    CMD ["/bin/sh", "-c", "wget -qO- http://localhost:8080/healthz || exit 1"]
+    CMD ["/bin/sh", "-c", "wget -qO- http://localhost:8080/healthz || wget -qO- --no-check-certificate https://localhost:8080/healthz || exit 1"]
 
 # Drops from root to PUID:PGID (default 1000:1000) after fixing volume
 # ownership -- see docker-entrypoint.sh. PUID=0 keeps the old run-as-root

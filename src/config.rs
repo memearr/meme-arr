@@ -55,6 +55,15 @@ pub struct Config {
     /// `https://memes.example.com`), for setups where a reverse proxy's
     /// headers can't be relied on. Overrides what the headers say.
     pub public_url: Option<crate::forwarded::PublicUrl>,
+    /// Serve HTTPS directly: the certificate (chain) and private key, as PEM
+    /// files (env `TLS_CERT` and `TLS_KEY`). Both or neither. Without a
+    /// reverse proxy in front, this is how the app gets HTTPS.
+    pub tls_cert: Option<PathBuf>,
+    pub tls_key: Option<PathBuf>,
+    /// PEM files or folders of certificate authorities to trust, besides the
+    /// system's, for HTTPS to Plex, Jellyfin, Bazarr and Authentik (env
+    /// `EXTRA_CA_CERTS`, comma-separated). See `tls`.
+    pub extra_ca_certs: Option<String>,
     /// Send `Strict-Transport-Security` with this max-age (seconds, env
     /// `HSTS_MAX_AGE`) on requests that came in over HTTPS. 0 = never.
     pub hsts_max_age: u64,
@@ -127,6 +136,21 @@ impl Config {
             }
             _ => None,
         };
+        let path_env = |k: &str| {
+            std::env::var(k)
+                .ok()
+                .filter(|v| !v.trim().is_empty())
+                .map(|v| PathBuf::from(v.trim()))
+        };
+        let (tls_cert, tls_key) = (path_env("TLS_CERT"), path_env("TLS_KEY"));
+        if tls_cert.is_some() != tls_key.is_some() {
+            return Err(anyhow::anyhow!(
+                "TLS_CERT and TLS_KEY go together: set both to serve HTTPS, or neither"
+            ));
+        }
+        let extra_ca_certs = std::env::var("EXTRA_CA_CERTS")
+            .ok()
+            .filter(|v| !v.trim().is_empty());
         let hsts_max_age = env_or("HSTS_MAX_AGE", "0")
             .trim()
             .parse::<u64>()
@@ -135,6 +159,9 @@ impl Config {
         Ok(Self {
             url_base,
             public_url,
+            tls_cert,
+            tls_key,
+            extra_ca_certs,
             hsts_max_age,
             plex_url,
             plex_token,

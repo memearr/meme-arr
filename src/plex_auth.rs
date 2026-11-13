@@ -39,7 +39,8 @@ struct PinResponse {
 /// every request in this flow (and across the app's lifetime) — generated
 /// once and persisted, per Plex's own guidance.
 pub async fn create_pin(client_identifier: &str) -> Result<PlexPin> {
-    let resp = reqwest::Client::new()
+    let resp = crate::tls::client()
+        .build()?
         .post("https://plex.tv/api/v2/pins")
         .header("accept", "application/json")
         .form(&[
@@ -91,7 +92,8 @@ pub async fn check_pin(client_identifier: &str, pin_id: i64, code: &str) -> Resu
     url.path_segments_mut()
         .map_err(|_| anyhow::anyhow!("building the PIN URL"))?
         .push(&pin_id.to_string());
-    let resp = reqwest::Client::new()
+    let resp = crate::tls::client()
+        .build()?
         .get(url)
         .header("accept", "application/json")
         .query(&[
@@ -121,7 +123,8 @@ pub struct PlexAccount {
 /// isn't (matches Plex's own identity convention elsewhere, e.g. server
 /// machine identifiers).
 pub async fn get_account(token: &str, client_identifier: &str) -> Result<PlexAccount> {
-    reqwest::Client::new()
+    crate::tls::client()
+        .build()?
         .get("https://plex.tv/api/v2/user")
         .header("accept", "application/json")
         .query(&[

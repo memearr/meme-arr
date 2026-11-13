@@ -43,7 +43,10 @@ pub(super) async fn oidc_login(
         Ok(s) => s,
         Err(e) => {
             warn!("starting Authentik login failed: {e:#}");
-            return Ok(bad_request(format!("Could not reach Authentik: {e:#}")).into_response());
+            return Ok(bad_request(crate::tls::explain(format!(
+                "Could not reach Authentik: {e:#}"
+            )))
+            .into_response());
         }
     };
 

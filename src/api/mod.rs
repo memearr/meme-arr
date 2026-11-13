@@ -256,6 +256,7 @@ impl axum::extract::FromRequestParts<AppState> for Conn {
             &s.trusted_proxies,
             st.config.public_url.as_ref(),
             &st.config.url_base,
+            st.config.tls_cert.is_some(),
         ))
     }
 }

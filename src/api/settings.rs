@@ -203,9 +203,10 @@ pub(super) async fn test_settings(
             let name = match crate::jellyfin::test_connection(&u, &k).await {
                 Ok(n) => n,
                 Err(e) => {
-                    return Ok(
-                        Json(json!({ "ok": false, "error": format!("{e:#}") })).into_response()
+                    return Ok(Json(
+                        json!({ "ok": false, "error": crate::tls::explain(format!("{e:#}")) }),
                     )
+                    .into_response())
                 }
             };
             (
