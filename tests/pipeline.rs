@@ -991,3 +991,152 @@ async fn video_info_frames_and_filmstrips_come_from_the_real_file() {
     let args = ffmpeg::frame_args(&sample.to_string_lossy(), 60_000, 160);
     assert!(ffmpeg::run_capture("ffmpeg", &args).await.is_err());
 }
+
+/// Width, height and frame count of a picture, from ffprobe.
+fn picture_facts(path: &Path) -> (String, u32, u32, u32) {
+    let out = Command::new("ffprobe")
+        .args(["-v", "error", "-count_frames", "-select_streams", "v:0"])
+        .args([
+            "-show_entries",
+            "stream=codec_name,width,height,nb_read_frames",
+        ])
+        .args(["-of", "csv=p=0"])
+        .arg(path)
+        .output()
+        .unwrap();
+    let text = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    let f: Vec<&str> = text.split(',').collect();
+    assert_eq!(f.len(), 4, "ffprobe said {text:?}");
+    (
+        f[0].to_string(),
+        f[1].parse().unwrap(),
+        f[2].parse().unwrap(),
+        f[3].parse().unwrap(),
+    )
+}
+
+#[tokio::test]
+async fn a_single_frame_comes_out_as_png_jpg_and_gif_with_its_caption() {
+    if !ffmpeg_available() {
+        eprintln!("skipping pipeline test: ffmpeg not found on PATH");
+        return;
+    }
+    let tmp = tempfile::tempdir().unwrap();
+    let sample = make_sample(tmp.path(), "still-src", true);
+    let font = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/MemeTestSans.ttf"
+    );
+    // on screen from 0.5 s to 1.5 s
+    let cues = vec![subtitles::Cue {
+        start_ms: 500,
+        end_ms: 1500,
+        text: "I am the one who whistles".into(),
+    }];
+    let render =
+        |format: export::StillFormat, t_ms: i64, caption: Option<Caption>, name: String| {
+            let (tmp, sample, cues) = (tmp.path().to_path_buf(), sample.clone(), cues.clone());
+            async move {
+                let req = export::StillRequest {
+                    rating_key: "t".into(),
+                    t_ms,
+                    format,
+                    width: 640,
+                    quality: 90,
+                    caption,
+                    subtitle_offset_ms: 0,
+                    filename: None,
+                };
+                let out = tmp.join(&name);
+                export::run_still(
+                    "ffmpeg",
+                    &tmp,
+                    &format!("still-{name}"),
+                    &sample,
+                    &req,
+                    &cues,
+                    font,
+                    &out,
+                )
+                .await
+                .unwrap_or_else(|e| panic!("{name}: {e:#}"));
+                out
+            }
+        };
+
+    for (format, codec) in [
+        (export::StillFormat::Png, "png"),
+        (export::StillFormat::Jpg, "mjpeg"),
+        (export::StillFormat::Gif, "gif"),
+    ] {
+        let ext = format.ext();
+        // the frame at 1 s has a subtitle line; the one at 2.5 s has none
+        let with = render(
+            format,
+            1000,
+            Some(Caption::source(None)),
+            format!("with.{ext}"),
+        )
+        .await;
+        let without = render(
+            format,
+            2500,
+            Some(Caption::source(None)),
+            format!("without.{ext}"),
+        )
+        .await;
+        let bare = render(format, 1000, None, format!("bare.{ext}")).await;
+
+        let (c, w, h, n) = picture_facts(&with);
+        assert_eq!((c.as_str(), w, n), (codec, 640, 1), "{ext}");
+        assert_eq!(h, 480, "{ext}: the 4:3 source keeps its shape");
+        assert!(decodes_fully(&with), "{ext} should decode");
+        // the picture with a line is not the picture without one
+        assert_ne!(
+            std::fs::read(&with).unwrap(),
+            std::fs::read(&bare).unwrap(),
+            "{ext}: caption drawn"
+        );
+        // a moment with no line is just the frame (at another time, so only check it decodes)
+        assert!(decodes_fully(&without), "{ext}");
+        // nothing from the source rides along
+        assert!(
+            all_tags(&with).iter().all(|(k, _)| k != "title"),
+            "{ext}: {:?}",
+            all_tags(&with)
+        );
+    }
+
+    // meme text on a PNG
+    let meme = Caption::Meme {
+        top: Some("TOP TEXT".into()),
+        bottom: Some("Bottom".into()),
+        font_size: 36,
+        font: None,
+        font_scale: 100,
+    };
+    let memed = render(
+        export::StillFormat::Png,
+        1000,
+        Some(meme),
+        "meme.png".into(),
+    )
+    .await;
+    let bare = render(export::StillFormat::Png, 1000, None, "bare2.png".into()).await;
+    assert_ne!(
+        std::fs::read(&memed).unwrap(),
+        std::fs::read(&bare).unwrap()
+    );
+    // no caption temp files left behind
+    let leftovers: Vec<_> = std::fs::read_dir(tmp.path())
+        .unwrap()
+        .flatten()
+        .filter(|e| {
+            let n = e.file_name().to_string_lossy().to_string();
+            n.starts_with("still-")
+                && !n.starts_with("still-src")
+                && (n.ends_with(".srt") || n.ends_with(".txt"))
+        })
+        .collect();
+    assert!(leftovers.is_empty(), "{leftovers:?}");
+}

@@ -177,3 +177,69 @@ pub(super) async fn filmstrip(
     let bytes = ffmpeg::run_capture(&st.config.ffmpeg_bin, &args).await?;
     Ok(jpeg(bytes))
 }
+
+/// `POST /api/still`: one frame, with its subtitle or meme text drawn on it,
+/// as a PNG, JPEG or GIF. One frame takes a moment, so the answer comes back
+/// with the finished file's download address rather than as a job to poll.
+pub(super) async fn still_export(
+    State(st): State<AppState>,
+    Json(req): Json<export::StillRequest>,
+) -> Result<Response, AppError> {
+    if req.t_ms < 0 {
+        return Ok(bad_request("t_ms must not be negative"));
+    }
+    let (m, file) = match source_file(&st, req.rating_key.clone()).await? {
+        Ok(found) => found,
+        Err(resp) => return Ok(resp),
+    };
+    if m.duration_ms > 0 && req.t_ms >= m.duration_ms {
+        return Ok(bad_request("t_ms is past the end of the media"));
+    }
+    let font_path = match caption_font_path(&st, req.caption.as_ref()) {
+        Ok(p) => p,
+        Err(msg) => return Ok(bad_request(msg)),
+    };
+    // The indexed subtitle lines around that moment, unless the editor sent its own.
+    let cues = if matches!(
+        req.caption,
+        Some(export::Caption::Source { cues: None, .. })
+    ) {
+        let pool = st.pool.clone();
+        let media_id = m.id;
+        let pad = req.subtitle_offset_ms.abs();
+        let t = req.t_ms;
+        tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
+            let conn = pool.get()?;
+            db::cues_in_window(&conn, media_id, t - pad, t + 1 + pad)
+        })
+        .await??
+    } else {
+        Vec::new()
+    };
+
+    let id = uuid::Uuid::new_v4().to_string();
+    let filename = export::safe_filename_ext(req.filename.as_deref(), req.format.ext(), &id[..8]);
+    let out_path = st.config.output_dir.join(&filename);
+    let _slot = still_slots().acquire().await?;
+    if let Err(e) = export::run_still(
+        &st.config.ffmpeg_bin,
+        &st.config.tmp_dir(),
+        &id,
+        &file,
+        &req,
+        &cues,
+        &font_path,
+        &out_path,
+    )
+    .await
+    {
+        report_export_failure(&st, "Frame export", &out_path, &e);
+        return Err(e.into());
+    }
+    Ok(Json(json!({
+        "filename": filename,
+        "format": req.format.ext(),
+        "download_path": format!("{}/api/download/{filename}", st.config.url_base),
+    }))
+    .into_response())
+}

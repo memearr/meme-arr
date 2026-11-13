@@ -208,6 +208,13 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     }),
+  // One frame, with its caption drawn on, as a PNG, JPEG or GIF.
+  saveFrame: (payload) =>
+    json(`/api/still`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
   job: (id) => json(`/api/jobs/${encodeURIComponent(id)}`),
   getSettings: () => json(`/api/settings`),
   saveSettings: (payload) =>

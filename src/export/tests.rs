@@ -675,3 +675,141 @@ fn a_caption_request_without_font_fields_still_parses_with_the_defaults() {
     let c: Caption = serde_json::from_str(r#"{"mode":"source","font":"  "}"#).unwrap();
     assert_eq!(c.font_id(), None);
 }
+
+// ---- single frames -----------------------------------------------------------
+
+fn still_chain(format: StillFormat, width: u32, caption: Option<&Caption>) -> String {
+    still_filter(
+        format,
+        width,
+        caption,
+        "/f/Sans.ttf",
+        Some("/t/a.srt"),
+        Some("/t/top.txt"),
+        None,
+    )
+}
+
+#[test]
+fn a_still_is_sized_captioned_and_made_ready_for_its_format() {
+    let subs = Caption::source(None);
+    let png = still_chain(StillFormat::Png, 960, Some(&subs));
+    assert!(png.starts_with("scale=960:-2"), "{png}");
+    assert!(png.contains("subtitles="), "{png}");
+    assert!(
+        !png.contains("palettegen") && !png.contains("yuvj420p"),
+        "{png}"
+    );
+
+    let jpg = still_chain(StillFormat::Jpg, 960, Some(&subs));
+    assert!(jpg.ends_with("format=yuvj420p"), "{jpg}");
+
+    let gif = still_chain(StillFormat::Gif, 960, Some(&subs));
+    assert!(
+        gif.contains("palettegen") && gif.contains("paletteuse"),
+        "{gif}"
+    );
+
+    // no caption: just the scaling
+    assert_eq!(
+        still_chain(StillFormat::Png, 640, None),
+        "scale=640:-2:flags=lanczos"
+    );
+}
+
+#[test]
+fn meme_text_on_a_wider_still_is_bigger_so_it_looks_the_same() {
+    let meme = Caption::meme(Some("hi".into()), None, 36);
+    let size_at = |w| match caption_for_width(Some(&meme), w).unwrap() {
+        Caption::Meme { font_size, .. } => font_size,
+        _ => unreachable!(),
+    };
+    assert_eq!(size_at(480), 36);
+    assert_eq!(size_at(960), 72);
+    assert_eq!(size_at(240), 18);
+    // subtitles and "no caption" pass through untouched
+    assert!(matches!(
+        caption_for_width(Some(&Caption::source(None)), 1920),
+        Some(Caption::Source { .. })
+    ));
+    assert!(caption_for_width(None, 1920).is_none());
+}
+
+#[test]
+fn a_still_asks_for_one_frame_and_keeps_nothing_of_the_source() {
+    let args = still_args(
+        "/m/a.mkv",
+        12_345,
+        "scale=640:-2",
+        StillFormat::Png,
+        90,
+        "/o/x.png",
+    );
+    let at = |s: &str| {
+        args.iter()
+            .position(|a| a == s)
+            .unwrap_or_else(|| panic!("{s} in {args:?}"))
+    };
+    // seek before the input (fast), then exactly one video frame, no audio
+    assert_eq!(args[at("-ss") + 1], "12.345");
+    assert!(at("-ss") < at("-i"));
+    assert_eq!(args[at("-frames:v") + 1], "1");
+    assert!(args.contains(&"-an".to_string()));
+    assert_eq!(args[at("-map_metadata") + 1], "-1");
+    assert_eq!(args.last().unwrap(), "/o/x.png");
+    // a source's name is never written into the picture
+    assert!(!args.iter().any(|a| a.starts_with("title=")));
+}
+
+#[test]
+fn each_still_format_uses_its_own_encoder() {
+    let codec = |f| {
+        let a = still_args("/m/a.mkv", 0, "null", f, 90, "/o/x");
+        let i = a.iter().position(|s| s == "-c:v").unwrap();
+        a[i + 1].clone()
+    };
+    assert_eq!(codec(StillFormat::Png), "png");
+    assert_eq!(codec(StillFormat::Jpg), "mjpeg");
+    assert_eq!(codec(StillFormat::Gif), "gif");
+}
+
+#[test]
+fn jpeg_quality_maps_onto_ffmpegs_scale() {
+    assert_eq!(jpeg_qscale(100), 2);
+    assert_eq!(jpeg_qscale(1), 31);
+    assert!(jpeg_qscale(90) < jpeg_qscale(50));
+    // out-of-range values are held to the ends
+    assert_eq!(jpeg_qscale(0), 31);
+    assert_eq!(jpeg_qscale(1000), 2);
+}
+
+#[test]
+fn still_requests_have_sensible_defaults_and_limits() {
+    let r: StillRequest =
+        serde_json::from_str(r#"{"rating_key":"1","t_ms":5,"format":"jpg"}"#).unwrap();
+    assert_eq!(
+        (r.clamped_width(), r.quality, r.subtitle_offset_ms),
+        (960, 90, 0)
+    );
+    assert_eq!(r.format.ext(), "jpg");
+    let wide: StillRequest =
+        serde_json::from_str(r#"{"rating_key":"1","t_ms":5,"format":"png","width":99999}"#)
+            .unwrap();
+    assert_eq!(wide.clamped_width(), MAX_STILL_WIDTH);
+    let thin: StillRequest =
+        serde_json::from_str(r#"{"rating_key":"1","t_ms":5,"format":"gif","width":1}"#).unwrap();
+    assert_eq!(thin.clamped_width(), MIN_STILL_WIDTH);
+    assert!(
+        serde_json::from_str::<StillRequest>(r#"{"rating_key":"1","t_ms":5,"format":"bmp"}"#)
+            .is_err()
+    );
+}
+
+#[test]
+fn a_still_file_name_gets_the_pictures_extension() {
+    assert_eq!(
+        safe_filename_ext(Some("../My Frame!.mp4"), "png", "x"),
+        "My Frame_.png"
+    );
+    assert_eq!(safe_filename_ext(None, "jpg", "abc123"), "abc123.jpg");
+}

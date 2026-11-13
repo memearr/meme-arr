@@ -95,7 +95,7 @@ Orientation only: each file's own `//!` comment is the authoritative description
 | `api/clips.rs` | Preview clips, single and sequence exports, jobs and downloads. |
 | `api/subtitle_api.rs` | Online subtitle search and download (Plex and Jellyfin), the Requests list, diagnosis and re-indexing one item. |
 | `api/settings.rs` | Media-server settings, the connection test and the folder browser (confined to `BROWSE_ROOTS`). |
-| `api/frames.rs` | Video facts (frame rate, size), single stills and filmstrips, for the editor's exact trimming. |
+| `api/frames.rs` | Video facts (frame rate, size), single stills and filmstrips, for the editor's exact trimming, and `POST /api/still`, which saves one captioned frame as a PNG, JPG or GIF. |
 | `api/bazarr.rs` | Bazarr: its settings, search / re-time / shift for one item, and the webhook it calls after writing a subtitle. |
 | `api/session.rs` | Sessions, API keys, login/logout/password, trusted proxies and the `require_auth` middleware. The session cookie is `Secure` whenever the visitor used HTTPS. |
 | `api/authentik.rs`, `api/plex_login.rs` | Authentik (OIDC) and Plex single sign-on: login, callback and their settings. |
