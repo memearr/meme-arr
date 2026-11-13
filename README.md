@@ -186,7 +186,9 @@ infrastructure and first-run bootstrap only:
 | `DATA_DIR`        |          | `/data`            | Settings + SQLite index + preview cache |
 | `FONTS_DIR`       |          | `/app/fonts`       | Built-in caption fonts (mount your own Impact.ttf to make it the default). Fonts you upload live in `DATA_DIR/fonts` |
 | `BROWSE_ROOTS`    |          | `/`                | Comma-separated folders the setup wizard's folder picker may browse (e.g. `/media,/mnt`). |
-| `URL_BASE`        |          | _(root)_           | Host under a sub-path like `/meme-arr` (proxy must keep the prefix) |
+| `URL_BASE`        |          | _(root)_           | Host under a sub-path like `/meme-arr` (or send `X-Forwarded-Prefix` if the proxy strips it) |
+| `PUBLIC_URL`      |          | _(from headers)_   | The address people use, e.g. `https://memes.example.com`; overrides a reverse proxy's headers |
+| `HSTS_MAX_AGE`    |          | `0`                | Seconds for a `Strict-Transport-Security` header on HTTPS requests (0 = off) |
 | `INDEX_ON_START`  |          | `true`             | Start the scheduled Library scan enabled (first run only; then see System → Tasks). Restarts only scan when a scan is due |
 | `BIND_ADDR`       |          | `0.0.0.0:8080`     | Listen address inside the container |
 | `GITHUB_TOKEN`    |          | *(empty)*          | Only for a private fork: a read-only token so the sidebar can check it for newer releases |

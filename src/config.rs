@@ -51,6 +51,13 @@ pub struct Config {
     /// like Sonarr's URL Base. Empty = served at the root. Your reverse proxy
     /// must forward the prefix unchanged (not strip it).
     pub url_base: String,
+    /// The address people use to reach the app (env `PUBLIC_URL`, e.g.
+    /// `https://memes.example.com`), for setups where a reverse proxy's
+    /// headers can't be relied on. Overrides what the headers say.
+    pub public_url: Option<crate::forwarded::PublicUrl>,
+    /// Send `Strict-Transport-Security` with this max-age (seconds, env
+    /// `HSTS_MAX_AGE`) on requests that came in over HTTPS. 0 = never.
+    pub hsts_max_age: u64,
     /// Recovery/bootstrap for the admin password (env `RESET_ADMIN_PASSWORD`).
     /// Checked once at every startup: if set, it (re)sets the stored admin
     /// password to this value, logs a loud warning, and the operator is
@@ -114,9 +121,21 @@ impl Config {
         let plex_token = std::env::var("PLEX_TOKEN").ok().filter(|t| !t.is_empty());
 
         let url_base = normalize_url_base(&env_or("URL_BASE", "")).map_err(anyhow::Error::msg)?;
+        let public_url = match std::env::var("PUBLIC_URL") {
+            Ok(u) if !u.trim().is_empty() => {
+                Some(crate::forwarded::PublicUrl::parse(&u).map_err(anyhow::Error::msg)?)
+            }
+            _ => None,
+        };
+        let hsts_max_age = env_or("HSTS_MAX_AGE", "0")
+            .trim()
+            .parse::<u64>()
+            .map_err(|_| anyhow::anyhow!("HSTS_MAX_AGE must be a number of seconds"))?;
 
         Ok(Self {
             url_base,
+            public_url,
+            hsts_max_age,
             plex_url,
             plex_token,
             path_map: parse_path_map(&env_or("PATH_MAP", "")),

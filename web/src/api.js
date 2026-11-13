@@ -73,6 +73,7 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   deleteAuthentikSettings: () => json(`/api/settings/authentik`, { method: "DELETE" }),
+  connectionInfo: () => json(`/api/system/connection`),
   getBazarrSettings: () => json(`/api/settings/bazarr`),
   putBazarrSettings: (payload) =>
     json(`/api/settings/bazarr`, {

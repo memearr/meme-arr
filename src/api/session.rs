@@ -4,28 +4,9 @@ use super::*;
 
 /// Cookie carrying the session token. HttpOnly (no JS access), SameSite=Lax,
 /// and `Secure` whenever the request came in over HTTPS (see
-/// `request_is_https`). It is not `Secure` on plain HTTP, which this app is
+/// `forwarded::Conn`). It is not `Secure` on plain HTTP, which this app is
 /// routinely served over on a LAN: a browser would silently drop the cookie.
 pub(super) const SESSION_COOKIE: &str = "memearr_session";
-
-/// Did this request arrive over HTTPS? The app itself speaks plain HTTP, so
-/// that means a reverse proxy said so with `X-Forwarded-Proto` (or the
-/// standard `Forwarded: proto=`) -- the same header `request_origin` trusts.
-pub(super) fn request_is_https(headers: &HeaderMap) -> bool {
-    let from_xfp = headers
-        .get("x-forwarded-proto")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.split(',').next())
-        .is_some_and(|v| v.trim().eq_ignore_ascii_case("https"));
-    let from_forwarded = headers
-        .get(header::FORWARDED)
-        .and_then(|v| v.to_str().ok())
-        .is_some_and(|v| {
-            v.split([';', ','])
-                .any(|part| part.trim().eq_ignore_ascii_case("proto=https"))
-        });
-    from_xfp || from_forwarded
-}
 
 /// The cookie that clears the session on the browser, matching how
 /// `session_cookie` set it (same `Secure` rule, so the browser accepts it).
@@ -232,7 +213,7 @@ pub(super) async fn auth_status(
 /// replace it after that, not this endpoint; see `auth`'s module docs.
 pub(super) async fn auth_setup(
     State(st): State<AppState>,
-    headers: axum::http::HeaderMap,
+    conn: Conn,
     Json(body): Json<PasswordBody>,
 ) -> Result<impl IntoResponse, AppError> {
     if body.password.len() < 8 {
@@ -254,13 +235,14 @@ pub(super) async fn auth_setup(
         return Ok(bad_request("Already set up — log in instead").into_response());
     }
     st.log_event(LogLevel::Info, "Admin password set up");
-    login_response(&st, &body.password, request_is_https(&headers)).await
+    login_response(&st, &body.password, conn.https).await
 }
 
 pub(super) async fn auth_login(
     State(st): State<AppState>,
     ConnectInfo(peer): ConnectInfo<SocketAddr>,
     headers: axum::http::HeaderMap,
+    conn: Conn,
     Json(body): Json<PasswordBody>,
 ) -> Result<Response, AppError> {
     let ip = client_ip(&st, peer.ip(), &headers).await;
@@ -268,7 +250,7 @@ pub(super) async fn auth_login(
         warn!("login from {ip} rejected: locked out for {retry_after:?}");
         return Ok(too_many_attempts(retry_after));
     }
-    let resp = login_response(&st, &body.password, request_is_https(&headers)).await?;
+    let resp = login_response(&st, &body.password, conn.https).await?;
     if resp.status() == StatusCode::UNAUTHORIZED {
         // Every failure is logged with its source IP (Jellyfin does too),
         // so a brute-force attempt is visible in the Activity log. Bounded:
@@ -298,17 +280,7 @@ pub(super) async fn client_ip(
     peer: std::net::IpAddr,
     headers: &axum::http::HeaderMap,
 ) -> std::net::IpAddr {
-    let pool = st.pool.clone();
-    let raw = tokio::task::spawn_blocking(move || {
-        let conn = pool.get().ok()?;
-        db::get_setting(&conn, "trusted_proxies").ok().flatten()
-    })
-    .await
-    .ok()
-    .flatten();
-    let trusted = raw
-        .map(|r| crate::proxies::parse_list(&r).unwrap_or_default())
-        .unwrap_or_default();
+    let trusted = st.settings().trusted_proxies;
     let xff = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok());
     crate::proxies::client_ip(peer, xff, &trusted)
 }
@@ -348,6 +320,7 @@ pub(super) async fn put_trusted_proxies(
         }
     })
     .await??;
+    st.reload_settings()?;
     st.log_event(LogLevel::Info, "Trusted proxies updated");
     Ok(Json(json!({ "ok": true })).into_response())
 }
@@ -404,7 +377,7 @@ pub(super) async fn login_response(
 
 pub(super) async fn auth_logout(
     State(st): State<AppState>,
-    headers: axum::http::HeaderMap,
+    conn: Conn,
     jar: CookieJar,
 ) -> impl IntoResponse {
     if let Some(token) = jar.get(SESSION_COOKIE).map(|c| c.value().to_string()) {
@@ -415,7 +388,7 @@ pub(super) async fn auth_logout(
         })
         .await;
     }
-    let jar = jar.add(session_removal_cookie(request_is_https(&headers)));
+    let jar = jar.add(session_removal_cookie(conn.https));
     (jar, Json(json!({ "ok": true })))
 }
 

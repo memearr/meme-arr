@@ -69,7 +69,15 @@ per clip in the editor, not here.
 If you run the app behind a reverse proxy, list the proxy's address (or network, such as
 `172.18.0.0/16`) here. Then the app believes the `X-Forwarded-For` header **only** when the
 connection comes from one of those addresses, so login lockouts and logs see the real client.
-Leave it empty if you do not use a proxy.
+Leave it empty if you do not use a proxy. (The proxy's HTTPS, host and path headers are also
+believed from private addresses; see [Deployment](DEPLOYMENT.md#behind-a-reverse-proxy).)
+
+### Check this connection
+
+Press **Check** to see what the app makes of the connection you are using: whether it sees
+HTTPS, the host, the client address, and the Authentik and Plex callback addresses it would use.
+It names anything that looks wrong, such as a proxy that is not listed. Open the app through your
+proxy first, so the check sees what visitors see.
 
 ### API key
 

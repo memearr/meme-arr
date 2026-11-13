@@ -44,11 +44,8 @@ pub(super) async fn start_plex_flow(
 }
 
 /// Redirects the browser to Plex. Public — this *is* a login path.
-pub(super) async fn plex_login(
-    State(st): State<AppState>,
-    headers: axum::http::HeaderMap,
-) -> Response {
-    let Ok(origin) = app_origin(&st, &headers) else {
+pub(super) async fn plex_login(State(st): State<AppState>, conn: Conn) -> Response {
+    let Ok(origin) = app_origin(&st, &conn) else {
         return bad_request("Missing Host header").into_response();
     };
     match start_plex_flow(&st, "login", &origin).await {
@@ -63,12 +60,12 @@ pub(super) async fn plex_login(
 pub(super) async fn plex_login_link_start(
     State(st): State<AppState>,
     jar: CookieJar,
-    headers: axum::http::HeaderMap,
+    conn: Conn,
 ) -> Response {
     if !has_valid_session(&st, &jar).await {
         return unauthorized();
     }
-    let Ok(origin) = app_origin(&st, &headers) else {
+    let Ok(origin) = app_origin(&st, &conn) else {
         return bad_request("Missing Host header").into_response();
     };
     match start_plex_flow(&st, "link", &origin).await {
@@ -91,7 +88,7 @@ pub(super) struct PlexCallbackParams {
 pub(super) async fn plex_callback(
     State(st): State<AppState>,
     jar: CookieJar,
-    headers: axum::http::HeaderMap,
+    conn: Conn,
     Query(p): Query<PlexCallbackParams>,
 ) -> Response {
     let pool = st.pool.clone();
@@ -210,7 +207,7 @@ pub(super) async fn plex_callback(
         LogLevel::Info,
         format!("Logged in via Plex ({})", account.username),
     );
-    let cookie = session_cookie(session_token, request_is_https(&headers));
+    let cookie = session_cookie(session_token, conn.https);
     let jar = CookieJar::new().add(cookie);
     (
         jar,

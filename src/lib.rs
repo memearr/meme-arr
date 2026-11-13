@@ -17,6 +17,7 @@ pub mod diskstats;
 pub mod export;
 pub mod ffmpeg;
 pub mod fonts;
+pub mod forwarded;
 pub mod health;
 pub mod index;
 pub mod jellyfin;
@@ -125,13 +126,14 @@ pub async fn run(logs: Arc<logs::LogControl>) -> Result<()> {
     // URL base injected (see spa.rs);
     // every other path is a real static file, else the SPA's index.
     let index_page = Arc::new(spa::IndexPage::new(&config.web_dir, &config.url_base));
-    let url_base = Arc::new(config.url_base.clone());
     // One handler for every "give me the page" case (unknown paths, `/base/`).
     let page = {
-        let (idx, base) = (index_page.clone(), url_base.clone());
-        move |axum::extract::OriginalUri(uri): axum::extract::OriginalUri| {
-            let (idx, base) = (idx.clone(), base.clone());
-            async move { spa::index_response(&idx.get(), &uri, &base) }
+        let (idx, st) = (index_page.clone(), state.clone());
+        move |axum::extract::OriginalUri(uri): axum::extract::OriginalUri,
+              axum::extract::ConnectInfo(peer): axum::extract::ConnectInfo<std::net::SocketAddr>,
+              headers: axum::http::HeaderMap| {
+            let (idx, st) = (idx.clone(), st.clone());
+            async move { spa::page_for(&idx, &st, peer, &headers, &uri) }
         }
     };
     let spa = ServeDir::new(&config.web_dir)
@@ -143,13 +145,9 @@ pub async fn run(logs: Arc<logs::LogControl>) -> Result<()> {
     // ever makes a cross-origin request. Leaving CORS headers off keeps the
     // browser's same-origin policy in force -- other sites' JS can't read
     // any response from this API, public endpoints included.
-    let inner =
-        api::router(state)
-            .fallback_service(spa)
-            .layer(axum::middleware::from_fn_with_state(
-                (index_page.clone(), url_base.clone()),
-                spa::serve_index,
-            ));
+    let inner = api::router(state.clone()).fallback_service(spa).layer(
+        axum::middleware::from_fn_with_state((index_page.clone(), state.clone()), spa::serve_index),
+    );
     let app = if config.url_base.is_empty() {
         inner
     } else {
@@ -169,6 +167,13 @@ pub async fn run(logs: Arc<logs::LogControl>) -> Result<()> {
             .nest(&base, inner)
     }
     .layer(TraceLayer::new_for_http());
+    // HSTS only when the browser used HTTPS (as far as we can tell) and the
+    // operator asked for it.
+    let app = if config.hsts_max_age > 0 {
+        app.layer(axum::middleware::from_fn_with_state(state.clone(), hsts))
+    } else {
+        app
+    };
     info!(
         "serving at {}",
         if config.url_base.is_empty() {
@@ -220,4 +225,31 @@ fn seed_settings_from_env(pool: &db::Pool, config: &Config) -> Result<()> {
         db::replace_mappings(&mut conn, &mappings)?;
     }
     Ok(())
+}
+
+/// Middleware: `Strict-Transport-Security` on responses to HTTPS requests.
+async fn hsts(
+    axum::extract::State(st): axum::extract::State<AppState>,
+    axum::extract::ConnectInfo(peer): axum::extract::ConnectInfo<std::net::SocketAddr>,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let https = forwarded::Conn::from_parts(
+        peer.ip(),
+        req.headers(),
+        &st.settings().trusted_proxies,
+        st.config.public_url.as_ref(),
+        &st.config.url_base,
+    )
+    .https;
+    let mut resp = next.run(req).await;
+    if https {
+        if let Ok(v) =
+            axum::http::HeaderValue::from_str(&format!("max-age={}", st.config.hsts_max_age))
+        {
+            resp.headers_mut()
+                .insert(axum::http::header::STRICT_TRANSPORT_SECURITY, v);
+        }
+    }
+    resp
 }

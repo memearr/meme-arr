@@ -1,5 +1,6 @@
 import { SERVERS, serverPayload } from "./wizard.js";
 import { BazarrSettingsPanel } from "./BazarrSettingsPanel.jsx";
+import { ConnectionPanel } from "./ConnectionPanel.jsx";
 import { FontsPanel } from "./FontsPanel.jsx";
 import CopyButton from "./CopyButton.jsx";
 import { api } from "./api.js";
@@ -299,6 +300,7 @@ export function Settings({ onChange }) {
       <PlexLoginPanel />
       <ApiKeyPanel />
       <TrustedProxiesPanel />
+      <ConnectionPanel />
     </section>
   );
 }

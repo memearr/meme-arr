@@ -5,9 +5,11 @@
 //! it, and its assets are relative (`base: "./"` in the Vite config), so the
 //! same build works at the root or under a sub-path like `/meme-arr/`.
 
+use crate::forwarded::Conn;
+use crate::state::AppState;
 use crate::sync::RwLockExt;
 use axum::{
-    extract::{OriginalUri, Request, State},
+    extract::{ConnectInfo, OriginalUri, Request, State},
     http::Uri,
     middleware::Next,
     response::{Html, IntoResponse, Redirect, Response},
@@ -18,6 +20,19 @@ use std::time::SystemTime;
 use tracing::warn;
 
 const PLACEHOLDER: &str = r#"window.__MEMEARR_BASE__="""#;
+
+/// `html` for a proxy that serves the app under a path it strips before
+/// forwarding (`X-Forwarded-Prefix`): the page's base gets that prefix in front.
+/// `base` is the app's own `URL_BASE`; both are URL-safe (validated).
+pub fn with_prefix(html: &str, base: &str, prefix: &str) -> String {
+    if prefix.is_empty() {
+        return html.to_string();
+    }
+    html.replace(
+        &format!(r#"window.__MEMEARR_BASE__="{base}""#),
+        &format!(r#"window.__MEMEARR_BASE__="{prefix}{base}""#),
+    )
+}
 
 /// `html` with the URL base filled in. `base` has already been validated by
 /// `config::normalize_url_base` (URL-safe characters only), so it's safe to
@@ -93,12 +108,31 @@ impl IndexPage {
 /// `uri`. The bare base (`/meme-arr`, no trailing slash) redirects to
 /// `/meme-arr/`, since the page's relative asset URLs only resolve against
 /// the slash form; anything else gets the page.
-pub fn index_response(html: &str, uri: &Uri, base: &str) -> Response {
+pub fn index_response(html: &str, uri: &Uri, base: &str, prefix: &str) -> Response {
     if !base.is_empty() && uri.path() == base {
-        Redirect::permanent(&format!("{base}/")).into_response()
+        Redirect::permanent(&format!("{prefix}{base}/")).into_response()
     } else {
-        Html(html.to_owned()).into_response()
+        Html(with_prefix(html, base, prefix)).into_response()
     }
+}
+
+/// The page for one request: its proxy prefix (if any) worked out the same way
+/// as everywhere else (see `forwarded`).
+pub fn page_for(
+    page: &IndexPage,
+    st: &AppState,
+    peer: std::net::SocketAddr,
+    headers: &axum::http::HeaderMap,
+    original: &Uri,
+) -> Response {
+    let conn = Conn::from_parts(
+        peer.ip(),
+        headers,
+        &st.settings().trusted_proxies,
+        st.config.public_url.as_ref(),
+        &st.config.url_base,
+    );
+    index_response(&page.get(), original, &st.config.url_base, &conn.prefix)
 }
 
 /// Middleware: serve the in-memory index for `/` and `/index.html` (as seen
@@ -106,13 +140,14 @@ pub fn index_response(html: &str, uri: &Uri, base: &str) -> Response {
 /// this itself -- it never calls its fallback for a directory request, and
 /// its own `index.html` wouldn't have the base injected.
 pub async fn serve_index(
-    State((page, base)): State<(Arc<IndexPage>, Arc<String>)>,
+    State((page, st)): State<(Arc<IndexPage>, AppState)>,
+    ConnectInfo(peer): ConnectInfo<std::net::SocketAddr>,
     OriginalUri(original): OriginalUri,
     req: Request,
     next: Next,
 ) -> Response {
     match req.uri().path() {
-        "" | "/" | "/index.html" => index_response(&page.get(), &original, &base),
+        "" | "/" | "/index.html" => page_for(&page, &st, peer, req.headers(), &original),
         _ => next.run(req).await,
     }
 }
@@ -172,8 +207,9 @@ mod tests {
 
     #[test]
     fn the_bare_base_redirects_to_its_trailing_slash_form_and_pages_are_served_otherwise() {
-        let page =
-            |p: &str, base: &str| index_response("<p/>", &p.parse::<Uri>().unwrap(), base).status();
+        let page = |p: &str, base: &str| {
+            index_response("<p/>", &p.parse::<Uri>().unwrap(), base, "").status()
+        };
         assert_eq!(page("/", ""), 200);
         assert_eq!(page("/meme-arr/", "/meme-arr"), 200);
         assert_eq!(page("/meme-arr/index.html", "/meme-arr"), 200);
@@ -181,6 +217,28 @@ mod tests {
         assert_eq!(page("/meme-arr", "/meme-arr"), 308);
         // With no base, a path is never treated as "the bare base".
         assert_eq!(page("/anything", ""), 200);
+    }
+
+    #[test]
+    fn a_proxy_prefix_goes_in_front_of_the_base() {
+        let page = inject_base(HTML, "/meme-arr");
+        let out = with_prefix(&page, "/meme-arr", "/memes");
+        assert!(out.contains(r#"window.__MEMEARR_BASE__="/memes/meme-arr""#));
+        let out = with_prefix(&inject_base(HTML, ""), "", "/memes");
+        assert!(out.contains(r#"window.__MEMEARR_BASE__="/memes""#));
+        assert_eq!(with_prefix(&page, "/meme-arr", ""), page);
+    }
+
+    #[test]
+    fn the_bare_base_redirects_through_the_proxy_prefix() {
+        let r = index_response(
+            "<p/>",
+            &"/meme-arr".parse::<Uri>().unwrap(),
+            "/meme-arr",
+            "/memes",
+        );
+        assert_eq!(r.status(), 308);
+        assert_eq!(r.headers()["location"], "/memes/meme-arr/");
     }
 
     #[test]
