@@ -256,3 +256,27 @@ Open an issue on the repository and include:
 - the relevant lines from **System → Logs** (check them for addresses or file names you would
   rather not share before posting),
 - the **System → Health** list.
+
+## "The server's HTTPS certificate isn't trusted"
+
+Connecting to Plex, Jellyfin, Bazarr or Authentik over `https://` failed because the
+certificate isn't signed by an authority this app knows: a self-signed certificate,
+one from a private CA, or a name that doesn't match (an IP address instead of the
+host name on the certificate).
+
+- **Best:** trust the CA that signed it. Mount its PEM file into the container and set
+  `EXTRA_CA_CERTS=/path/in/container/my-ca.pem`. Everything else is still checked.
+- Use the host name that is on the certificate rather than an IP address.
+- **Last resort:** list that one server's host name in `TLS_INSECURE_HOSTS` (for example
+  `plex.lan`). It switches certificate checking off for that host only.
+
+See [Deployment](DEPLOYMENT.md#https-to-your-other-servers).
+
+## Login, cookies or callbacks go wrong behind a reverse proxy
+
+Open **Settings → Check this connection** through the proxy. It shows whether the app
+sees HTTPS, which host and prefix it will use for the Authentik and Plex callback
+addresses, and which client address it sees, and it names the usual mistakes (the
+proxy isn't sending `X-Forwarded-Proto`/`X-Forwarded-Host`, or isn't listed under Trusted
+proxies). If the proxy can't send the headers, set `PUBLIC_URL`. See
+[Deployment](DEPLOYMENT.md#behind-a-reverse-proxy).

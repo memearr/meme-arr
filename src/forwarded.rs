@@ -175,13 +175,16 @@ pub struct Conn {
 }
 
 impl Conn {
-    /// Work out the connection. `url_base` is the app's own `URL_BASE`.
+    /// Work out the connection. `url_base` is the app's own `URL_BASE`;
+    /// `direct_https` is whether this app itself serves HTTPS (`TLS_CERT`), the
+    /// answer when no believed header says otherwise.
     pub fn from_parts(
         peer: IpAddr,
         headers: &HeaderMap,
         trusted: &[Net],
         public_url: Option<&PublicUrl>,
         url_base: &str,
+        direct_https: bool,
     ) -> Conn {
         let own_host = header_str(headers, "host")
             .map(first)
@@ -210,7 +213,7 @@ impl Conn {
         if !believed {
             return Conn {
                 peer,
-                https: false,
+                https: direct_https,
                 host: own_host,
                 prefix: String::new(),
                 forwarded_trusted: false,
@@ -222,7 +225,7 @@ impl Conn {
         let proto = f_proto.or_else(|| {
             header_str(headers, "x-forwarded-proto").map(|v| first(v).to_ascii_lowercase())
         });
-        let https = proto.as_deref() == Some("https");
+        let https = proto.as_deref().map_or(direct_https, |p| p == "https");
 
         let host = f_host
             .filter(|h| valid_host(h))
@@ -301,7 +304,21 @@ mod tests {
         h
     }
     fn conn(peer: &str, pairs: &[(&str, &str)]) -> Conn {
-        Conn::from_parts(ip(peer), &headers(pairs), &[], None, "")
+        Conn::from_parts(ip(peer), &headers(pairs), &[], None, "", false)
+    }
+
+    #[test]
+    fn serving_tls_ourselves_makes_a_direct_connection_https() {
+        let h = headers(&[("host", "memes.lan:8443")]);
+        let c = Conn::from_parts(ip("203.0.113.9"), &h, &[], None, "", true);
+        assert!(c.https);
+        assert_eq!(c.origin().unwrap(), "https://memes.lan:8443");
+        // a believed proxy that says the visitor used plain http wins
+        let h = headers(&[("host", "x"), ("x-forwarded-proto", "http")]);
+        assert!(!Conn::from_parts(ip("10.0.0.2"), &h, &[], None, "", true).https);
+        // and one that says nothing leaves it https
+        let h = headers(&[("host", "x")]);
+        assert!(Conn::from_parts(ip("10.0.0.2"), &h, &[], None, "", true).https);
     }
 
     #[test]
@@ -344,7 +361,14 @@ mod tests {
     #[test]
     fn a_listed_proxy_is_believed_even_on_a_public_address() {
         let h = headers(&[("host", "x"), ("x-forwarded-proto", "https")]);
-        let c = Conn::from_parts(ip("203.0.113.9"), &h, &nets("203.0.113.0/24"), None, "");
+        let c = Conn::from_parts(
+            ip("203.0.113.9"),
+            &h,
+            &nets("203.0.113.0/24"),
+            None,
+            "",
+            false,
+        );
         assert!(c.https && c.forwarded_trusted);
     }
 
@@ -453,7 +477,7 @@ mod tests {
             ("x-forwarded-proto", "http"),
             ("x-forwarded-host", "other"),
         ]);
-        let c = Conn::from_parts(ip("203.0.113.9"), &h, &[], Some(&p), "");
+        let c = Conn::from_parts(ip("203.0.113.9"), &h, &[], Some(&p), "", false);
         assert!(c.https && c.from_public_url);
         assert_eq!(c.app_base("").unwrap(), "https://memes.example.com");
     }
@@ -468,6 +492,7 @@ mod tests {
             &[],
             Some(&p),
             "/meme-arr",
+            false,
         );
         assert_eq!(c.prefix, "/apps");
         assert_eq!(
@@ -475,7 +500,7 @@ mod tests {
             "https://example.com/apps/meme-arr"
         );
         // the proxy strips everything, no URL_BASE
-        let c = Conn::from_parts(ip("10.0.0.2"), &HeaderMap::new(), &[], Some(&p), "");
+        let c = Conn::from_parts(ip("10.0.0.2"), &HeaderMap::new(), &[], Some(&p), "", false);
         assert_eq!(c.app_base("").unwrap(), "https://example.com/apps/meme-arr");
     }
 

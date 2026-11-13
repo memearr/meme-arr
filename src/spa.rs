@@ -131,6 +131,7 @@ pub fn page_for(
         &st.settings().trusted_proxies,
         st.config.public_url.as_ref(),
         &st.config.url_base,
+        st.config.tls_cert.is_some(),
     );
     index_response(&page.get(), original, &st.config.url_base, &conn.prefix)
 }

@@ -10,7 +10,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 fn upstream(msg: impl Into<String>) -> Response {
     (
         StatusCode::BAD_GATEWAY,
-        Json(json!({ "error": msg.into() })),
+        Json(json!({ "error": crate::tls::explain(msg.into()) })),
     )
         .into_response()
 }
@@ -50,7 +50,7 @@ async fn check_saved(st: &AppState) -> serde_json::Value {
     };
     let version = match client.version().await {
         Ok(v) => v,
-        Err(e) => return json!({ "ok": false, "error": format!("{e:#}") }),
+        Err(e) => return json!({ "ok": false, "error": crate::tls::explain(format!("{e:#}")) }),
     };
     let languages = client.languages().await.unwrap_or_default();
     let pool = st.pool.clone();

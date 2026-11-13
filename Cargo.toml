@@ -15,6 +15,7 @@ softver = { git = "https://github.com/memearr/softver", rev = "846373d0fb8a5e4b7
 axum = { version = "0.8", features = ["macros"] }
 axum-extra = { version = "0.12", features = ["cookie"] }
 tokio = { version = "1", features = ["full"] }
+axum-server = { version = "0.9", features = ["tls-rustls"] }
 tower-http = { version = "0.7", features = ["fs", "trace"] }
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "stream", "form", "query"] }
 serde = { version = "1", features = ["derive"] }
@@ -37,6 +38,7 @@ time = "0.3"
 
 [dev-dependencies]
 tempfile = "3"
+rcgen = "0.14"
 
 [profile.release]
 opt-level = 3

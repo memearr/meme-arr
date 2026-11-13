@@ -110,6 +110,9 @@ vars on an already-configured deployment does nothing.
 | `GITHUB_REPO` | `memearr/meme-arr` | update-check target |
 | `GITHUB_TOKEN` | — | only for the update check against a **private** fork — without it, GitHub's API returns 404 (not 401/403) for every tags lookup, and the sidebar version check will never find a newer release. A classic PAT with `repo` scope (or a fine-grained token scoped to the repo with "Contents: Read-only") works. Not needed for the public repo. |
 | `URL_BASE` | — | host the app under a sub-path, e.g. `/meme-arr` (like Sonarr's URL Base) — see "Behind a reverse proxy" below. Invalid values stop startup with an explanation |
+| `TLS_CERT` / `TLS_KEY` | — | serve HTTPS directly: PEM certificate chain and private key (both or neither) — see "HTTPS without a proxy" |
+| `EXTRA_CA_CERTS` | — | PEM files or folders of certificate authorities to trust for HTTPS to Plex, Jellyfin, Bazarr and Authentik |
+| `TLS_INSECURE_HOSTS` | — | host names whose HTTPS certificate is not checked (last resort) |
 | `PUBLIC_URL` | — | the address people use to reach the app, e.g. `https://memes.example.com` (may include a sub-path). Overrides what a reverse proxy's headers say about HTTPS, host and prefix — see "Behind a reverse proxy" |
 | `HSTS_MAX_AGE` | `0` | seconds for a `Strict-Transport-Security` header on HTTPS requests; `0` = off |
 | `RESET_ADMIN_PASSWORD` | — | auth recovery, see AUTHENTICATION.md — checked every startup, not auto-cleared |
@@ -249,6 +252,56 @@ container's root, so the image's `HEALTHCHECK` works unchanged. Callback URLs
 `https://home.example.com/meme-arr/api/auth/oidc/callback` with Authentik. The
 built frontend is base-agnostic (relative assets + a value the server injects
 into `index.html`), so one image serves every layout.
+
+### HTTPS without a proxy
+
+If there is no reverse proxy, the app can serve HTTPS itself. Give it the
+certificate (the full chain) and the private key as PEM files:
+
+```yaml
+environment:
+  TLS_CERT: /certs/fullchain.pem
+  TLS_KEY: /certs/privkey.pem
+volumes:
+  - ./certs:/certs:ro
+```
+
+Both or neither; setting only one stops startup with an explanation. The
+port then speaks HTTPS only (plain HTTP to it is refused), session cookies are
+`Secure`, and `BIND_ADDR` has to be an IP and port (the default is). The image's
+health check tries both HTTP and HTTPS, so it keeps working.
+
+The certificate is re-read when its files change (checked every minute), so a
+renewal by Let's Encrypt, certbot or Caddy's/Traefik's ACME store takes effect
+without a restart. If the new files can't be read yet, the old certificate stays
+in use and the app tries again.
+
+For a certificate of your own on a LAN, the usual route is a private CA
+(mkcert, step-ca, your router) and trusting that CA on your devices; a
+self-signed certificate works but every browser warns about it.
+
+### HTTPS to your other servers
+
+Plex, Jellyfin, Bazarr and Authentik are often on HTTPS with a certificate from
+a private CA, or a self-signed one. This app then refuses the connection
+(settings tests and errors say "the server's HTTPS certificate isn't trusted").
+Two settings fix it:
+
+| Variable | Purpose |
+|---|---|
+| `EXTRA_CA_CERTS` | PEM files, or folders of `.pem`/`.crt`/`.cer` files (comma-separated), whose certificates are trusted **in addition to** the system's. Use this: it trusts your CA and still checks everything. A missing or invalid file stops startup, so a typo isn't silent. |
+| `TLS_INSECURE_HOSTS` | host names (comma-separated; `*.lan` for a domain, `*` for all) whose certificate is **not checked at all**. A last resort for one named server. It never applies to plex.tv or GitHub, and a warning is logged at startup. |
+
+```yaml
+environment:
+  EXTRA_CA_CERTS: /certs/my-ca.pem
+volumes:
+  - ./my-ca.pem:/certs/my-ca.pem:ro
+```
+
+Plex's own `*.plex.direct` addresses have valid certificates; connecting to a Plex
+server by bare IP over HTTPS does not, so either use the `plex.direct` name, or
+`http://` on the LAN, or one of the settings above.
 
 ### HTTPS details
 

@@ -41,7 +41,7 @@ struct Tag {
 /// the caller can report "couldn't check".
 pub async fn latest_tag(repo: &str, token: Option<&str>) -> Result<Option<String>> {
     let url = format!("https://api.github.com/repos/{repo}/tags?per_page=100");
-    let client = reqwest::Client::builder()
+    let client = crate::tls::client(None)
         .timeout(Duration::from_secs(5))
         .build()?;
     let mut req = client

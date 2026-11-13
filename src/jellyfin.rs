@@ -351,10 +351,11 @@ impl JellyfinClient {
     }
 
     pub fn new(base_url: impl Into<String>, api_key: impl Into<String>) -> Self {
+        let base_url = base_url.into().trim_end_matches('/').to_string();
         Self {
-            base_url: base_url.into().trim_end_matches('/').to_string(),
+            base_url: base_url.clone(),
             api_key: api_key.into(),
-            http: Client::builder()
+            http: crate::tls::client(Some(&base_url))
                 .timeout(Duration::from_secs(60))
                 .build()
                 .unwrap_or_default(),

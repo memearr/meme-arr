@@ -224,7 +224,7 @@ impl Client {
         Client {
             base: url.trim().trim_end_matches('/').to_string(),
             key: key.trim().to_string(),
-            http: reqwest::Client::builder()
+            http: crate::tls::client(Some(url))
                 .timeout(Duration::from_secs(20))
                 .build()
                 .unwrap_or_default(),

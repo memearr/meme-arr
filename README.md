@@ -187,6 +187,9 @@ infrastructure and first-run bootstrap only:
 | `FONTS_DIR`       |          | `/app/fonts`       | Built-in caption fonts (mount your own Impact.ttf to make it the default). Fonts you upload live in `DATA_DIR/fonts` |
 | `BROWSE_ROOTS`    |          | `/`                | Comma-separated folders the setup wizard's folder picker may browse (e.g. `/media,/mnt`). |
 | `URL_BASE`        |          | _(root)_           | Host under a sub-path like `/meme-arr` (or send `X-Forwarded-Prefix` if the proxy strips it) |
+| `TLS_CERT` / `TLS_KEY` |      | _(off)_            | PEM certificate chain and key: the app serves HTTPS itself (reloaded on renewal) |
+| `EXTRA_CA_CERTS`  |          | _(none)_           | PEM files/folders of extra CAs to trust for HTTPS to Plex, Jellyfin, Bazarr, Authentik |
+| `TLS_INSECURE_HOSTS` |       | _(none)_           | Host names whose HTTPS certificate isn't checked (last resort) |
 | `PUBLIC_URL`      |          | _(from headers)_   | The address people use, e.g. `https://memes.example.com`; overrides a reverse proxy's headers |
 | `HSTS_MAX_AGE`    |          | `0`                | Seconds for a `Strict-Transport-Security` header on HTTPS requests (0 = off) |
 | `INDEX_ON_START`  |          | `true`             | Start the scheduled Library scan enabled (first run only; then see System → Tasks). Restarts only scan when a scan is due |
