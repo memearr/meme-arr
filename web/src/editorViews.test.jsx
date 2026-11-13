@@ -185,9 +185,44 @@ describe("sequence editing", () => {
     expect(html).toContain("<legend>Output</legend>");
   });
 
-  it("puts an Edit button on every clip of the Sequence tab", () => {
-    const clips = [clip, { ...clip, id: "c2" }];
-    const html = renderToStaticMarkup(<SequenceView sequence={clips} setSequence={noop} onJob={noop} />);
-    expect(html.split("✎ Edit").length - 1).toBe(2);
+  const clips = [clip, { ...clip, id: "c2", title: "Second", start_ms: 5000, end_ms: 8000 }];
+  const sequenceHtml = () =>
+    renderToStaticMarkup(<SequenceView sequence={clips} setSequence={noop} onJob={noop} />);
+
+  it("shows the whole set: a player, a strip of every section, and edits for one or all", () => {
+    const html = sequenceHtml();
+    // the strip: one block per section, in order, with the total against the limit
+    expect(html).toContain('aria-label="Sections in play order"');
+    expect(html.match(/class="seq-block[ "]/g)).toHaveLength(2);
+    expect(html).toContain("2 sections");
+    // the player
+    expect(html).toContain("Play the sequence");
+    expect(html).toContain('aria-label="Position in the sequence"');
+    // one section's editor (the first is selected), and the all-sections editor
+    expect(html).toContain("Section 1 of 2");
+    expect(html).toContain("Detailed edit");
+    expect(html).toContain("All sections");
+    expect(html).toContain("Burn subtitles in all");
+    expect(html).toContain("Reverse the order");
+    // undo and the export controls are still there
+    expect(html).toContain("↶ Undo");
+    expect(html).toContain("Export GIF (2 clips)");
+  });
+
+  it("says so when there is nothing in the sequence", () => {
+    const html = renderToStaticMarkup(<SequenceView sequence={[]} setSequence={noop} onJob={noop} />);
+    expect(html).toContain("No clips yet");
+    expect(html).not.toContain("Sections in play order");
+  });
+
+  it("flags a sequence over the limit", () => {
+    const long = [
+      { ...clip, id: "x1", start_ms: 0, end_ms: 60_000 },
+      { ...clip, id: "x2", start_ms: 0, end_ms: 60_000 },
+      { ...clip, id: "x3", start_ms: 0, end_ms: 60_000 },
+      { ...clip, id: "x4", start_ms: 0, end_ms: 5_000 },
+    ];
+    const html = renderToStaticMarkup(<SequenceView sequence={long} setSequence={noop} onJob={noop} />);
+    expect(html).toContain("over the 3-minute limit");
   });
 });

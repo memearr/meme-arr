@@ -143,15 +143,31 @@ and WebM only; GIF and WebP can't carry audio). Finished files also land in your
 ### Sequences
 
 **Add to sequence** queues a clip. The **Sequence** tab joins several clips, from
-any shows or movies, into one back-to-back GIF, WebP, MP4 or WebM (up to 20 clips and
-3 minutes). Reorder or remove clips, choose the format, and export.
+any shows or movies, into one back-to-back GIF, WebP, MP4 or WebM (up to 20 sections and
+3 minutes), and edits them as a set:
 
-**✎ Edit** on a clip opens it in the full editor: the same player, timeline, exact
-In/Out, subtitle lines and caption settings as when you made it, starting from what you
-saved. **Save to sequence** puts the changes back in the clip's place (**Save and edit
-next clip** carries on down the list); **Back without saving** drops them. The format,
-width, frame rate and quality are set once for the whole sequence, so the editor doesn't
-show them.
+- **Play the whole sequence.** The player at the top plays every section one after
+  another, with the captions burned in the way the export will draw them (each section
+  is drawn small, and the next one is fetched while the current one plays). The slider
+  moves anywhere in the sequence; Space plays and pauses.
+- **The strip.** Below the player every section is a block as wide as it is long, in play
+  order, with its picture, number and length, and a bar showing how much of the 3 minutes
+  is used. Click a block to pick it; **drag blocks to reorder** them (or use
+  **◀ Earlier / Later ▶**); **Duplicate** and **Remove** act on the picked one.
+- **One section.** The picked section gets exact **In/Out** (typed times or frame numbers,
+  nudges), its caption mode (none, burned subtitles, meme text), font and size, and the
+  subtitle sync. **✎ Detailed edit** opens it in the full editor, with the player, timeline
+  and every subtitle line; **Save to sequence** puts it back in its place and
+  **Save and edit next clip** carries on down the list.
+- **All sections.** One click burns subtitles into every section or removes all captions,
+  sets one font and size for every caption (meme words are left alone), moves every start
+  or end by a quarter or half a second, shortens every section to a longest length, or
+  reverses the order.
+- **Undo and redo** step back through every change made here (typing a time or dragging a
+  slider counts as one step).
+
+The format, width, frame rate and quality are set once for the whole sequence, below the
+editor, along with the export button.
 
 ![The Sequence tab with three clips from different shows, ready to export as one GIF](images/sequence.png)
 

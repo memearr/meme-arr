@@ -96,6 +96,7 @@ export function TrimPanel({
   snap,
   onSnap,
   onTrim, // (start, end, commit, moved)
+  showKeys = true, // the editor's keyboard shortcuts (not in the sequence editor)
 }) {
   const length = end - start;
   const tooLong = length > MAX_CLIP_MS;
@@ -147,9 +148,11 @@ export function TrimPanel({
             />
           </div>
           <NudgeRow fps={fps} ms={start} onSet={(v) => setIn(v, true)} />
-          <button type="button" className="secondary" onClick={() => setIn(playhead, true)}>
-            Set to playhead
-          </button>
+          {playhead != null && (
+            <button type="button" className="secondary" onClick={() => setIn(playhead, true)}>
+              Set to playhead
+            </button>
+          )}
         </div>
 
         <div className="trim-col">
@@ -178,9 +181,11 @@ export function TrimPanel({
             />
           </div>
           <NudgeRow fps={fps} ms={end} onSet={(v) => setOut(v, true)} />
-          <button type="button" className="secondary" onClick={() => setOut(playhead, true)}>
-            Set to playhead
-          </button>
+          {playhead != null && (
+            <button type="button" className="secondary" onClick={() => setOut(playhead, true)}>
+              Set to playhead
+            </button>
+          )}
         </div>
 
         <div className="trim-col trim-length">
@@ -206,10 +211,12 @@ export function TrimPanel({
             <option value="off">Nothing (to the ms)</option>
           </select>
         </label>
+        {showKeys && (
         <span className="hint tiny trim-keys">
           Keys: <kbd>I</kbd>/<kbd>O</kbd> set In/Out to the playhead · <kbd>,</kbd> <kbd>.</kbd> step a frame
           (<kbd>Shift</kbd> = 10) · <kbd>Space</kbd> play · <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo
         </span>
+        )}
       </div>
       {fps && (
         <p className="hint tiny">
