@@ -194,23 +194,39 @@ pub async fn extract_srt(ffmpeg_bin: &str, file: &Path, rel_index: usize) -> Res
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
-pub fn convert_srt_args(file: &str) -> Vec<String> {
-    vec![
-        "-v".into(),
-        "error".into(),
+pub fn convert_srt_args(file: &str, charenc: Option<&str>) -> Vec<String> {
+    let mut args = vec!["-v".into(), "error".into()];
+    // Text that isn't UTF-8 (the usual case for old subtitle files) is
+    // dropped line by line, with "Invalid data found", unless ffmpeg is told
+    // what it is.
+    if let Some(enc) = charenc {
+        args.extend(["-sub_charenc".into(), enc.into()]);
+    }
+    args.extend([
         "-i".into(),
         file.into(),
         "-f".into(),
         "srt".into(),
         "-".into(), // write to stdout
-    ]
+    ]);
+    args
 }
 
 /// Convert a sidecar subtitle file (.srt/.vtt/.ass/.ssa) to SRT text. ffmpeg
 /// handles the format (and most encodings) uniformly.
 pub async fn convert_to_srt(ffmpeg_bin: &str, file: &Path) -> Result<String> {
+    convert_to_srt_as(ffmpeg_bin, file, None).await
+}
+
+/// `convert_to_srt` for a file whose text encoding is known (`charenc`, an
+/// iconv name such as `windows-1252`), or `None` for UTF-8.
+pub async fn convert_to_srt_as(
+    ffmpeg_bin: &str,
+    file: &Path,
+    charenc: Option<&str>,
+) -> Result<String> {
     let out = Command::new(ffmpeg_bin)
-        .args(convert_srt_args(&file.to_string_lossy()))
+        .args(convert_srt_args(&file.to_string_lossy(), charenc))
         .output()
         .await
         .with_context(|| format!("failed to run {ffmpeg_bin}"))?;
@@ -526,6 +542,19 @@ pub async fn run_capture(ffmpeg_bin: &str, args: &[String]) -> Result<Vec<u8>> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn subtitle_conversion_names_the_text_encoding_when_it_is_known() {
+        let a = convert_srt_args("x.ass", None);
+        assert!(!a.contains(&"-sub_charenc".to_string()));
+        let b = convert_srt_args("x.ass", Some("windows-1252"));
+        let at = b.iter().position(|v| v == "-sub_charenc").unwrap();
+        assert_eq!(b[at + 1], "windows-1252");
+        assert!(
+            at < b.iter().position(|v| v == "-i").unwrap(),
+            "before the input"
+        );
+    }
+
     use super::*;
 
     fn video_probe(json: &str) -> Option<VideoInfo> {
