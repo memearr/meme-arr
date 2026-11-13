@@ -65,15 +65,30 @@ npm audit --audit-level=high        # frontend CI gate, from web/
   library per the comment at the top of that test file if you want to
   re-run it against real data).
 
-**Frontend tests** (Vitest, `web/src/*.test.js`, plain Node environment —
-no DOM) cover the logic that lives outside React components: display
-formatters (`format.js`), the subtitle browser's find/next/previous logic
-(`cueFind.js`), and `api.js`'s error handling (backend error messages
-surface, a 401 fires `memearr:unauthorized` except on `/api/auth/*`). The
-convention mirrors the backend's: pull non-trivial logic out of `App.jsx`
-into a plain module and test it there, rather than rendering components.
-Component behavior (layout, scrolling, form wiring) still isn't covered —
-verify it by exercising the feature in a browser before calling it done.
+**Frontend tests** (Vitest, `web/src/*.test.js` and `*.test.jsx`) cover two kinds of thing. The
+logic that lives outside React components is tested directly: display formatters (`format.js`),
+timecode and frame maths (`timecode.js`), subtitle-line editing (`cueEdit.js`), the sequence as a set
+(`sequenceModel.js`), caption sizing (`captionPreview.js`), the Bazarr and clipboard helpers, and
+`api.js`'s error handling. Components are checked with `renderToStaticMarkup` (the `*Views` and
+`bazarr` / `connection` tests): what a screen contains for given props, with no DOM, so effects,
+playback, dragging and layout still aren't covered. The convention is to pull non-trivial logic out of
+the component into a plain module and test it there; verify behaviour and layout by using the feature
+in a browser before calling it done.
+
+**Things the Rust tests start for real:** a stand-in Bazarr (an axum server in `bazarr.rs`'s tests), and
+an HTTPS server with a freshly generated self-signed certificate (`tls.rs`; the `rcgen` dev-dependency
+makes the certificates). To try `TLS_CERT` / `TLS_KEY` by hand:
+
+```bash
+openssl req -x509 -newkey rsa:2048 -nodes -keyout key.pem -out cert.pem -days 2 \
+  -subj "/CN=localhost" -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+TLS_CERT=cert.pem TLS_KEY=key.pem BIND_ADDR=127.0.0.1:8099 cargo run
+curl --cacert cert.pem https://localhost:8099/healthz
+```
+
+To check proxy handling without a proxy, send the headers yourself, for example
+`curl -H 'X-Forwarded-Proto: https' -H 'X-Forwarded-Prefix: /apps/memes' http://127.0.0.1:8080/api/system/connection`
+(from a private or loopback address the headers are believed).
 
 ## Theming
 

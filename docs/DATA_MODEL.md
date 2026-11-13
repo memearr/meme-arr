@@ -34,7 +34,7 @@ One row per indexed movie or episode.
 | `file_mtime`, `file_size` | INTEGER | the fingerprint used to skip re-indexing an unchanged file: the **video plus its sidecar subtitle** (newest mtime, summed size), so a subtitle added or replaced later is noticed. Rows indexed before this carry the video-only value, so items that have a sidecar are re-indexed once |
 | `indexed_at` | INTEGER | unix seconds |
 | `cue_count` | INTEGER | how many cues the item has, kept by `upsert_media` (reset to 0 on re-index) and `insert_cues`, and filled in once for databases from before it existed. The Library, stats and Wanted views read it instead of counting the cue table |
-| `indexer_version` | INTEGER | added post-release; compared against `INDEXER_VERSION` in `index/` so a smarter indexer reprocesses already-seen files once instead of old rows staying stuck forever |
+| `indexer_version` | INTEGER | added post-release; compared against `INDEXER_VERSION` in `index/` so a smarter indexer reprocesses already-seen files once instead of old rows staying stuck forever. Version history: 1 embedded tracks only; 2 sidecar lookup and library tagging; 3 sidecar subtitles in legacy encodings (Windows-1252, UTF-16…) decoded instead of failing; 4 sidecar chosen by language, forced files last, plain over hearing-impaired |
 
 ### `subtitle_cue`
 One row per subtitle line, the thing dialogue search actually matches
@@ -80,7 +80,10 @@ the item's current cues and `media.indexed_at`.
 Plain key/value store. `media_server` (`plex` | `jellyfin`; absent = `plex`),
 `plex_url`, `plex_token`, `jellyfin_url`, `jellyfin_api_key`, `admin_password_hash`,
 `authentik_issuer_url`/`authentik_client_id`/`authentik_client_secret`,
-`plex_client_identifier`, `plex_login_account_uuid`/`plex_login_username` —
+`plex_client_identifier`, `plex_login_account_uuid`/`plex_login_username`,
+`trusted_proxies` (comma-separated IPs and CIDRs), and for Bazarr `bazarr_url`,
+`bazarr_api_key`, `bazarr_hook_token` (the secret in the notification address) and
+`bazarr_languages` (its profile languages, comma-separated, best first, which the indexer prefers) —
 every piece of app config that isn't a path mapping lives here, not in env
 vars (env vars only *seed* these on first run — see `docs/DEPLOYMENT.md`).
 

@@ -8,7 +8,7 @@ use super::*;
 /// this one survives restarts and is meant to replace docker-logs tailing.
 pub(super) const ACTIVITY_LOG_CAP: i64 = 5000;
 
-/// Append one activity-log row and trim anything beyond [`ACTIVITY_LOG_CAP`].
+/// Append one activity-log row and trim anything beyond `ACTIVITY_LOG_CAP`.
 /// The trim only deletes rows once the table is actually over the cap, so
 /// it's a cheap no-op on every normal insert.
 pub fn insert_log_entry(
