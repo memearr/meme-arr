@@ -73,6 +73,19 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   deleteAuthentikSettings: () => json(`/api/settings/authentik`, { method: "DELETE" }),
+  getBazarrSettings: () => json(`/api/settings/bazarr`),
+  putBazarrSettings: (payload) =>
+    json(`/api/settings/bazarr`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  deleteBazarrSettings: () => json(`/api/settings/bazarr`, { method: "DELETE" }),
+  testBazarr: () => json(`/api/settings/bazarr/test`, { method: "POST" }),
+  rotateBazarrHook: () => json(`/api/settings/bazarr/rotate-hook`, { method: "POST" }),
+  itemBazarr: (id) => json(`/api/media/${encodeURIComponent(id)}/bazarr`),
+  bazarrSearch: (id) => json(`/api/media/${encodeURIComponent(id)}/bazarr/search`, { method: "POST" }),
+  bazarrSync: (id) => json(`/api/media/${encodeURIComponent(id)}/bazarr/sync`, { method: "POST" }),
   getPlexLoginSettings: () => json(`/api/settings/plex-login`),
   deletePlexLoginSettings: () => json(`/api/settings/plex-login`, { method: "DELETE" }),
   // `libraries`: names to limit the search to (empty = all); `offset`: how many

@@ -29,8 +29,9 @@ pub(crate) use self::sidecar::*;
 /// History: 1 = original (embedded tracks only); 2 = sidecar subtitle lookup +
 /// per-item library tagging (so pre-sidecar / pre-library rows get redone);
 /// 3 = sidecar subtitles in legacy encodings (Windows-1252, UTF-16, ...) are
-/// decoded instead of failing or losing lines.
-const INDEXER_VERSION: i64 = 3;
+/// decoded instead of failing or losing lines; 4 = sidecar choice by language
+/// (Bazarr's profiles), skipping forced subtitles, and preferring non-HI ones.
+const INDEXER_VERSION: i64 = 4;
 
 /// Run a full index pass. Safe to call again; unchanged files are skipped.
 pub async fn run(state: AppState) {

@@ -208,6 +208,33 @@ and says the likely cause in plain words:
 
 ![The Requests tab: one request indexed, two waiting, and the Diagnose report for one of them](images/requests-diagnose.png)
 
+### With Bazarr
+
+If you run [Bazarr](https://www.bazarr.media/), connect it under **Settings → Bazarr**
+(its address, e.g. `http://bazarr:6767`, and its API key from *Bazarr → Settings →
+General → Security*). Bazarr writes its subtitles next to your videos, and this app
+reads those files with or without the connection; connecting it adds:
+
+- **Search with Bazarr**, on every row of Wanted and in the editor. Bazarr searches
+  its providers for the languages it is missing for that movie or episode. (The app
+  matches the file to Bazarr's own entry by the end of its path, so the two can mount
+  the media in different places. If two entries look alike it says so instead of
+  guessing.)
+- **Fix timing with Bazarr**, in the editor, for a subtitle file beside the video:
+  Bazarr re-times it against the audio, then **Re-read subtitles** picks up the
+  corrected file. This is for a subtitle that drifts; **Subtitle sync** in the
+  editor still shifts one by hand for a single clip.
+- **Instant refresh.** The settings panel shows an address to add in Bazarr under
+  *Settings → Notifications* (an Apprise `json://` URL). When Bazarr writes a
+  subtitle it calls it, and the library is scanned a few seconds later instead of at
+  the next scheduled scan. The secret is part of the address; **New address** replaces it.
+- **Language preference.** When a video has subtitles in several languages, the app
+  indexes the one in Bazarr's first profile language. Without the connection it prefers
+  English. A **forced** subtitle (foreign-language lines only) is only used when there
+  is nothing else, and a plain subtitle is preferred over one for the hard of hearing.
+- **Read-only media folders.** Bazarr saves from its own mount, so *Search with
+  Bazarr* works where *Also save it as a .srt file* can't.
+
 ## Keep an eye on it
 
 **System** shows health checks (each says how to fix a problem), what the media

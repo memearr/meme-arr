@@ -32,9 +32,25 @@ pub struct AppSettings {
     /// Also write a subtitle read from the server as a `.srt` beside the
     /// video. Off by default: it needs a writable media folder.
     pub save_fetched_subtitles: bool,
+    /// Bazarr (subtitle manager): its address and API key, the secret in the
+    /// URL it notifies us at, and the languages it keeps subtitles in.
+    pub bazarr_url: Option<String>,
+    pub bazarr_api_key: Option<String>,
+    pub bazarr_hook_token: Option<String>,
+    pub bazarr_languages: Vec<String>,
 }
 
 impl AppSettings {
+    /// A Bazarr client, if its address and key are both set.
+    pub fn bazarr(&self) -> Option<crate::bazarr::Client> {
+        match (self.bazarr_url.as_deref(), self.bazarr_api_key.as_deref()) {
+            (Some(u), Some(k)) if !u.is_empty() && !k.is_empty() => {
+                Some(crate::bazarr::Client::new(u, k))
+            }
+            _ => None,
+        }
+    }
+
     /// Whether the *selected* media server has everything it needs.
     pub fn configured(&self) -> bool {
         let set = |v: &Option<String>| v.as_deref().is_some_and(|s| !s.is_empty());
@@ -53,6 +69,14 @@ impl AppSettings {
         let jellyfin_api_key = db::get_setting(conn, "jellyfin_api_key")?;
         let save_fetched_subtitles =
             db::get_setting(conn, "save_fetched_subtitles")?.as_deref() == Some("1");
+        let bazarr_languages = db::get_setting(conn, "bazarr_languages")?
+            .map(|s| {
+                s.split(',')
+                    .map(|c| c.trim().to_string())
+                    .filter(|c| !c.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default();
         let mappings = db::list_mappings(conn)?
             .into_iter()
             .map(|m| PathRewrite {
@@ -68,6 +92,10 @@ impl AppSettings {
             plex_token,
             mappings,
             save_fetched_subtitles,
+            bazarr_url: db::get_setting(conn, "bazarr_url")?,
+            bazarr_api_key: db::get_setting(conn, "bazarr_api_key")?,
+            bazarr_hook_token: db::get_setting(conn, "bazarr_hook_token")?,
+            bazarr_languages,
         })
     }
 }
@@ -142,6 +170,7 @@ impl AppState {
     pub fn reload_settings(&self) -> Result<()> {
         let conn = self.pool.get()?;
         let fresh = AppSettings::load(&conn)?;
+        crate::index::set_preferred_languages(&fresh.bazarr_languages);
         *self.settings.write_locked() = fresh;
         Ok(())
     }

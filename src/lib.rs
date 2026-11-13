@@ -6,6 +6,7 @@
 pub mod api;
 pub mod auth;
 pub mod backup;
+pub mod bazarr;
 pub mod byterange;
 pub mod compact_rebuild;
 pub mod compactindex;
@@ -19,6 +20,7 @@ pub mod fonts;
 pub mod health;
 pub mod index;
 pub mod jellyfin;
+pub mod langs;
 pub mod logs;
 pub mod mediaserver;
 pub mod oidc;
@@ -65,6 +67,7 @@ pub async fn run(logs: Arc<logs::LogControl>) -> Result<()> {
         let conn = pool.get()?;
         state::AppSettings::load(&conn)?
     };
+    index::set_preferred_languages(&settings.bazarr_languages);
 
     // Recovery/bootstrap: RESET_ADMIN_PASSWORD, if set, (re)writes the
     // stored admin password every time the app starts. This is deliberately

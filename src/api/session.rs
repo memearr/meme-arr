@@ -73,6 +73,8 @@ pub(super) fn is_public_api_path(path: &str) -> bool {
         || path == "/metrics"
         || path == "/api/version"
         || path.starts_with("/api/auth/")
+        // Bazarr's notification call; the secret in the URL is its credential.
+        || path.starts_with("/api/hooks/bazarr/")
 }
 
 /// Shared by the `require_auth` middleware and anywhere else (the Plex

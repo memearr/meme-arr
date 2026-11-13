@@ -6,14 +6,65 @@ use encoding_rs::Encoding;
 /// Subtitle sidecar extensions we can turn into searchable text.
 pub(super) const SIDECAR_EXTS: &[&str] = &["srt", "vtt", "ass", "ssa"];
 
+/// The languages to prefer when a video has subtitles in several (Bazarr's
+/// language profiles, as 2-letter codes, best first). Empty means English first.
+/// A process-wide setting, like the other indexing options, so that the
+/// fingerprint and the indexer always agree on which file they mean.
+fn preferred_languages() -> &'static std::sync::RwLock<Vec<String>> {
+    static PREFERRED: std::sync::OnceLock<std::sync::RwLock<Vec<String>>> =
+        std::sync::OnceLock::new();
+    PREFERRED.get_or_init(Default::default)
+}
+
+pub fn set_preferred_languages(langs: &[String]) {
+    *preferred_languages()
+        .write()
+        .unwrap_or_else(|p| p.into_inner()) = langs.to_vec();
+}
+
+/// How good a sidecar is to index; lower is better. In order of importance:
+/// not a "forced" file (those hold only the foreign-language lines), then the
+/// preferred language (a file with no language tag counts as English, as it
+/// always has), then not made for the hard of hearing (sound descriptions
+/// would be searchable "dialogue"), then `.srt` over the other text formats.
+pub(crate) fn sidecar_rank(
+    file_name: &str,
+    video_stem: &str,
+    ext: &str,
+    preferred: &[String],
+) -> (u8, usize, u8, u8) {
+    let info = crate::langs::name_info(file_name, video_stem);
+    let lang = info.lang.unwrap_or("en");
+    let lang_rank = if preferred.is_empty() {
+        usize::from(lang != "en")
+    } else {
+        preferred
+            .iter()
+            .position(|p| p == lang)
+            .unwrap_or(preferred.len())
+    };
+    (
+        u8::from(info.forced),
+        lang_rank,
+        u8::from(info.hi),
+        u8::from(ext != "srt"),
+    )
+}
+
 /// Find a sidecar subtitle file next to the video: a text subtitle in the same
 /// folder whose name starts with the video's base name (e.g. `Movie.en.srt`
-/// beside `Movie.mkv`). Prefers English-tagged files, then `.srt`.
+/// beside `Movie.mkv`). Prefers a normal (not forced) file in the preferred
+/// language (English unless Bazarr's profiles say otherwise), then one not made
+/// for the hard of hearing, then `.srt` (see `sidecar_rank`).
 pub(crate) fn find_sidecar(video: &Path) -> Option<PathBuf> {
     let dir = video.parent()?;
     let stem = video.file_stem()?.to_string_lossy().to_lowercase();
+    let preferred = preferred_languages()
+        .read()
+        .unwrap_or_else(|p| p.into_inner())
+        .clone();
 
-    let mut best: Option<(PathBuf, u8)> = None; // (path, rank) — lower rank wins
+    let mut best: Option<(PathBuf, (u8, usize, u8, u8))> = None; // lower rank wins
     for entry in std::fs::read_dir(dir).ok()?.flatten() {
         let path = entry.path();
         let ext = match path.extension() {
@@ -30,12 +81,11 @@ pub(crate) fn find_sidecar(video: &Path) -> Option<PathBuf> {
         if !name.starts_with(&stem) {
             continue;
         }
-        let is_english = name == stem
-            || name.contains(".en")
-            || name.contains("eng")
-            || name.contains("english");
-        // Rank: English .srt best (0) … non-English non-srt worst (3).
-        let rank = (if is_english { 0 } else { 2 }) + (if ext == "srt" { 0 } else { 1 });
+        let file_name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let rank = sidecar_rank(&file_name, &stem, &ext, &preferred);
         if best.as_ref().map(|(_, r)| rank < *r).unwrap_or(true) {
             best = Some((path, rank));
         }
