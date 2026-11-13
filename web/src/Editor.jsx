@@ -20,6 +20,7 @@ import {
 } from "./fonts.js";
 import { episodeLabel, fmtTime } from "./format.js";
 import { findCueMatches, stepMatch } from "./cueFind.js";
+import { editorSeed, updatedClip } from "./sequenceClip.js";
 import {
   MAX_CLIP_MS,
   clampTrim,
@@ -88,28 +89,40 @@ function typingInto(el) {
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
 }
 
-export function Editor({ item, onJob, onClose, onAddToSequence }) {
+/**
+ * `sequenceEdit` (optional) opens a clip that is already in a sequence: the
+ * editor starts from that clip's trim, captions and sync, hides the output
+ * settings (they belong to the whole sequence) and offers "Save to sequence"
+ * in place of Export. `{ clip, index, count, output: { width, fps }, onSave(updated, andNext),
+ * hasNext }`; `onClose` goes back without saving.
+ */
+export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) {
+  const seed = sequenceEdit ? editorSeed(sequenceEdit.clip) : null;
   const hasInitialTiming = item.start_ms != null && item.end_ms != null;
   const [start, setStart] = useState(hasInitialTiming ? item.start_ms : 0);
   const [end, setEnd] = useState(hasInitialTiming ? item.end_ms : 5000);
-  const [width, setWidth] = useState(480);
-  const [fps, setFps] = useState(15);
+  const [width, setWidth] = useState(sequenceEdit?.output?.width ?? 480);
+  const [fps, setFps] = useState(sequenceEdit?.output?.fps ?? 15);
   const [quality, setQuality] = useState(80);
   const [format, setFormat] = useState("webp");
   const [audio, setAudio] = useState(false);
   const [creditSource, setCreditSource] = useState(true); // the show/movie in the file's title tag
-  const [captionMode, setCaptionMode] = useState(item.line ? "source" : "none");
+  const [captionMode, setCaptionMode] = useState(
+    seed ? seed.captionMode : item.line ? "source" : "none"
+  );
   // The caption font and text size (percent): remembered from last time, checked against the
   // fonts that exist now.
-  const [font, setFont] = useState(() => loadFontChoice(browserStorage()).font);
-  const [fontScale, setFontScale] = useState(() => loadFontChoice(browserStorage()).scale);
+  const [font, setFont] = useState(() => seed?.font ?? loadFontChoice(browserStorage()).font);
+  const [fontScale, setFontScale] = useState(
+    () => seed?.fontScale ?? loadFontChoice(browserStorage()).scale
+  );
   const [fontList, setFontList] = useState({ fonts: [], default: null });
-  const [top, setTop] = useState("");
-  const [bottom, setBottom] = useState(item.line || "");
-  const [subtitleOffsetMs, setSubtitleOffsetMs] = useState(0); // sync correction, ms
+  const [top, setTop] = useState(seed ? seed.top : "");
+  const [bottom, setBottom] = useState(seed ? seed.bottom : item.line || "");
+  const [subtitleOffsetMs, setSubtitleOffsetMs] = useState(seed?.subtitleOffsetMs ?? 0); // sync correction, ms
   // Edited burned-subtitle lines (correct/shorten/reword/retime/split or drop a line).
   // null = use the indexed lines as-is; an array = burn exactly these instead.
-  const [editedCues, setEditedCues] = useState(null);
+  const [editedCues, setEditedCues] = useState(seed?.editedCues ?? null);
   const [filename, setFilename] = useState("");
   const [job, setJob] = useState(null);
   const [error, setError] = useState(null);
@@ -636,6 +649,19 @@ export function Editor({ item, onJob, onClose, onAddToSequence }) {
         };
   }
 
+  // Put what is on screen back into the clip it came from.
+  function handleSaveToSequence(andNext) {
+    sequenceEdit?.onSave(
+      updatedClip(sequenceEdit.clip, {
+        start,
+        end,
+        caption: buildCaption(),
+        subtitleOffsetMs: captionMode === "source" ? subtitleOffsetMs : 0,
+      }),
+      andNext
+    );
+  }
+
   function handleAddToSequence() {
     onAddToSequence?.({
       rating_key: item.rating_key,
@@ -766,6 +792,13 @@ export function Editor({ item, onJob, onClose, onAddToSequence }) {
           </button>
         </div>
       </div>
+
+      {sequenceEdit && (
+        <p className="notice" role="status">
+          Editing clip {sequenceEdit.index + 1} of {sequenceEdit.count} in your sequence. The format, size and
+          frame rate are set for the whole sequence, so they aren't shown here.
+        </p>
+      )}
 
       <div className="editor-grid">
         <div className="editor-stage">
@@ -1108,6 +1141,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence }) {
               )}
             </fieldset>
 
+            {!sequenceEdit && (
             <fieldset>
               <legend>Format</legend>
               {["webp", "mp4", "webm", "gif"].map((f) => {
@@ -1137,7 +1171,9 @@ export function Editor({ item, onJob, onClose, onAddToSequence }) {
                 Name the source in the file's title (MP4/WebM)
               </label>
             </fieldset>
+            )}
 
+            {!sequenceEdit && (
             <fieldset>
               <legend>Output</legend>
               <label className="slider">
@@ -1166,6 +1202,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence }) {
                 ≈ {outFrames} frame{outFrames === 1 ? "" : "s"} at {fps} fps · {(clipLength / 1000).toFixed(2)} s
               </p>
             </fieldset>
+            )}
           </div>
 
           {captionMode === "source" && (
@@ -1252,20 +1289,36 @@ export function Editor({ item, onJob, onClose, onAddToSequence }) {
             </div>
           )}
 
-          <div className="export-row">
-            <input
-              className="filename"
-              placeholder="meme name (optional)"
-              value={filename}
-              onChange={(e) => setFilename(e.target.value)}
-            />
-            <button type="button" className="secondary" onClick={handleAddToSequence} disabled={tooLong}>
-              🔗 Add to sequence
-            </button>
-            <button className="export" onClick={doExport} disabled={tooLong}>
-              Export {format.toUpperCase()}
-            </button>
-          </div>
+          {sequenceEdit ? (
+            <div className="export-row">
+              <button type="button" className="export" onClick={() => handleSaveToSequence(false)} disabled={tooLong}>
+                Save to sequence
+              </button>
+              {sequenceEdit.hasNext && (
+                <button type="button" className="secondary" onClick={() => handleSaveToSequence(true)} disabled={tooLong}>
+                  Save and edit next clip
+                </button>
+              )}
+              <button type="button" className="secondary" onClick={onClose}>
+                Back without saving
+              </button>
+            </div>
+          ) : (
+            <div className="export-row">
+              <input
+                className="filename"
+                placeholder="meme name (optional)"
+                value={filename}
+                onChange={(e) => setFilename(e.target.value)}
+              />
+              <button type="button" className="secondary" onClick={handleAddToSequence} disabled={tooLong}>
+                🔗 Add to sequence
+              </button>
+              <button className="export" onClick={doExport} disabled={tooLong}>
+                Export {format.toUpperCase()}
+              </button>
+            </div>
+          )}
           {error && <p className="error">{error}</p>}
         </div>
       </div>

@@ -1,5 +1,6 @@
 import { AUDIO_FORMATS } from "./clipSettings.js";
-import { JobResult } from "./Editor.jsx";
+import { Editor, JobResult } from "./Editor.jsx";
+import { replaceClip } from "./sequenceClip.js";
 import { api } from "./api.js";
 import { episodeLabel, fmtTime } from "./format.js";
 import { useEffect, useRef, useState } from "react";
@@ -15,8 +16,37 @@ export function SequenceView({ sequence, setSequence, onJob }) {
   const [job, setJob] = useState(null);
   const [error, setError] = useState(null);
   const pollRef = useRef(null);
+  const [editingId, setEditingId] = useState(null); // the clip open in the full editor
 
   useEffect(() => () => clearInterval(pollRef.current), []);
+
+  // One clip open in the full editor: the same trimming, captions and subtitle
+  // lines as when it was made, saved back into its place in the sequence.
+  const editingIndex = sequence.findIndex((c) => c.id === editingId);
+  if (editingIndex >= 0) {
+    const clip = sequence[editingIndex];
+    return (
+      <section className="view">
+        <Editor
+          key={clip.id}
+          item={clip}
+          onJob={() => {}}
+          onClose={() => setEditingId(null)}
+          sequenceEdit={{
+            clip,
+            index: editingIndex,
+            count: sequence.length,
+            output: { width, fps },
+            hasNext: editingIndex < sequence.length - 1,
+            onSave: (updated, andNext) => {
+              setSequence((seq) => replaceClip(seq, updated));
+              setEditingId(andNext ? sequence[editingIndex + 1].id : null);
+            },
+          }}
+        />
+      </section>
+    );
+  }
 
   function move(id, dir) {
     setSequence((seq) => {
@@ -122,6 +152,14 @@ export function SequenceView({ sequence, setSequence, onJob }) {
                   {c.line && <div className="seq-line">“{c.line}”</div>}
                 </div>
                 <div className="seq-controls">
+                  <button
+                    type="button"
+                    className="secondary small"
+                    onClick={() => setEditingId(c.id)}
+                    title="Open this clip in the full editor"
+                  >
+                    ✎ Edit
+                  </button>
                   <button
                     type="button"
                     className="secondary small"
