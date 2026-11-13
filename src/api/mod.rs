@@ -317,15 +317,8 @@ fn content_type_for(filename: &str) -> &'static str {
 
 /// Pick a bundled font file for meme text / subtitle rendering.
 fn default_font(fonts_dir: &std::path::Path) -> String {
-    for candidate in ["Impact.ttf", "DejaVuSans-Bold.ttf", "DejaVuSans.ttf"] {
-        let p = fonts_dir.join(candidate);
-        if p.is_file() {
-            return p.to_string_lossy().to_string();
-        }
-    }
-    // Fall back to a common system path; drawtext will error clearly if absent.
-    fonts_dir
-        .join("DejaVuSans.ttf")
+    crate::fonts::Fonts::new(fonts_dir.to_path_buf(), std::path::PathBuf::new())
+        .default_path()
         .to_string_lossy()
         .to_string()
 }
@@ -336,6 +329,29 @@ mod tests {
 
     fn libs(q: &str) -> Vec<String> {
         libraries_from_query(&Some(q.to_string()))
+    }
+
+    #[test]
+    fn the_session_cookie_is_secure_only_behind_https() {
+        let mut h = HeaderMap::new();
+        assert!(!request_is_https(&h));
+        h.insert("x-forwarded-proto", "http".parse().unwrap());
+        assert!(!request_is_https(&h));
+        h.insert("x-forwarded-proto", "HTTPS".parse().unwrap());
+        assert!(request_is_https(&h));
+        h.insert("x-forwarded-proto", "https, http".parse().unwrap());
+        assert!(request_is_https(&h), "first hop is what the client used");
+
+        let mut f = HeaderMap::new();
+        f.insert(
+            header::FORWARDED,
+            "for=1.2.3.4;proto=https".parse().unwrap(),
+        );
+        assert!(request_is_https(&f));
+
+        assert_eq!(session_cookie("t".into(), true).secure(), Some(true));
+        assert_eq!(session_cookie("t".into(), false).secure(), Some(false));
+        assert_eq!(session_cookie("t".into(), true).http_only(), Some(true));
     }
 
     #[test]

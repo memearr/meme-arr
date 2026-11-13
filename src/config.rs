@@ -30,6 +30,8 @@ pub struct Config {
     pub web_dir: PathBuf,
     /// Directory containing bundled caption fonts.
     pub fonts_dir: PathBuf,
+    /// Folders the setup wizard's folder picker may browse (`BROWSE_ROOTS`).
+    pub browse_roots: Vec<PathBuf>,
     /// Kick off a full library index on startup.
     pub index_on_start: bool,
     /// `ffmpeg` binary (overridable for tests / non-standard installs).
@@ -123,6 +125,10 @@ impl Config {
             bind_addr: env_or("BIND_ADDR", "0.0.0.0:8080"),
             web_dir: PathBuf::from(env_or("WEB_DIR", "/app/web")),
             fonts_dir: PathBuf::from(env_or("FONTS_DIR", "/app/fonts")),
+            browse_roots: match crate::paths::parse_roots(&env_or("BROWSE_ROOTS", "/")) {
+                r if r.is_empty() => vec![PathBuf::from("/")],
+                r => r,
+            },
             index_on_start: env_or("INDEX_ON_START", "true") != "false",
             ffmpeg_bin: env_or("FFMPEG_BIN", "ffmpeg"),
             ffprobe_bin: env_or("FFPROBE_BIN", "ffprobe"),

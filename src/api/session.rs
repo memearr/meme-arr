@@ -2,11 +2,46 @@
 
 use super::*;
 
-/// Cookie carrying the session token. HttpOnly (no JS access) and
-/// SameSite=Lax; deliberately NOT `Secure` -- this app is routinely served
-/// over plain HTTP on a LAN, and `Secure` would silently break the cookie
-/// there. It still works fine if someone puts this behind HTTPS later.
+/// Cookie carrying the session token. HttpOnly (no JS access), SameSite=Lax,
+/// and `Secure` whenever the request came in over HTTPS (see
+/// `request_is_https`). It is not `Secure` on plain HTTP, which this app is
+/// routinely served over on a LAN: a browser would silently drop the cookie.
 pub(super) const SESSION_COOKIE: &str = "memearr_session";
+
+/// Did this request arrive over HTTPS? The app itself speaks plain HTTP, so
+/// that means a reverse proxy said so with `X-Forwarded-Proto` (or the
+/// standard `Forwarded: proto=`) -- the same header `request_origin` trusts.
+pub(super) fn request_is_https(headers: &HeaderMap) -> bool {
+    let from_xfp = headers
+        .get("x-forwarded-proto")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.split(',').next())
+        .is_some_and(|v| v.trim().eq_ignore_ascii_case("https"));
+    let from_forwarded = headers
+        .get(header::FORWARDED)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| {
+            v.split([';', ','])
+                .any(|part| part.trim().eq_ignore_ascii_case("proto=https"))
+        });
+    from_xfp || from_forwarded
+}
+
+/// The session cookie for a freshly created session.
+pub(super) fn session_cookie(token: String, secure: bool) -> Cookie<'static> {
+    let mut cookie = Cookie::build((SESSION_COOKIE, token))
+        .http_only(true)
+        .secure(true)
+        .same_site(axum_extra::extract::cookie::SameSite::Lax)
+        .path("/")
+        .max_age(time::Duration::seconds(SESSION_TTL_SECS))
+        .build();
+    if !secure {
+        // Plain HTTP (a LAN install): a Secure cookie would never come back.
+        cookie.set_secure(false);
+    }
+    cookie
+}
 
 /// How long a session lasts from login. Fixed, not sliding (no refresh on
 /// use) -- simple, and 30 days is generous for a personal LAN app.
@@ -180,6 +215,7 @@ pub(super) async fn auth_status(
 /// replace it after that, not this endpoint; see `auth`'s module docs.
 pub(super) async fn auth_setup(
     State(st): State<AppState>,
+    headers: axum::http::HeaderMap,
     Json(body): Json<PasswordBody>,
 ) -> Result<impl IntoResponse, AppError> {
     if body.password.len() < 8 {
@@ -201,7 +237,7 @@ pub(super) async fn auth_setup(
         return Ok(bad_request("Already set up — log in instead").into_response());
     }
     st.log_event(LogLevel::Info, "Admin password set up");
-    login_response(&st, &body.password).await
+    login_response(&st, &body.password, request_is_https(&headers)).await
 }
 
 pub(super) async fn auth_login(
@@ -215,7 +251,7 @@ pub(super) async fn auth_login(
         warn!("login from {ip} rejected: locked out for {retry_after:?}");
         return Ok(too_many_attempts(retry_after));
     }
-    let resp = login_response(&st, &body.password).await?;
+    let resp = login_response(&st, &body.password, request_is_https(&headers)).await?;
     if resp.status() == StatusCode::UNAUTHORIZED {
         // Every failure is logged with its source IP (Jellyfin does too),
         // so a brute-force attempt is visible in the Activity log. Bounded:
@@ -315,7 +351,11 @@ pub(super) fn too_many_attempts(retry_after: std::time::Duration) -> Response {
 
 /// Shared by setup (auto-login right after creating the password) and
 /// login: verify, create a session, set the cookie.
-pub(super) async fn login_response(st: &AppState, password: &str) -> Result<Response, AppError> {
+pub(super) async fn login_response(
+    st: &AppState,
+    password: &str,
+    secure: bool,
+) -> Result<Response, AppError> {
     let pool = st.pool.clone();
     let password = password.to_string();
     let token = auth::new_session_token();
@@ -340,12 +380,7 @@ pub(super) async fn login_response(st: &AppState, password: &str) -> Result<Resp
         return Ok(unauthorized());
     }
 
-    let cookie = Cookie::build((SESSION_COOKIE, token))
-        .http_only(true)
-        .same_site(axum_extra::extract::cookie::SameSite::Lax)
-        .path("/")
-        .max_age(time::Duration::seconds(SESSION_TTL_SECS))
-        .build();
+    let cookie = session_cookie(token, secure);
     let jar = CookieJar::new().add(cookie);
     Ok((jar, Json(json!({ "ok": true }))).into_response())
 }

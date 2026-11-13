@@ -185,6 +185,7 @@ infrastructure and first-run bootstrap only:
 | `OUTPUT_DIR`      |          | `/output`          | Where finished memes are written |
 | `DATA_DIR`        |          | `/data`            | Settings + SQLite index + preview cache |
 | `FONTS_DIR`       |          | `/app/fonts`       | Built-in caption fonts (mount your own Impact.ttf to make it the default). Fonts you upload live in `DATA_DIR/fonts` |
+| `BROWSE_ROOTS`    |          | `/`                | Comma-separated folders the setup wizard's folder picker may browse (e.g. `/media,/mnt`). |
 | `URL_BASE`        |          | _(root)_           | Host under a sub-path like `/meme-arr` (proxy must keep the prefix) |
 | `INDEX_ON_START`  |          | `true`             | Start the scheduled Library scan enabled (first run only; then see System → Tasks). Restarts only scan when a scan is due |
 | `BIND_ADDR`       |          | `0.0.0.0:8080`     | Listen address inside the container |

@@ -101,24 +101,44 @@ mod tests {
     /// must keep accepting hashes people already have stored.
     const LEGACY_HASH: &str = "$argon2id$v=19$m=19456,t=2,p=1$XY/U/JBYKTNyUO9LEql0Ew$8mGuVJxLHrBCiVyepyEifKsOaEOYk9kmrkYWQyeTwrk";
 
+    /// A throwaway secret for a test, different every run, so no test carries
+    /// a password (or anything shaped like one) in its source.
+    fn secret() -> String {
+        new_session_token()
+    }
+
+    /// The password behind `LEGACY_HASH`. It has to be that exact value (the
+    /// hash was made from it), so it lives in a fixture file, not in the code.
+    fn legacy_password() -> String {
+        std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/legacy_password.txt"
+        ))
+        .expect("the legacy password fixture")
+        .trim()
+        .to_string()
+    }
+
     #[test]
     fn a_hash_written_by_the_previous_library_version_still_verifies() {
-        assert!(verify_password("legacy-pw-123", LEGACY_HASH));
-        assert!(!verify_password("legacy-pw-124", LEGACY_HASH));
+        let pw = legacy_password();
+        assert!(verify_password(&pw, LEGACY_HASH));
+        assert!(!verify_password(&format!("{pw}x"), LEGACY_HASH));
         assert!(!verify_password("", LEGACY_HASH));
     }
 
     #[test]
     fn new_hashes_have_the_same_format_and_round_trip() {
-        let h = hash_password("a new password").unwrap();
+        let pw = secret();
+        let h = hash_password(&pw).unwrap();
         assert!(h.starts_with("$argon2id$v=19$m=19456,t=2,p=1$"), "{h}");
-        assert!(verify_password("a new password", &h));
-        assert!(!verify_password("another", &h));
+        assert!(verify_password(&pw, &h));
+        assert!(!verify_password(&secret(), &h));
         // A fresh random salt every time.
-        assert_ne!(h, hash_password("a new password").unwrap());
+        assert_ne!(h, hash_password(&pw).unwrap());
         // Garbage in the database is "not a match", never a panic.
-        assert!(!verify_password("x", "not a phc string"));
-        assert!(!verify_password("x", ""));
+        assert!(!verify_password(&secret(), "not a phc string"));
+        assert!(!verify_password(&secret(), ""));
     }
 
     #[test]
@@ -176,25 +196,27 @@ mod tests {
 
     #[test]
     fn password_hash_roundtrips() {
-        let hash = hash_password("correct horse battery staple").unwrap();
-        assert!(verify_password("correct horse battery staple", &hash));
-        assert!(!verify_password("wrong password", &hash));
+        let pw = secret();
+        let hash = hash_password(&pw).unwrap();
+        assert!(verify_password(&pw, &hash));
+        assert!(!verify_password(&secret(), &hash));
     }
 
     #[test]
     fn password_hash_is_salted() {
         // Same password, hashed twice, should produce different stored
         // hashes (random salt) -- both must still verify correctly.
-        let a = hash_password("same password").unwrap();
-        let b = hash_password("same password").unwrap();
+        let pw = secret();
+        let a = hash_password(&pw).unwrap();
+        let b = hash_password(&pw).unwrap();
         assert_ne!(a, b);
-        assert!(verify_password("same password", &a));
-        assert!(verify_password("same password", &b));
+        assert!(verify_password(&pw, &a));
+        assert!(verify_password(&pw, &b));
     }
 
     #[test]
     fn verify_password_rejects_garbage_hash() {
-        assert!(!verify_password("anything", "not a real phc hash"));
+        assert!(!verify_password(&secret(), "not a real phc hash"));
     }
 
     #[test]

@@ -183,12 +183,7 @@ pub(super) async fn oidc_callback(
         format!("Logged in via Authentik (subject: {subject})"),
     );
 
-    let cookie = Cookie::build((SESSION_COOKIE, token))
-        .http_only(true)
-        .same_site(axum_extra::extract::cookie::SameSite::Lax)
-        .path("/")
-        .max_age(time::Duration::seconds(SESSION_TTL_SECS))
-        .build();
+    let cookie = session_cookie(token, request_is_https(&headers));
     let jar = CookieJar::new().add(cookie);
     Ok((
         jar,

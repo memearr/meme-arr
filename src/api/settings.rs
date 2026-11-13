@@ -131,7 +131,10 @@ pub(super) struct BrowseDirsParams {
 
 /// Subfolders of a container path, for the setup wizard. With no `path`, the
 /// first of `/media`, `/mnt`, `/` that exists.
-pub(super) async fn browse_dirs(Query(p): Query<BrowseDirsParams>) -> Result<Response, AppError> {
+pub(super) async fn browse_dirs(
+    State(st): State<AppState>,
+    Query(p): Query<BrowseDirsParams>,
+) -> Result<Response, AppError> {
     let path = match p.path.filter(|s| !s.trim().is_empty()) {
         Some(p) => std::path::PathBuf::from(p),
         None => ["/media", "/mnt", "/"]
@@ -143,6 +146,10 @@ pub(super) async fn browse_dirs(Query(p): Query<BrowseDirsParams>) -> Result<Res
     if !path.is_absolute() {
         return Ok(bad_request("path must be absolute"));
     }
+    // Only inside the folders the operator allows (`BROWSE_ROOTS`, default all of `/`).
+    let Some(path) = paths::confine_any(&st.config.browse_roots, &path) else {
+        return Ok(bad_request("that folder isn't available to browse"));
+    };
     let shown = path.to_string_lossy().replace('\\', "/");
     match tokio::task::spawn_blocking(move || diskstats::list_dirs(&path)).await? {
         Ok(dirs) => Ok(Json(json!({ "path": shown, "dirs": dirs })).into_response()),

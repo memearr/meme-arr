@@ -91,6 +91,7 @@ pub(super) struct PlexCallbackParams {
 pub(super) async fn plex_callback(
     State(st): State<AppState>,
     jar: CookieJar,
+    headers: axum::http::HeaderMap,
     Query(p): Query<PlexCallbackParams>,
 ) -> Response {
     let pool = st.pool.clone();
@@ -209,12 +210,7 @@ pub(super) async fn plex_callback(
         LogLevel::Info,
         format!("Logged in via Plex ({})", account.username),
     );
-    let cookie = Cookie::build((SESSION_COOKIE, session_token))
-        .http_only(true)
-        .same_site(axum_extra::extract::cookie::SameSite::Lax)
-        .path("/")
-        .max_age(time::Duration::seconds(SESSION_TTL_SECS))
-        .build();
+    let cookie = session_cookie(session_token, request_is_https(&headers));
     let jar = CookieJar::new().add(cookie);
     (
         jar,
