@@ -239,28 +239,38 @@ pub(super) async fn media_bazarr_search(
         }
         Err(e) => return Ok(upstream(format!("{e:#}"))),
     };
-    match client.search(&target).await {
-        Ok(asked) => {
-            if asked > 0 {
-                st.log_event(
-                    LogLevel::Info,
-                    format!("Asked Bazarr to search subtitles for '{}'", target.title),
+    // Bazarr answers a search only when it has finished looking, which can take
+    // a minute across its providers. So the request is made in the background and
+    // we answer at once; a failure goes to the Activity log.
+    let asked = target.missing.len();
+    if asked > 0 {
+        st.log_event(
+            LogLevel::Info,
+            format!("Asked Bazarr to search subtitles for '{}'", target.title),
+        );
+        let (st2, title, t2) = (st.clone(), target.title.clone(), target.clone());
+        tokio::spawn(async move {
+            // Bazarr's own search takes as long as it takes.
+            let slow = client.with_timeout(std::time::Duration::from_secs(300));
+            if let Err(e) = slow.search(&t2).await {
+                st2.log_event(
+                    LogLevel::Warn,
+                    crate::tls::explain(format!("Bazarr's search for '{title}' failed: {e:#}")),
                 );
             }
-            Ok(Json(json!({
-                "asked": asked,
-                "target": target_json(&target),
-                "message": if asked == 0 {
-                    "Bazarr isn't missing any subtitles for this item. If we still show none, \
-                     re-index the item once its subtitle file is beside the video."
-                } else {
-                    "Bazarr is searching. The subtitle appears here once it has downloaded one."
-                },
-            }))
-            .into_response())
-        }
-        Err(e) => Ok(upstream(format!("{e:#}"))),
+        });
     }
+    Ok(Json(json!({
+        "asked": asked,
+        "target": target_json(&target),
+        "message": if asked == 0 {
+            "Bazarr isn't missing any subtitles for this item. If we still show none, \
+             re-index the item once its subtitle file is beside the video."
+        } else {
+            "Bazarr is searching. The subtitle appears here once it has downloaded one."
+        },
+    }))
+    .into_response())
 }
 
 /// `POST /api/media/{rating_key}/bazarr/sync`: ask Bazarr to re-time the
