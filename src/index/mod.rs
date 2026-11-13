@@ -27,8 +27,10 @@ pub(crate) use self::sidecar::*;
 /// instead of old rows staying stuck with stale results forever.
 ///
 /// History: 1 = original (embedded tracks only); 2 = sidecar subtitle lookup +
-/// per-item library tagging (so pre-sidecar / pre-library rows get redone).
-const INDEXER_VERSION: i64 = 2;
+/// per-item library tagging (so pre-sidecar / pre-library rows get redone);
+/// 3 = sidecar subtitles in legacy encodings (Windows-1252, UTF-16, ...) are
+/// decoded instead of failing or losing lines.
+const INDEXER_VERSION: i64 = 3;
 
 /// Run a full index pass. Safe to call again; unchanged files are skipped.
 pub async fn run(state: AppState) {

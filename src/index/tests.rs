@@ -85,3 +85,45 @@ fn ignores_image_subtitle_sidecars() {
     touch(dir.path(), "Film.sup"); // PGS image subs — not indexable
     assert!(find_sidecar(&dir.path().join("Film.mkv")).is_none());
 }
+
+// ---- subtitle files in legacy encodings (the usual case beside old AVIs) ----
+
+const SRT_LATIN1: &[u8] = b"1\r\n00:00:01,000 --> 00:00:03,000\r\nCaf\xe9 na\xefve, \x93quoted\x94\r\n\r\n2\r\n00:00:04,000 --> 00:00:05,000\r\nSecond line\r\n";
+
+#[test]
+fn decodes_a_windows_1252_subtitle_file() {
+    let (text, enc) = decode_subtitle_bytes(SRT_LATIN1);
+    assert_ne!(enc, encoding_rs::UTF_8);
+    assert!(
+        text.contains("Café naïve, \u{201c}quoted\u{201d}"),
+        "{text}"
+    );
+    assert!(text.contains("Second line"));
+}
+
+#[test]
+fn decodes_utf8_with_and_without_a_bom_and_utf16() {
+    let plain = "1\n00:00:01,000 --> 00:00:02,000\nCafé\n";
+    assert_eq!(decode_subtitle_bytes(plain.as_bytes()).0, plain);
+
+    let mut bom = vec![0xEF, 0xBB, 0xBF];
+    bom.extend_from_slice(plain.as_bytes());
+    assert_eq!(decode_subtitle_bytes(&bom).0, plain);
+
+    let mut utf16 = vec![0xFF, 0xFE];
+    utf16.extend(plain.encode_utf16().flat_map(|u| u.to_le_bytes()));
+    assert_eq!(decode_subtitle_bytes(&utf16).0, plain);
+}
+
+#[tokio::test]
+async fn a_non_utf8_srt_beside_a_video_loads_with_every_line() {
+    let dir = tempfile::tempdir().unwrap();
+    let srt = dir.path().join("Movie.avi.srt");
+    std::fs::write(&srt, SRT_LATIN1).unwrap();
+    // No ffmpeg needed: .srt is decoded in-process (this path must not fail
+    // with "Invalid data found when processing input").
+    let text = load_sidecar("ffmpeg-not-installed", &srt).await.unwrap();
+    let cues = subtitles::parse(&text);
+    assert_eq!(cues.len(), 2, "{text}");
+    assert!(cues[0].text.contains("Café"));
+}

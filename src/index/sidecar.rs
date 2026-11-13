@@ -1,6 +1,7 @@
 //! Finding a sidecar subtitle beside a video, and the change-detection fingerprint that includes it.
 
 use super::*;
+use encoding_rs::Encoding;
 
 /// Subtitle sidecar extensions we can turn into searchable text.
 pub(super) const SIDECAR_EXTS: &[&str] = &["srt", "vtt", "ass", "ssa"];
@@ -68,19 +69,38 @@ pub(crate) fn fingerprint(video: &Path) -> std::io::Result<(i64, i64)> {
     Ok((mtime, size))
 }
 
-/// Load a sidecar subtitle file into SRT text. `.srt`/`.vtt` are read directly;
-/// other formats (and anything that isn't valid UTF-8) go through ffmpeg.
+/// Subtitle file bytes as text, and the encoding they were in. Subtitles that
+/// came with older (AVI-era) releases are very often not UTF-8 -- Windows-1252
+/// and other legacy code pages, sometimes UTF-16 -- so: a byte-order mark wins,
+/// then valid UTF-8, then a guess from the bytes.
+pub(crate) fn decode_subtitle_bytes(bytes: &[u8]) -> (String, &'static Encoding) {
+    if let Some((enc, bom_len)) = Encoding::for_bom(bytes) {
+        let (text, _) = enc.decode_without_bom_handling(&bytes[bom_len..]);
+        return (text.into_owned(), enc);
+    }
+    if let Ok(text) = std::str::from_utf8(bytes) {
+        return (text.to_string(), encoding_rs::UTF_8);
+    }
+    let mut detector = chardetng::EncodingDetector::new(chardetng::Iso2022JpDetection::Deny);
+    detector.feed(bytes, true);
+    let enc = detector.guess(None, chardetng::Utf8Detection::Deny);
+    let (text, _) = enc.decode_without_bom_handling(bytes);
+    (text.into_owned(), enc)
+}
+
+/// Load a sidecar subtitle file into SRT text. `.srt`/`.vtt` are decoded here
+/// (whatever their encoding); other formats go through ffmpeg, told the
+/// encoding when it isn't UTF-8.
 pub(super) async fn load_sidecar(ffmpeg_bin: &str, path: &Path) -> Result<String> {
     let ext = path
         .extension()
         .map(|e| e.to_string_lossy().to_lowercase())
         .unwrap_or_default();
-    if ext == "srt" || ext == "vtt" {
-        if let Ok(text) = tokio::fs::read_to_string(path).await {
-            if !text.trim().is_empty() {
-                return Ok(text);
-            }
-        }
+    let bytes = tokio::fs::read(path).await?;
+    let (text, enc) = decode_subtitle_bytes(&bytes);
+    if (ext == "srt" || ext == "vtt") && !text.trim().is_empty() {
+        return Ok(text);
     }
-    ffmpeg::convert_to_srt(ffmpeg_bin, path).await
+    let charenc = (enc != encoding_rs::UTF_8).then(|| enc.name());
+    ffmpeg::convert_to_srt_as(ffmpeg_bin, path, charenc).await
 }

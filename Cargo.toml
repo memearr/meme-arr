@@ -31,6 +31,8 @@ urlencoding = "2"
 argon2 = "0.6"
 openidconnect = "4"
 sha2 = "0.11"
+encoding_rs = "0.8"
+chardetng = "1"
 time = "0.3"
 
 [dev-dependencies]
