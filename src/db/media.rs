@@ -771,7 +771,7 @@ pub fn browse_library(
         "CASE WHEN m.kind='episode' THEN 'S:'||COALESCE(m.show,'') ELSE 'M:'||m.rating_key END";
     let name = "CASE WHEN m.kind='episode' THEN m.show ELSE m.title END";
     // Match the movie title, the show name, OR an individual episode's own
-    // title — so searching an episode title (e.g. "Ozymandias") still
+    // title — so searching an episode title (e.g. "Tideline") still
     // surfaces its show (episodes are grouped under their show in this view).
     let (lib_sql, lib_vals) = library_clause("m.library", libraries, 2);
     let matches = format!("({name} LIKE ?1 OR (m.kind='episode' AND m.title LIKE ?1)){lib_sql}");
@@ -871,7 +871,7 @@ pub fn episodes_in_show(
 
 /// Distinct show names matching `query` — lets a dialogue/title search also
 /// surface "this looks like a show name" as a selectable option alongside
-/// the regular results, so searching "Breaking Bad" finds the show even if
+/// the regular results, so searching "The Lantern Cove" finds the show even if
 /// those words never occur in a line of dialogue.
 pub fn matching_shows(conn: &rusqlite::Connection, query: &str, limit: i64) -> Result<Vec<String>> {
     matching_shows_in(conn, query, Scope::default(), limit)
@@ -909,8 +909,8 @@ mod tests {
     #[test]
     fn fts_phrase_is_sanitized() {
         assert_eq!(
-            to_fts_phrase("I am the one who knocks!"),
-            "\"I am the one who knocks\""
+            to_fts_phrase("I am the one who whistles!"),
+            "\"I am the one who whistles\""
         );
         assert_eq!(to_fts_phrase("  '''  "), "");
     }
@@ -924,7 +924,7 @@ mod tests {
             "123",
             "episode",
             "Pilot",
-            Some("Breaking Bad"),
+            Some("The Lantern Cove"),
             Some(1),
             Some(1),
             Some(2008),
@@ -941,20 +941,20 @@ mod tests {
             Cue {
                 start_ms: 1000,
                 end_ms: 2500,
-                text: "I am the one who knocks".into(),
+                text: "I am the one who whistles".into(),
             },
             Cue {
                 start_ms: 3000,
                 end_ms: 4000,
-                text: "Say my name".into(),
+                text: "Say it with pie".into(),
             },
         ];
         insert_cues(&mut conn, id, &cues).unwrap();
 
-        let hits = search_dialogue(&conn, "one who knocks", 10).unwrap();
+        let hits = search_dialogue(&conn, "one who whistles", 10).unwrap();
         assert_eq!(hits.len(), 1);
-        assert_eq!(hits[0].text, "I am the one who knocks");
-        assert_eq!(hits[0].show.as_deref(), Some("Breaking Bad"));
+        assert_eq!(hits[0].text, "I am the one who whistles");
+        assert_eq!(hits[0].show.as_deref(), Some("The Lantern Cove"));
 
         let s = stats(&conn).unwrap();
         assert_eq!(s.media_count, 1);
@@ -1059,12 +1059,12 @@ mod tests {
             &conn,
             "m1",
             "movie",
-            "Dune",
+            "Paper Moon Heist",
             None,
             None,
             None,
             Some(2021),
-            "/m/dune.mkv",
+            "/m/heist.mkv",
             None,
             0,
             "direct",
@@ -1156,12 +1156,12 @@ mod tests {
             &conn,
             "m1",
             "movie",
-            "Dune",
+            "Paper Moon Heist",
             None,
             None,
             None,
             Some(2021),
-            "/m/dune.mkv",
+            "/m/heist.mkv",
             None,
             0,
             "direct",
@@ -1175,7 +1175,7 @@ mod tests {
             "e1",
             "episode",
             "Pilot",
-            Some("Breaking Bad"),
+            Some("The Lantern Cove"),
             Some(1),
             Some(1),
             Some(2008),
@@ -1192,8 +1192,8 @@ mod tests {
             &conn,
             "e2",
             "episode",
-            "Ozymandias",
-            Some("Breaking Bad"),
+            "Tideline",
+            Some("The Lantern Cove"),
             Some(5),
             Some(14),
             Some(2013),
@@ -1209,24 +1209,24 @@ mod tests {
 
         // Movie title matches directly.
         let (entries, total) =
-            browse_library(&conn, "Dune", &[], BrowseStatus::All, 50, 0).unwrap();
+            browse_library(&conn, "Paper Moon Heist", &[], BrowseStatus::All, 50, 0).unwrap();
         assert_eq!(total, 1);
         assert_eq!(entries[0].kind, "movie");
 
         // Show name matches directly.
         let (entries, total) =
-            browse_library(&conn, "Breaking Bad", &[], BrowseStatus::All, 50, 0).unwrap();
+            browse_library(&conn, "The Lantern Cove", &[], BrowseStatus::All, 50, 0).unwrap();
         assert_eq!(total, 1);
         assert_eq!(entries[0].kind, "show");
 
         // An individual EPISODE's own title must also surface its show — this
-        // is the gap that was fixed: searching "Ozymandias" previously found
+        // is the gap that was fixed: searching "Tideline" previously found
         // nothing, because only the show name was matched for episode rows.
         let (entries, total) =
-            browse_library(&conn, "Ozymandias", &[], BrowseStatus::All, 50, 0).unwrap();
+            browse_library(&conn, "Tideline", &[], BrowseStatus::All, 50, 0).unwrap();
         assert_eq!(total, 1, "episode title search should find the parent show");
         assert_eq!(entries[0].kind, "show");
-        assert_eq!(entries[0].name, "Breaking Bad");
+        assert_eq!(entries[0].name, "The Lantern Cove");
 
         // A non-matching query finds nothing.
         let (entries, total) =
@@ -1243,12 +1243,12 @@ mod tests {
             &conn,
             "m1",
             "movie",
-            "Dune",
+            "Paper Moon Heist",
             None,
             None,
             None,
             Some(2021),
-            "/m/dune.mkv",
+            "/m/heist.mkv",
             None,
             0,
             "direct",
@@ -1262,7 +1262,7 @@ mod tests {
             "e1",
             "episode",
             "Pilot",
-            Some("Breaking Bad"),
+            Some("The Lantern Cove"),
             Some(1),
             Some(1),
             Some(2008),
@@ -1281,17 +1281,17 @@ mod tests {
         assert_eq!(total, 2);
         assert_eq!(entries.len(), 2);
 
-        // Scoped to "Movies": only Dune.
+        // Scoped to "Movies": only Paper Moon Heist.
         let (entries, total) =
             browse_library(&conn, "", &["Movies".to_string()], BrowseStatus::All, 50, 0).unwrap();
         assert_eq!(total, 1);
-        assert_eq!(entries[0].name, "Dune");
+        assert_eq!(entries[0].name, "Paper Moon Heist");
 
-        // Scoped to "TV": only Breaking Bad.
+        // Scoped to "TV": only The Lantern Cove.
         let (entries, total) =
             browse_library(&conn, "", &["TV".to_string()], BrowseStatus::All, 50, 0).unwrap();
         assert_eq!(total, 1);
-        assert_eq!(entries[0].name, "Breaking Bad");
+        assert_eq!(entries[0].name, "The Lantern Cove");
 
         // Scoped to a library with nothing in it: empty, not an error.
         let (entries, total) =
@@ -1308,7 +1308,7 @@ mod tests {
             &conn,
             "m1",
             "movie",
-            "Breaking Point",
+            "Lantern Point",
             None,
             None,
             None,
@@ -1327,7 +1327,7 @@ mod tests {
             "e1",
             "episode",
             "Pilot",
-            Some("Breaking Bad"),
+            Some("The Lantern Cove"),
             Some(1),
             Some(1),
             Some(2008),
@@ -1344,8 +1344,8 @@ mod tests {
             &conn,
             "e2",
             "episode",
-            "Ozymandias",
-            Some("Breaking Bad"),
+            "Tideline",
+            Some("The Lantern Cove"),
             Some(5),
             Some(14),
             Some(2013),
@@ -1360,15 +1360,15 @@ mod tests {
         .unwrap();
 
         // Matches the show, deduplicated across its two episodes -- and not
-        // the movie, even though its title also contains "Breaking".
-        let shows = matching_shows(&conn, "Breaking", 50).unwrap();
-        assert_eq!(shows, vec!["Breaking Bad".to_string()]);
+        // the movie, even though its title also contains "Lantern".
+        let shows = matching_shows(&conn, "Lantern", 50).unwrap();
+        assert_eq!(shows, vec!["The Lantern Cove".to_string()]);
 
         // An episode's own title doesn't match a show search (that's
         // `browse_library`'s job, which deliberately also checks episode
         // titles) -- this function is specifically "does the query look
         // like a show name."
-        assert!(matching_shows(&conn, "Ozymandias", 50).unwrap().is_empty());
+        assert!(matching_shows(&conn, "Tideline", 50).unwrap().is_empty());
 
         assert!(matching_shows(&conn, "nonexistent", 50).unwrap().is_empty());
         assert!(matching_shows(&conn, "", 50).unwrap().is_empty());
@@ -1915,11 +1915,11 @@ mod tests {
     fn fts_queries_carry_the_excluded_words() {
         assert_eq!(fts_query("knock knock", &[]), "\"knock knock\"");
         assert_eq!(
-            fts_query("knock", &names(&["walter", "say my name"])),
-            "\"knock\" NOT \"walter\" NOT \"say my name\""
+            fts_query("knock", &names(&["dale", "say it with pie"])),
+            "\"knock\" NOT \"dale\" NOT \"say it with pie\""
         );
         // nothing to look for: exclusions alone can't be searched
-        assert_eq!(fts_query("  ", &names(&["walter"])), "");
+        assert_eq!(fts_query("  ", &names(&["dale"])), "");
         // an exclusion that is only punctuation is dropped
         assert_eq!(fts_query("knock", &names(&["!!!"])), "\"knock\"");
         assert!(has_search_text("a") && !has_search_text(" - !"));
@@ -2025,12 +2025,12 @@ mod tests {
             &[Cue {
                 start_ms: 0,
                 end_ms: 1,
-                text: "knock knock walter".into(),
+                text: "knock knock dale".into(),
             }],
         )
         .unwrap();
         assert_eq!(typed(&conn, "knock").len(), 4);
-        assert_eq!(typed(&conn, "knock -walter").len(), 3);
+        assert_eq!(typed(&conn, "knock -dale").len(), 3);
         assert_eq!(
             typed(&conn, "knock -\"who is\"").len(),
             1,

@@ -78,8 +78,8 @@ export function TopBar({ mode, setMode, query, setQuery, onSearch, index, onRein
         <input
           placeholder={
             mode === "dialogue"
-              ? "Search a line of dialogue… e.g. “I am the one who knocks” show:\"Breaking Bad\""
-              : "Search a show or movie title… e.g. pilot show:friends"
+              ? "Search a line of dialogue… e.g. “I am the one who whistles” show:\"The Lantern Cove\""
+              : "Search a show or movie title… e.g. pilot show:diner"
           }
           value={query}
           onChange={(e) => setQuery(e.target.value)}

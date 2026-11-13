@@ -523,10 +523,10 @@ mod tests {
     #[test]
     fn episodes_and_movies_flatten_with_ticks_converted_to_ms() {
         let json = r#"{"Items":[
-            {"Id":"e1","Type":"Episode","Name":"Pilot","SeriesName":"Breaking Bad",
+            {"Id":"e1","Type":"Episode","Name":"Pilot","SeriesName":"The Lantern Cove",
              "ParentIndexNumber":1,"IndexNumber":1,"ProductionYear":2008,
-             "Path":"/data/tv/Breaking Bad/S01E01.mkv","RunTimeTicks":29400000000},
-            {"Id":"m1","Type":"Movie","Name":"Dune","ProductionYear":2021,"Path":"/data/movies/Dune.mkv"},
+             "Path":"/data/tv/The Lantern Cove/S01E01.mkv","RunTimeTicks":29400000000},
+            {"Id":"m1","Type":"Movie","Name":"Paper Moon Heist","ProductionYear":2021,"Path":"/data/movies/Paper Moon Heist.mkv"},
             {"Id":"m2","Type":"Movie","Name":"No path"}
         ],"TotalRecordCount":3,"StartIndex":0}"#;
         let page: ItemsPage = serde_json::from_str(json).unwrap();
@@ -537,7 +537,7 @@ mod tests {
             .map(|r| flatten_item(r, "Lib"))
             .collect();
         assert_eq!(items[0].kind, "episode");
-        assert_eq!(items[0].show.as_deref(), Some("Breaking Bad"));
+        assert_eq!(items[0].show.as_deref(), Some("The Lantern Cove"));
         assert_eq!((items[0].season, items[0].episode), (Some(1), Some(1)));
         assert_eq!(items[0].duration_ms, 2_940_000); // 49 minutes
         assert_eq!(items[0].library, "Lib");
@@ -592,7 +592,7 @@ mod tests {
     #[test]
     fn subtitle_results_map_with_optional_fields_missing() {
         let json = r#"[
-            {"Id":"abc_123","ProviderName":"Open Subtitles","Name":"Dune.2021.1080p","Format":"srt",
+            {"Id":"abc_123","ProviderName":"Open Subtitles","Name":"Paper.Moon.Heist.2021.1080p","Format":"srt",
              "ThreeLetterISOLanguageName":"eng","DownloadCount":4200,"IsHashMatch":true,
              "Forced":false,"HearingImpaired":true},
             {"Id":"x","Name":""},

@@ -8,7 +8,7 @@ describe("search tips", () => {
       expect(text).toContain(op);
     }
     expect(text).toContain("-show:"); // exclusion
-    expect(text).toMatch(/-walter/); // excluding a word
+    expect(text).toMatch(/-dale/); // excluding a word
   });
   it("have a distinct example and an explanation for each tip", () => {
     const examples = SEARCH_TIPS.map((t) => t.example);

@@ -162,7 +162,7 @@ pub fn trimmed_srt(cues: &[Cue], start_ms: i64, end_ms: i64, offset_ms: i64) -> 
 mod tests {
     use super::*;
 
-    const SRT: &str = "1\n00:00:01,000 --> 00:00:02,500\nI am the one who knocks.\n\n2\n00:00:03,000 --> 00:00:04,000\n<i>Second line</i>\n";
+    const SRT: &str = "1\n00:00:01,000 --> 00:00:02,500\nI am the one who whistles.\n\n2\n00:00:03,000 --> 00:00:04,000\n<i>Second line</i>\n";
     const VTT: &str = "WEBVTT\n\n00:00:01.000 --> 00:00:02.500 line:90%\nHello there\n\n00:01:05.250 --> 00:01:06.000\nGeneral Kenobi\n";
 
     #[test]
@@ -171,7 +171,7 @@ mod tests {
         assert_eq!(cues.len(), 2);
         assert_eq!(cues[0].start_ms, 1000);
         assert_eq!(cues[0].end_ms, 2500);
-        assert_eq!(cues[0].text, "I am the one who knocks.");
+        assert_eq!(cues[0].text, "I am the one who whistles.");
         assert_eq!(cues[1].text, "Second line"); // tag stripped
     }
 
@@ -200,7 +200,7 @@ mod tests {
         // Window 1.2s .. 3.5s should include both cues, clipped and shifted.
         let out = trimmed_srt(&cues, 1200, 3500, 0);
         assert!(out.contains("00:00:00,000 --> 00:00:01,300")); // cue1 clipped at front
-        assert!(out.contains("I am the one who knocks."));
+        assert!(out.contains("I am the one who whistles."));
         assert!(out.contains("Second line"));
         // cue2 started at 3000ms -> 1800ms after shift
         assert!(out.contains("00:00:01,800 --> 00:00:02,300"));
@@ -220,7 +220,7 @@ mod tests {
         // Window 0..5000 unshifted by offset, so result timestamps shift later.
         let out = trimmed_srt(&cues, 0, 5000, 500);
         assert!(out.contains("00:00:01,500 --> 00:00:03,000"));
-        assert!(out.contains("I am the one who knocks."));
+        assert!(out.contains("I am the one who whistles."));
     }
 
     #[test]

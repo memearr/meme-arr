@@ -171,7 +171,7 @@ fn vocab() -> (Vec<&'static str>, Vec<&'static str>) {
         "scared",
         "worried",
         "tired",
-        "knocks",
+        "whistles",
         "flow",
         "spice",
         "breaking",
@@ -548,15 +548,15 @@ fn compact_index_vs_fts5_benchmark() {
     // Inject known marker phrases at known rows so we can verify correctness
     // (not just size) against real FTS5 phrase-query behavior.
     let mut lines = lines;
-    lines[1234] = "I am the one who knocks.".to_string();
-    lines[98765] = "Say my name and let the spice flow.".to_string();
-    lines[250_000] = "This is not breaking bad chemistry.".to_string();
+    lines[1234] = "I am the one who whistles.".to_string();
+    lines[98765] = "Say it with pie and let the cream flow.".to_string();
+    lines[250_000] = "This is not lantern cove chemistry.".to_string();
 
     let queries = [
-        "i am the one who knocks",
-        "say my name",
-        "spice flow",
-        "breaking bad chemistry",
+        "i am the one who whistles",
+        "say it with pie",
+        "cream flow",
+        "lantern cove chemistry",
         "this phrase does not exist anywhere",
     ];
     run_full_benchmark("synthetic corpus", &lines, &queries);

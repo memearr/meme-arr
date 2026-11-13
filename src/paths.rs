@@ -190,8 +190,14 @@ mod tests {
 
     #[test]
     fn rewrites_first_matching_prefix() {
-        let p = rewrite("/volume1/media/Movies/Dune (2021)/Dune.mkv", &rules());
-        assert_eq!(p, PathBuf::from("/media/Movies/Dune (2021)/Dune.mkv"));
+        let p = rewrite(
+            "/volume1/media/Movies/Paper Moon Heist (2021)/Paper Moon Heist.mkv",
+            &rules(),
+        );
+        assert_eq!(
+            p,
+            PathBuf::from("/media/Movies/Paper Moon Heist (2021)/Paper Moon Heist.mkv")
+        );
     }
 
     #[test]
@@ -218,8 +224,14 @@ mod tests {
             from: "D:\\".into(),
             to: "/media/d".into(),
         }];
-        let p = rewrite("D:\\Movies\\Dune (2021)\\Dune.mkv", &rules);
-        assert_eq!(p, PathBuf::from("/media/d/Movies/Dune (2021)/Dune.mkv"));
+        let p = rewrite(
+            "D:\\Movies\\Paper Moon Heist (2021)\\Paper Moon Heist.mkv",
+            &rules,
+        );
+        assert_eq!(
+            p,
+            PathBuf::from("/media/d/Movies/Paper Moon Heist (2021)/Paper Moon Heist.mkv")
+        );
     }
 
     #[test]

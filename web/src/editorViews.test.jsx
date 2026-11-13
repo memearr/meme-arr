@@ -148,7 +148,7 @@ describe("sequence editing", () => {
     id: "c1",
     rating_key: "k1",
     title: "Pilot",
-    line: "Say my name",
+    line: "Say it with pie",
     start_ms: 1000,
     end_ms: 4000,
     caption: { mode: "meme", top: "TOP", bottom: "BOTTOM", font_scale: 100 },

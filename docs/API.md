@@ -201,13 +201,13 @@ the linked-account allowlist instead of granting a session.
 
 | Operator | Meaning |
 |---|---|
-| `show:"Breaking Bad"` | the show's name contains the value (any case) |
+| `show:"The Lantern Cove"` | the show's name contains the value (any case) |
 | `ep:pilot` / `episode:pilot` | an **episode** whose title contains the value |
-| `movie:dune` | a **movie** whose title contains the value |
+| `movie:heist` | a **movie** whose title contains the value |
 | `ep:` / `movie:` (no value) | only episodes / only movies |
 | `library:Anime` / `lib:Anime` | in the library with exactly this name (any case) |
 | `season:2` | the season number |
-| `-` in front of any of them | the opposite: `-show:friends`, `-ep:"the pilot"`, `-movie:` |
+| `-` in front of any of them | the opposite: `-show:diner`, `-ep:"the pilot"`, `-movie:` |
 | `-word` / `-"a phrase"` | leave out dialogue lines (Dialogue) or titles and shows (Title) containing it |
 
 Rules: values may be `"quoted"` to hold spaces (an unclosed quote runs to the end);
@@ -215,12 +215,12 @@ several operators combine with AND, and with the `library=` picker parameter; a
 `key:` that isn't an operator (`note: hello`, `12:30`) is plain text; `season:` needs
 a number or it is plain text; a leading `-` only counts when something follows it
 directly (`well - hello` is plain text); a quoted phrase is always text, so
-`"show:me the money"` and `"-5 degrees"` search literally. `-show:x` keeps items
+`"show:me the pie"` and `"-5 degrees"` search literally. `-show:x` keeps items
 that have no show (movies). The parser is `src/querysyntax.rs`.
 
-Responses add `"filters": ["show: Breaking Bad", "not episode: pilot",
-"without “walter”"]` (how the query was read, for display). In Dialogue mode, a
-query with operators but **no dialogue text** (`show:"Breaking Bad"`) returns the
+Responses add `"filters": ["show: The Lantern Cove", "not episode: pilot",
+"without “dale”"]` (how the query was read, for display). In Dialogue mode, a
+query with operators but **no dialogue text** (`show:"The Lantern Cove"`) returns the
 matching *items* (title-search shaped, no `text`) with `"listing": true`, instead of
 nothing. Exclusions alone can't be matched against dialogue, so they need text.
 
@@ -239,11 +239,11 @@ libraries. `shows` is only filled on the first page (`offset=0`).
 ```json
 {
   "results": [
-    { "media_id": 1, "rating_key": "...", "kind": "episode", "title": "Ozymandias",
-      "show": "Breaking Bad", "season": 5, "episode": 14,
+    { "media_id": 1, "rating_key": "...", "kind": "episode", "title": "Tideline",
+      "show": "The Lantern Cove", "season": 5, "episode": 14,
       "start_ms": 12345, "end_ms": 14200, "text": "..." }
   ],
-  "shows": ["Breaking Bad"],
+  "shows": ["The Lantern Cove"],
   "has_more": true,
   "offset": 0
 }
@@ -255,11 +255,11 @@ the UI uses `false` to offer a "no subtitles" link to the Wanted tab.
 Title search (`LIKE` match against movie/episode/show title). Same `shows`,
 paging (`limit`, `offset`, `has_more`), `library` filter and operators as above.
 Operators matter most here for narrowing by show and episode title, e.g.
-`pilot show:friends` or `ep:"the one with" -show:office`.
+`pilot show:diner` or `ep:"the gull" -show:lantern`.
 ```json
 {
   "results": [
-    { "rating_key": "...", "kind": "movie", "title": "Dune", "show": null,
+    { "rating_key": "...", "kind": "movie", "title": "Paper Moon Heist", "show": null,
       "season": null, "episode": null, "year": 2021, "duration_ms": 7800000 }
   ],
   "shows": [],
@@ -711,9 +711,9 @@ one episode, lacking indexed subtitles) or `indexed` (nothing missing).
 ```json
 {
   "entries": [
-    { "kind": "show", "name": "Breaking Bad", "show": "Breaking Bad", "rating_key": null,
+    { "kind": "show", "name": "The Lantern Cove", "show": "The Lantern Cove", "rating_key": null,
       "count": 62, "indexed": 60, "year": 2008 },
-    { "kind": "movie", "name": "Dune", "show": null, "rating_key": "...", "count": 1, "indexed": 1, "year": 2021 }
+    { "kind": "movie", "name": "Paper Moon Heist", "show": null, "rating_key": "...", "count": 1, "indexed": 1, "year": 2021 }
   ],
   "total": 2
 }
@@ -721,7 +721,7 @@ one episode, lacking indexed subtitles) or `indexed` (nothing missing).
 
 ### `GET /api/library/episodes?show=<name>`
 ```json
-{ "episodes": [{ "rating_key": "...", "title": "Pilot", "show": "Breaking Bad",
+{ "episodes": [{ "rating_key": "...", "title": "Pilot", "show": "The Lantern Cove",
                  "season": 1, "episode": 1, "indexed": true }] }
 ```
 

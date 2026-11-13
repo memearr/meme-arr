@@ -63,18 +63,18 @@ describe("fmtTime", () => {
 
 describe("episodeLabel", () => {
   it("labels an episode as Show · SxxEyy", () => {
-    expect(episodeLabel({ show: "Breaking Bad", season: 1, episode: 7 })).toBe(
-      "Breaking Bad · S01E07"
+    expect(episodeLabel({ show: "The Lantern Cove", season: 1, episode: 7 })).toBe(
+      "The Lantern Cove · S01E07"
     );
   });
 
   it("omits SxxEyy when season or episode is unknown", () => {
-    expect(episodeLabel({ show: "Breaking Bad", season: null, episode: 7 })).toBe("Breaking Bad");
+    expect(episodeLabel({ show: "The Lantern Cove", season: null, episode: 7 })).toBe("The Lantern Cove");
   });
 
   it("labels a movie as Title (Year), or just Title without one", () => {
-    expect(episodeLabel({ title: "Akira", year: 1988 })).toBe("Akira (1988)");
-    expect(episodeLabel({ title: "Akira" })).toBe("Akira");
+    expect(episodeLabel({ title: "Paper Crane", year: 1988 })).toBe("Paper Crane (1988)");
+    expect(episodeLabel({ title: "Paper Crane" })).toBe("Paper Crane");
   });
 });
 

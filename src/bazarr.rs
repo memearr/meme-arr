@@ -511,16 +511,22 @@ mod tests {
 
     #[test]
     fn paths_match_by_their_ends_whatever_the_mount_point() {
-        let ours = "/media/Movies/Dune (2021)/Dune (2021).mkv";
-        let theirs = "/movies/Dune (2021)/Dune (2021).mkv"; // mounted elsewhere, same folders
+        let ours = "/media/Movies/Paper Moon Heist (2021)/Paper Moon Heist (2021).mkv";
+        let theirs = "/movies/Paper Moon Heist (2021)/Paper Moon Heist (2021).mkv"; // mounted elsewhere, same folders
         assert_eq!(tail_score(ours, theirs), 3);
         // Windows-style paths and case don't matter.
         assert_eq!(
-            tail_score(ours, r"D:\Movies\dune (2021)\DUNE (2021).MKV"),
+            tail_score(
+                ours,
+                r"D:\Movies\paper moon heist (2021)\PAPER MOON HEIST (2021).MKV"
+            ),
             3
         );
         // Different file name: no match at all, even if the folders agree.
-        assert_eq!(tail_score(ours, "/movies/Dune (2021)/Other.mkv"), 0);
+        assert_eq!(
+            tail_score(ours, "/movies/Paper Moon Heist (2021)/Other.mkv"),
+            0
+        );
     }
 
     #[test]
@@ -546,12 +552,12 @@ mod tests {
 
     #[test]
     fn a_series_is_matched_by_its_folder_name() {
-        let file = "/media/TV/Severance/Season 1/Severance - S01E01.mkv";
-        assert!(series_score("/tv/Severance", file) >= 1);
-        assert!(series_score("/data/tv/Severance", file) >= 1);
+        let file = "/media/TV/Orbital Diner/Season 1/Orbital Diner - S01E01.mkv";
+        assert!(series_score("/tv/Orbital Diner", file) >= 1);
+        assert!(series_score("/data/tv/Orbital Diner", file) >= 1);
         assert_eq!(series_score("/tv/Other Show", file), 0);
         // The folder name must be a folder, not the file's own name.
-        assert_eq!(series_score("/tv/Severance - S01E01.mkv", file), 0);
+        assert_eq!(series_score("/tv/Orbital Diner - S01E01.mkv", file), 0);
     }
 
     #[test]
@@ -618,7 +624,7 @@ mod tests {
                 get(|State(c): State<Calls>| async move {
                     c.lock().unwrap().push("GET movies".into());
                     Json(json!({"data": [
-                        {"radarrId": 7, "title": "Dune", "path": "/movies/Dune (2021)/Dune (2021).mkv",
+                        {"radarrId": 7, "title": "Paper Moon Heist", "path": "/movies/Paper Moon Heist (2021)/Paper Moon Heist (2021).mkv",
                          "profileId": 1,
                          "missing_subtitles": [{"code2": "en", "forced": false, "hi": false}]}
                     ], "total": 1}))
@@ -637,7 +643,7 @@ mod tests {
                 "/api/series",
                 get(|| async {
                     Json(json!({"data": [
-                        {"sonarrSeriesId": 3, "title": "Severance", "path": "/tv/Severance"}
+                        {"sonarrSeriesId": 3, "title": "Orbital Diner", "path": "/tv/Orbital Diner"}
                     ]}))
                 }),
             )
@@ -645,8 +651,8 @@ mod tests {
                 "/api/episodes",
                 get(|| async {
                     Json(json!({"data": [
-                        {"sonarrEpisodeId": 31, "sonarrSeriesId": 3, "title": "Good News",
-                         "path": "/tv/Severance/Season 1/Severance - S01E01.mkv",
+                        {"sonarrEpisodeId": 31, "sonarrSeriesId": 3, "title": "Zero-G Special",
+                         "path": "/tv/Orbital Diner/Season 1/Orbital Diner - S01E01.mkv",
                          "missing_subtitles": [
                            {"code2": "en", "forced": false, "hi": false},
                            {"code2": "fr", "forced": false, "hi": true}]}
@@ -706,7 +712,7 @@ mod tests {
         let url = serve(calls.clone()).await;
         let c = Client::new(&url, "sekrit");
         let t = c
-            .find("/media/Movies/Dune (2021)/Dune (2021).mkv")
+            .find("/media/Movies/Paper Moon Heist (2021)/Paper Moon Heist (2021).mkv")
             .await
             .unwrap()
             .expect("matched");
@@ -730,7 +736,7 @@ mod tests {
         let url = serve(calls.clone()).await;
         let c = Client::new(&url, "sekrit");
         let t = c
-            .find("/media/TV/Severance/Season 1/Severance - S01E01.mkv")
+            .find("/media/TV/Orbital Diner/Season 1/Orbital Diner - S01E01.mkv")
             .await
             .unwrap()
             .expect("matched");
@@ -753,15 +759,15 @@ mod tests {
         let url = serve(calls.clone()).await;
         let c = Client::new(&url, "sekrit");
         let t = c
-            .find("/media/Movies/Dune (2021)/Dune (2021).mkv")
+            .find("/media/Movies/Paper Moon Heist (2021)/Paper Moon Heist (2021).mkv")
             .await
             .unwrap()
             .unwrap();
-        c.sync(&t, "Dune (2021).en.srt").await.unwrap();
+        c.sync(&t, "Paper Moon Heist (2021).en.srt").await.unwrap();
         let log = calls.lock().unwrap().clone();
         assert!(
             log.contains(
-                &"SYNC sync movie 7 en /movies/Dune (2021)/Dune (2021).en.srt".to_string()
+                &"SYNC sync movie 7 en /movies/Paper Moon Heist (2021)/Paper Moon Heist (2021).en.srt".to_string()
             ),
             "{log:?}"
         );
@@ -773,21 +779,29 @@ mod tests {
         let url = serve(calls.clone()).await;
         let c = Client::new(&url, "sekrit");
         let t = c
-            .find("/media/Movies/Dune (2021)/Dune (2021).mkv")
+            .find("/media/Movies/Paper Moon Heist (2021)/Paper Moon Heist (2021).mkv")
             .await
             .unwrap()
             .unwrap();
-        c.shift(&t, "Dune (2021).en.srt", -1500).await.unwrap();
+        c.shift(&t, "Paper Moon Heist (2021).en.srt", -1500)
+            .await
+            .unwrap();
         let log = calls.lock().unwrap().clone();
         let want = "SYNC shift_offset(h=0,m=0,s=-1,ms=-500) movie 7 en \
-                    /movies/Dune (2021)/Dune (2021).en.srt";
+                    /movies/Paper Moon Heist (2021)/Paper Moon Heist (2021).en.srt";
         assert!(log.contains(&want.to_string()), "{log:?}");
         // Not an .srt, nothing to shift, or an absurd shift: never sent.
         let before = calls.lock().unwrap().len();
-        assert!(c.shift(&t, "Dune (2021).en.ass", 500).await.is_err());
-        assert!(c.shift(&t, "Dune (2021).en.srt", 0).await.is_err());
         assert!(c
-            .shift(&t, "Dune (2021).en.srt", 11 * 60 * 1000)
+            .shift(&t, "Paper Moon Heist (2021).en.ass", 500)
+            .await
+            .is_err());
+        assert!(c
+            .shift(&t, "Paper Moon Heist (2021).en.srt", 0)
+            .await
+            .is_err());
+        assert!(c
+            .shift(&t, "Paper Moon Heist (2021).en.srt", 11 * 60 * 1000)
             .await
             .is_err());
         assert_eq!(calls.lock().unwrap().len(), before);

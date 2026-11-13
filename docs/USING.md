@@ -59,7 +59,7 @@ searched, so you can still search the dialogue (or the title) at the same time.
 | `movie:lighthouse` | movies whose title contains "lighthouse" |
 | `movie:` or `ep:` on its own | only movies, or only episodes |
 | `library:Cartoons`, `season:2` | one library, one season number |
-| `-walter`, `-"say my name"` | leave out dialogue lines (or titles) containing a word or phrase |
+| `-dale`, `-"say it with pie"` | leave out dialogue lines (or titles) containing a word or phrase |
 | a leading `-` on any operator | turn it around, e.g. `-ep:docking` |
 
 For example, `soup show:"Orbital Diner" -ep:docking` finds the soup lines in
@@ -80,7 +80,7 @@ season's episodes except the gull one.
 
 A few things worth knowing:
 
-- Put text in quotes to search it literally: `"show:me the money"` and
+- Put text in quotes to search it literally: `"show:me the pie"` and
   `"-5 degrees"` are words, not operators. Anything with a colon that isn't an
   operator (`note: hello`, `12:30`) is ordinary text too.
 - With operators but **no dialogue text** (just `show:"Orbital Diner"`), Dialogue
@@ -169,7 +169,7 @@ any shows or movies, into one back-to-back GIF, WebP, MP4 or WebM (up to 20 sect
 The format, width, frame rate and quality are set once for the whole sequence, below the
 editor, along with the export button.
 
-![The Sequence tab with three clips from different shows, ready to export as one GIF](images/sequence.png)
+![The Sequence tab: the player, the strip of three sections from different shows, and the edit panels](images/sequence.png)
 
 ## Browse the library
 

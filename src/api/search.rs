@@ -60,7 +60,7 @@ pub(super) async fn search(
                 excluded: &parsed.excluded,
             };
             let results = if !db::has_search_text(&parsed.text) && parsed.has_operators() {
-                // Operators but nothing to look for in the dialogue (`show:friends`):
+                // Operators but nothing to look for in the dialogue (`show:diner`):
                 // list the matching items instead of returning nothing.
                 let (hits, more) = db::search_titles(&conn, "", scope, limit, offset)?;
                 (json!(hits), more, true)

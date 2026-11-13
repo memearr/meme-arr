@@ -251,7 +251,9 @@ async function main() {
     await page.waitForTimeout(400);
   }
   await nav("Sequence");
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(3000);
+  // the page keeps the scroll position of the last tab; the set editor starts at the top
+  await page.evaluate(() => { for (const el of document.querySelectorAll(".main, .page")) el.scrollTo(0, 0); window.scrollTo(0, 0); });
   await shot("sequence");
 
   // library, wanted

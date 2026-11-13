@@ -52,8 +52,8 @@ fn make_sample(dir: &Path, name: &str, with_audio: bool) -> std::path::PathBuf {
     let srt = dir.join(format!("{name}.srt"));
     std::fs::write(
         &srt,
-        "1\n00:00:00,500 --> 00:00:01,500\nI am the one who knocks\n\n\
-         2\n00:00:02,000 --> 00:00:02,800\nSay my name\n",
+        "1\n00:00:00,500 --> 00:00:01,500\nI am the one who whistles\n\n\
+         2\n00:00:02,000 --> 00:00:02,800\nSay it with pie\n",
     )
     .unwrap();
 
@@ -116,7 +116,7 @@ async fn extract_parse_and_export() {
         .expect("extract srt");
     let cues = subtitles::parse(&srt);
     assert!(
-        cues.iter().any(|c| c.text.contains("one who knocks")),
+        cues.iter().any(|c| c.text.contains("one who whistles")),
         "expected the indexed line, got: {cues:?}"
     );
 
@@ -132,10 +132,10 @@ async fn extract_parse_and_export() {
         caption: Some(Caption::None),
         subtitle_offset_ms: 0,
         audio: false,
-        filename: Some("knocks".into()),
+        filename: Some("whistles".into()),
         credit_source: true,
     };
-    let out = tmp.path().join("knocks.gif");
+    let out = tmp.path().join("whistles.gif");
     export::run_export(
         "ffmpeg",
         "gifsicle",

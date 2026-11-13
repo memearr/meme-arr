@@ -175,7 +175,15 @@ mod tests {
             "direct",
             "TV",
         );
-        add_media(&conn, "m1", "movie", "Dune", None, "direct", "Movies");
+        add_media(
+            &conn,
+            "m1",
+            "movie",
+            "Paper Moon Heist",
+            None,
+            "direct",
+            "Movies",
+        );
         let first = add_subtitle_request(
             &conn,
             "e1",
@@ -191,7 +199,7 @@ mod tests {
             params![first],
         )
         .unwrap();
-        add_subtitle_request(&conn, "m1", "plex", None, "Dune.1080p", None).unwrap();
+        add_subtitle_request(&conn, "m1", "plex", None, "Paper.Moon.Heist.1080p", None).unwrap();
         add_subtitle_request(&conn, "gone", "plex", Some("fr"), "x", None).unwrap();
 
         let list = list_subtitle_requests(&conn, 50).unwrap();

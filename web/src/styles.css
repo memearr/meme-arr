@@ -2031,7 +2031,7 @@ fieldset label.disabled {
 }
 .seq-player-stage video {
   width: 100%;
-  max-height: min(60vh, 640px);
+  max-height: min(42vh, 420px);
   border-radius: 10px;
   background: #000;
   object-fit: contain;
