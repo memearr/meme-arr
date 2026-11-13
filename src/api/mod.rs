@@ -132,6 +132,10 @@ pub fn router(state: AppState) -> Router {
             "/api/media/{rating_key}/bazarr/sync",
             post(media_bazarr_sync),
         )
+        .route(
+            "/api/media/{rating_key}/bazarr/shift",
+            post(media_bazarr_shift),
+        )
         .route("/api/libraries", get(libraries))
         .route("/api/search", get(search))
         .route("/api/search/title", get(search_title))

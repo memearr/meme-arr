@@ -161,6 +161,13 @@ Ask Bazarr to search for the subtitles it is missing for this item
 isn't missing any). `404` if Bazarr doesn't have the file, `409` if Bazarr isn't set
 up, `502` if it can't be reached.
 
+### `POST /api/media/:rating_key/bazarr/shift`
+Body `{ "offset_ms": -1500 }` (positive = later). Asks Bazarr (its "adjust times" action)
+to move every line of the `.srt` beside the video, then re-indexes the item:
+`{ "ok": true, "file": "Movie.en.srt", "reindexed": {...}, "message": "..." }`.
+`400` if there is no subtitle file beside the video; `502` if Bazarr refuses (it only
+changes `.srt` files, and the shift must be 1 ms to 10 minutes).
+
 ### `POST /api/media/:rating_key/bazarr/sync`
 Ask Bazarr to re-time the subtitle file beside the video (`400` if there is none).
 Bazarr works in the background; re-index the item afterwards.
