@@ -108,6 +108,28 @@ depends on the server:
    which was used, indexed lines, and the stored vs current fingerprint). A failed request is
    logged as a warning too. Turn the log level up (System → Logs) to see more detail.
 
+## Bazarr's notification does nothing
+
+The address under Settings → Bazarr is called by *Bazarr*, so it has to be reachable from
+Bazarr's container or host (use the host name or IP Bazarr can reach, and the port of this app).
+Check in Bazarr that the notification is enabled for the "subtitle downloaded" events and press
+its **Test**; the Activity log then shows "Bazarr reported a new subtitle; scanning the library for
+it" about 20 seconds later. A wrong secret gets `404`. If you replaced the secret
+(**New address**), update the Apprise URL in Bazarr too. If the scan finds nothing, check that
+this app can read the folder Bazarr writes to (the same media mount) and that the subtitle's name
+starts with the video's name.
+
+## HTTPS: certificates
+
+- **Your own certificate (`TLS_CERT` / `TLS_KEY`)** is re-read about a minute after its files
+  change, so a renewal needs no restart. If the new files can't be parsed yet, the old certificate
+  stays in use and the log says "couldn't reload the HTTPS certificate yet"; fix the files and it
+  recovers by itself. A startup error naming `TLS_CERT` means the files are missing or not PEM.
+- **"The server's HTTPS certificate isn't trusted"** when testing Plex, Jellyfin or Bazarr: see
+  [Troubleshooting](TROUBLESHOOTING.md) (`EXTRA_CA_CERTS`).
+- Behind a proxy, **Settings → Check this connection** shows whether the app sees HTTPS and the
+  right host; see [Deployment](DEPLOYMENT.md#behind-a-reverse-proxy).
+
 ## The editor preview doesn't play
 
 The preview is a short clip the server renders with ffmpeg, then the browser plays it. A render

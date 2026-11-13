@@ -58,8 +58,9 @@ the same port — there's no separate frontend server in production.
 
 1. Request hits axum's router (`api::router` in `src/api/mod.rs`).
 2. The `require_auth` middleware checks the path against `is_public_api_path`
-   (an allowlist: `/healthz`, `/status`, `/metrics`, `/api/version`, and
-   everything under `/api/auth/*`). Everything else needs a valid session
+   (an allowlist: `/healthz`, `/status`, `/metrics`, `/api/version`,
+   everything under `/api/auth/*`, and `/api/hooks/bazarr/{token}`, whose secret is its
+   credential). Everything else needs a valid session
    cookie, checked against the `sessions` table (SHA-256 hash of the cookie
    value, never the raw token, stored server-side).
 3. The handler runs. Most handlers that touch SQLite wrap the actual query in
@@ -93,11 +94,13 @@ Orientation only: each file's own `//!` comment is the authoritative description
 | `api/library.rs` | Library browsing (with the libraries and missing-subtitle filters), the Wanted list, stats and reindexing. |
 | `api/clips.rs` | Preview clips, single and sequence exports, jobs and downloads. |
 | `api/subtitle_api.rs` | Online subtitle search and download (Plex and Jellyfin), the Requests list, diagnosis and re-indexing one item. |
-| `api/settings.rs` | Media-server settings, the connection test and the folder browser. |
-| `api/session.rs` | Sessions, API keys, login/logout/password, trusted proxies and the `require_auth` middleware. |
+| `api/settings.rs` | Media-server settings, the connection test and the folder browser (confined to `BROWSE_ROOTS`). |
+| `api/frames.rs` | Video facts (frame rate, size), single stills and filmstrips, for the editor's exact trimming. |
+| `api/bazarr.rs` | Bazarr: its settings, search / re-time / shift for one item, and the webhook it calls after writing a subtitle. |
+| `api/session.rs` | Sessions, API keys, login/logout/password, trusted proxies and the `require_auth` middleware. The session cookie is `Secure` whenever the visitor used HTTPS. |
 | `api/authentik.rs`, `api/plex_login.rs` | Authentik (OIDC) and Plex single sign-on: login, callback and their settings. |
 | `api/fonts.rs` | List, upload and delete caption fonts, and resolve the font a caption chose. |
-| `api/system.rs` | Health, status, metrics, activity and server logs, storage, backups and scheduled tasks. |
+| `api/system.rs` | Health, status, metrics, activity and server logs, storage, backups, scheduled tasks and `GET /api/system/connection` (how the app reads the connection, for checking a proxy). |
 
 **Storage** (`db/`; the only code that writes SQL against the app's tables)
 
@@ -111,7 +114,7 @@ Orientation only: each file's own `//!` comment is the authoritative description
 
 | Module | Purpose |
 |---|---|
-| `index/` | The background library indexer: walks every movie and episode, resolves its file, picks the best subtitle (sidecar, embedded track, or the one the server keeps), parses the cues and stores them. `item.rs` indexes one item, `sidecar.rs` finds sidecar files and fingerprints changes. |
+| `index/` | The background library indexer: walks every movie and episode, resolves its file, picks the best subtitle (sidecar, embedded track, or the one the server keeps), parses the cues and stores them. `item.rs` indexes one item, `sidecar.rs` finds sidecar files (preferring the language Bazarr's profiles name, never a forced file unless it is all there is, plain over hearing-impaired, `.srt` first), decodes them whatever their encoding, and fingerprints changes. |
 | `subtitles.rs` | Parses SRT/VTT into timed cues, and builds a trimmed SRT for a clip window for burning at export time. |
 | `remote_sub.rs` | Subtitles the media server keeps for itself (Plex stores downloaded ones in its own database). |
 | `querysyntax.rs` | The search-box operators (`show:`, `ep:`, `movie:`, `library:`, `season:`, a leading `-`): a small pure parser that splits a query into text, filters and excluded words. `db::Scope` turns the filters into SQL. |
@@ -124,6 +127,8 @@ Orientation only: each file's own `//!` comment is the authoritative description
 |---|---|
 | `mediaserver.rs` | The seam between the app and the server: `MediaServer` (Plex or Jellyfin) and the shared `Section` / `Item` types. Everything downstream is server-agnostic. |
 | `plex.rs`, `jellyfin.rs` | The minimal clients for each server: libraries, items with their on-disk path, subtitle streams and search. |
+| `bazarr.rs` | The Bazarr client: finds the movie or episode a file is (by the end of its path), asks for a search, a re-time or a shift, and reads its language profiles. Tested against a stand-in Bazarr. |
+| `langs.rs` | Language codes and names, and reading the language, forced and hearing-impaired tags out of a subtitle file's name. |
 | `fonts.rs` | Caption fonts: the built-in ones and the uploaded ones in `DATA_DIR/fonts`, how an upload is checked, and reading a font's family name. |
 | `paths.rs` | Translates the paths the server reports into paths reachable from this container. |
 
@@ -131,7 +136,7 @@ Orientation only: each file's own `//!` comment is the authoritative description
 
 | Module | Purpose |
 |---|---|
-| `ffmpeg.rs` | Thin orchestration over `ffmpeg`/`ffprobe`. Argument building is pure and unit-tested; running the process is not. |
+| `ffmpeg.rs` | Thin orchestration over `ffmpeg`/`ffprobe`: probing the video, stills and filmstrips, previews. Argument building is pure and unit-tested; running the process is not. |
 | `export/` | Turns a clip window or a sequence into WebP/MP4/WebM/GIF. `request.rs` holds the request types, limits and naming; `filters.rs` the pure filtergraph and metadata-stripping arguments; `run.rs` runs ffmpeg. |
 | `preview_cache.rs` | Renders previews safely: to a temporary file, checked for completeness before it becomes a cache entry. |
 | `diskstats.rs` | Disk-usage helpers for the System tab. |
@@ -143,11 +148,13 @@ Orientation only: each file's own `//!` comment is the authoritative description
 | `auth.rs` | Single-admin password auth: Argon2id password hashing and SHA-256 session-token hashing. |
 | `oidc.rs`, `plex_auth.rs` | The Authentik OIDC client and the Plex PIN login flow. |
 | `ratelimit.rs`, `proxies.rs` | Per-address login lockout, and trusted-proxy handling (the right-to-left `X-Forwarded-For` walk). |
+| `forwarded.rs` | How a request reached us behind a reverse proxy: scheme, host and path prefix from `Forwarded` / `X-Forwarded-*`, believed only from a trusted or private-address proxy; `PUBLIC_URL` overrides. Decides login callback URLs, `Secure` cookies and the page's base. |
+| `tls.rs` | HTTPS certificates: the extra CAs (`EXTRA_CA_CERTS`) every outbound client trusts, a hint for certificate errors, and the reload of the certificate the app itself serves (`TLS_CERT` / `TLS_KEY`). There is no "skip verification" mode. |
 | `backup.rs` | Settings backups: JSON snapshots, retention of 14, strict file-name validation, all-or-nothing restore. |
 | `health.rs` | The health checks behind System → Health, each linked to [HEALTH.md](HEALTH.md). |
 | `tasks.rs` | Scheduled tasks and their scheduler. |
 | `logs.rs` | The in-app log viewer: tracing subscriber, in-memory ring buffer, credential scrubbing, live level changes. |
-| `spa.rs` | Serves the single-page app with `URL_BASE` injected. |
+| `spa.rs` | Serves the single-page app with `URL_BASE` (and any proxy's `X-Forwarded-Prefix`) injected. |
 | `version.rs` | The app version and the "newer release?" check against GitHub tags. |
 
 ## Frontend (`web/`)
@@ -158,7 +165,11 @@ renders. Built with Vite; `npm run build` emits static files the Rust binary ser
 
 - `web/src/main.jsx` mounts `<App />`; `web/src/App.jsx` is the shell: the auth gate (setup or login
   screen), the sidebar and top bar, and which tab is showing.
-- **One component file per area**: `Editor.jsx` (trim, caption, export), `SequenceView.jsx`,
+- **One component file per area**: `Editor.jsx` (the editor: player, `Timeline.jsx`, `TrimPanel.jsx` for exact
+  In/Out, `FrameCheck.jsx`, subtitle lines, captions, export), `SequenceView.jsx` (the sequence as a
+  set, built from `SequencePlayer.jsx`, `SequenceTimeline.jsx`, `SectionEditor.jsx` and
+  `SequenceBulkEdit.jsx`), `BazarrActions.jsx` and `BazarrSettingsPanel.jsx` (Bazarr),
+  `ConnectionPanel.jsx` (Settings → Check this connection), `CopyButton.jsx`,
   `Library.jsx`, `WantedView.jsx`, `SubtitleRequests.jsx`, `SubtitleSearch.jsx`,
   `SubtitleDiagnosis.jsx`, `ActivityView.jsx`, `Settings.jsx`, `SystemView.jsx` (with
   `TasksPanel.jsx`, `BackupsPanel.jsx`, `LogsPanel.jsx`), `SetupWizard.jsx`, `AuthScreen.jsx`,
@@ -167,7 +178,10 @@ renders. Built with Vite; `npm run build` emits static files the Rust binary ser
 - **Pure, unit-tested logic** sits beside them with no React in it: `searchScope.js`,
   `searchTips.js`, `libraryFilter.js`, `wantedFocus.js`, `subtitles.js`, `clipSettings.js`,
   `wizard.js`, `fonts.js`, `health.js`, `logs.js`, `theme.js`, `update.js`, `cueFind.js`, `format.js`,
-  `base.js`.
+  `base.js`, and for the editor and sequences `timecode.js` (frames, timecodes, the timeline's view
+  maths), `cueEdit.js` (editing subtitle lines), `captionPreview.js` (caption size and place as the
+  export draws them), `sequenceModel.js` (the sequence as a set: layout, reorder, trim, edits for all,
+  preview keys), `sequenceClip.js` (a stored clip to and from the editor), `bazarr.js`, `clipboard.js`.
 - `web/src/api.js` is a thin `fetch` wrapper: one function per endpoint, and a shared `json()`
   helper that throws on non-OK responses and fires a `memearr:unauthorized` window event on a
   401 (the app listens for that and drops back to the login screen from anywhere).
@@ -178,12 +192,12 @@ renders. Built with Vite; `npm run build` emits static files the Rust binary ser
 
 | Tab | What it is |
 |---|---|
-| Make | Search (dialogue or title, with filter chips and operators), pick a result or a matching show, then trim, caption and export in the `Editor`. The editor also has **Find subtitles online**: pick a language, search the media server's subtitle sources, download one, then index the item to make it searchable. |
-| Sequence | Queue multiple clips and export them back to back as one file. |
+| Make | Search (dialogue or title, with filter chips and operators), pick a result or a matching show, then trim, caption and export in the `Editor`: full-width player, a filmstrip timeline, exact In/Out by time or frame number, a frame-by-frame cut check, per-line subtitle editing and a sound control. The editor also has **Find subtitles online**: pick a language, search the media server's subtitle sources, download one, then index the item to make it searchable. |
+| Sequence | The queued clips as one thing to edit: play them back to back, see them as a strip (drag to reorder, duplicate, remove), edit one section or all of them (trim, captions, font, sync), undo, then export them as one file. |
 | Library | Browse the whole catalog (movies and shows), filtered by library, by missing or fully indexed subtitles, and by text; drill into a show's episodes. |
 | Wanted | **Missing**: items with no searchable subtitles whose files are reachable; run the online subtitle search inline, index the item, and it drops off the list. **Requests**: every download requested, whether it has become searchable yet, with Re-index / Diagnose / Open / Remove. |
 | Activity | Indexing progress, the persistent event log, this session's export jobs. |
-| Settings | Media-server connection, path mappings, admin password, Authentik, Plex login, API key, trusted proxies. |
+| Settings | Media-server connection, path mappings, Bazarr, caption fonts, admin password, Authentik, Plex login, API key, trusted proxies and a check of the connection. |
 | System | Health, online-subtitle-search status, index and storage stats, tasks, backups, logs, the exported-memes browser. |
 
 ## The compact dialogue index: what it is today

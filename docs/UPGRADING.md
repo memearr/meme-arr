@@ -42,6 +42,27 @@ specific version, change the image line to a tag such as
 - The sidebar shows the version. **System → Health** says `update_available` while a newer
   release exists.
 
+## Changes worth knowing about
+
+Newer versions, newest first. Nothing here needs a change to your compose file unless it says so.
+
+- **0.32: reverse proxies and HTTPS.** The app now believes `X-Forwarded-Proto/-Host/-Port/-Prefix`
+  only from a proxy on a private (or loopback) address or one on **Settings → Trusted proxies**;
+  from a public address they are ignored. A proxy on your LAN or Docker network needs nothing; a
+  proxy on a public address has to be listed (or set `PUBLIC_URL`). New optional settings:
+  `PUBLIC_URL`, `HSTS_MAX_AGE`, `TLS_CERT` / `TLS_KEY` (the app serves HTTPS itself), `EXTRA_CA_CERTS`
+  (trust a private CA for Plex, Jellyfin, Bazarr, Authentik) and `BROWSE_ROOTS`. The image's health
+  check now tries HTTP and then HTTPS. The Sequence tab is now a set editor.
+- **0.30–0.31: Bazarr, and subtitles in old encodings.** The first start after upgrading re-reads
+  every item once (the indexer version went to 4): subtitle files in Windows-1252, UTF-16 and other
+  legacy encodings are decoded instead of failing, and when a video has several subtitle files the
+  indexer now prefers the language in Bazarr's profiles (English without Bazarr), skips `.forced`
+  files unless they are all there is, and prefers a plain one over a hearing-impaired one. On a big
+  library the rescan takes a while; searching works meanwhile.
+- **0.27–0.29: the frame-accurate editor, and security fixes.** The editor gained a full-width player,
+  a filmstrip timeline, exact In/Out and a cut check; the session cookie is marked `Secure` when you use
+  HTTPS; downloads and the preview folder are confined to their folders.
+
 ## If something goes wrong
 
 1. Look at **System → Health** and **System → Logs**, and `docker logs meme-arr`.

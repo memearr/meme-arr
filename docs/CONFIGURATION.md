@@ -52,6 +52,18 @@ and indexes them. Optionally it can also **save each one as a `.srt` file next t
 That is off by default; it needs the media folder mounted writable, never overwrites an
 existing file, and Plex may then list the subtitle twice.
 
+### Bazarr
+
+If you run [Bazarr](https://www.bazarr.media/), give its address (for example
+`http://bazarr:6767`) and API key (Bazarr → Settings → General → Security) and press **Save**:
+the app tests the connection, shows Bazarr's version and the languages in its profiles, and makes
+a secret address for Bazarr to call. The API key is never sent back to the browser. Once
+connected you get **Search with Bazarr** (Wanted and the editor), **Fix timing with Bazarr** and
+**Apply to the subtitle file** in the editor, an instant refresh when Bazarr writes a subtitle (add
+the address shown here under Bazarr → Settings → Notifications as an Apprise URL), and the
+indexer prefers subtitles in Bazarr's languages. Details in [Using](USING.md#with-bazarr). The
+**Copy** button works over plain HTTP too.
+
 ### Caption fonts
 
 The fonts that burned subtitles and meme text can use. The image ships DejaVu Sans (the default)
