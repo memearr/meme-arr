@@ -97,9 +97,12 @@ Flow:
    (signature, issuer, audience, **and the nonce** from step 1), creates a
    session.
 
-The redirect URI is built from the **incoming request's own Host header**
-(`request_origin()` in `api/mod.rs`, trusting `X-Forwarded-Proto` behind a
-reverse proxy) rather than a separate "public URL" setting to keep in sync.
+The redirect URI is built from the address the browser used: the request's
+`Host`, and behind a reverse proxy `X-Forwarded-Proto`, `X-Forwarded-Host` and
+`X-Forwarded-Prefix` (believed only from a proxy of the app's, see
+`forwarded.rs` and [Deployment](DEPLOYMENT.md#behind-a-reverse-proxy)). If the
+proxy can't send them, set `PUBLIC_URL` and it is used instead. **Settings →
+Check this connection** shows the exact callback addresses the app will use.
 
 **Any successful login from the configured issuer grants the one admin
 session** — there's no second identity to match against. *Who* can

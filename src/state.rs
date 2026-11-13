@@ -38,6 +38,9 @@ pub struct AppSettings {
     pub bazarr_api_key: Option<String>,
     pub bazarr_hook_token: Option<String>,
     pub bazarr_languages: Vec<String>,
+    /// Reverse proxies whose forwarding headers are believed (Settings ->
+    /// Trusted proxies); see `proxies` and `forwarded`.
+    pub trusted_proxies: Vec<crate::proxies::Net>,
 }
 
 impl AppSettings {
@@ -96,6 +99,9 @@ impl AppSettings {
             bazarr_api_key: db::get_setting(conn, "bazarr_api_key")?,
             bazarr_hook_token: db::get_setting(conn, "bazarr_hook_token")?,
             bazarr_languages,
+            trusted_proxies: db::get_setting(conn, "trusted_proxies")?
+                .map(|r| crate::proxies::parse_list(&r).unwrap_or_default())
+                .unwrap_or_default(),
         })
     }
 }

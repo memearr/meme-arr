@@ -110,36 +110,156 @@ vars on an already-configured deployment does nothing.
 | `GITHUB_REPO` | `memearr/meme-arr` | update-check target |
 | `GITHUB_TOKEN` | — | only for the update check against a **private** fork — without it, GitHub's API returns 404 (not 401/403) for every tags lookup, and the sidebar version check will never find a newer release. A classic PAT with `repo` scope (or a fine-grained token scoped to the repo with "Contents: Read-only") works. Not needed for the public repo. |
 | `URL_BASE` | — | host the app under a sub-path, e.g. `/meme-arr` (like Sonarr's URL Base) — see "Behind a reverse proxy" below. Invalid values stop startup with an explanation |
+| `PUBLIC_URL` | — | the address people use to reach the app, e.g. `https://memes.example.com` (may include a sub-path). Overrides what a reverse proxy's headers say about HTTPS, host and prefix — see "Behind a reverse proxy" |
+| `HSTS_MAX_AGE` | `0` | seconds for a `Strict-Transport-Security` header on HTTPS requests; `0` = off |
 | `RESET_ADMIN_PASSWORD` | — | auth recovery, see AUTHENTICATION.md — checked every startup, not auto-cleared |
 | `PUID` / `PGID` | `1000` / `1000` | user/group the app runs as after the entrypoint fixes volume ownership; `PUID=0` keeps running as root |
 | `RUST_LOG` | — | standard `tracing-subscriber` env filter, e.g. `info` |
 
 ## Behind a reverse proxy
 
-At a hostname of its own (`https://memes.example.com`) nothing special is
-needed: proxy to port 8080, and list the proxy under **Settings → Trusted
-proxies** so lockouts and logs see real client IPs.
+The app speaks plain HTTP on port 8080. To serve it over HTTPS, put a reverse
+proxy (nginx, Caddy, Traefik, Apache, Nginx Proxy Manager, SWAG…) in front, let
+it hold the certificate, and forward to `http://meme-arr:8080`.
 
-To share a hostname under a **sub-path** (`https://home.example.com/meme-arr/`),
-set `URL_BASE=/meme-arr` and have the proxy forward the prefix **unchanged**
-(don't strip it — same convention as Sonarr/Radarr):
+### What the app needs from the proxy
+
+Four headers describe the visitor's real connection. Without them the app
+only sees the proxy's own plain-HTTP connection:
+
+| Header | Used for |
+|---|---|
+| `X-Forwarded-Proto` (or `Forwarded: proto=`) | marking the login cookie `Secure`, and `https://` in the Authentik and Plex login callback addresses |
+| `X-Forwarded-Host` (or `Host`, or `Forwarded: host=`) | the host name in those callback addresses |
+| `X-Forwarded-For` | the visitor's address, for login lockouts and logs |
+| `X-Forwarded-Prefix` | a path your proxy adds and strips (see below) |
+
+A header is **believed only when the connection comes from a proxy of the
+app's**: an address on **Settings → Trusted proxies**, or a private address
+(`10.x`, `172.16–31.x`, `192.168.x`, loopback, IPv6 unique-local) — which is where a
+Docker or home-network proxy lives. A visitor on the open internet who sends
+these headers is ignored, so nobody can make the app build a login callback to
+a site of their choosing. The exception is `X-Forwarded-For`: it is used only
+from the addresses you list under Trusted proxies, so list your proxy there
+too, or every visitor looks like the proxy to the login lockout.
+
+If your proxy can't send the headers, or you'd rather not rely on them, set
+**`PUBLIC_URL`** (for example `https://memes.example.com`) and the app uses
+that address for everything, ignoring the headers.
+
+**Settings → Check this connection** shows what the app makes of the connection
+you are using (HTTPS or not, the host, the client address, the callback
+addresses) and points out what looks wrong. Open the app the way you normally
+do, through the proxy, and press Check.
+
+### Examples
+
+At a host name of its own:
 
 ```nginx
-location /meme-arr/ {
-    proxy_pass http://meme-arr:8080;   # no trailing slash/URI: keeps /meme-arr
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+server {
+    listen 443 ssl;
+    server_name memes.example.com;
+    # ssl_certificate ... ssl_certificate_key ...
+
+    client_max_body_size 20m;        # font uploads
+    location / {
+        proxy_pass http://meme-arr:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 300s;     # long previews and exports
+        proxy_buffering off;         # stream previews and downloads
+    }
 }
 ```
 
-With a base set, everything — page, assets, `/api/*` — lives under it, and
+```caddyfile
+memes.example.com {
+    reverse_proxy meme-arr:8080
+}
+```
+
+Caddy sends the forwarded headers by itself, and gets the certificate.
+
+```yaml
+# Traefik, as labels on the meme-arr container
+labels:
+  - traefik.enable=true
+  - traefik.http.routers.memes.rule=Host(`memes.example.com`)
+  - traefik.http.routers.memes.entrypoints=websecure
+  - traefik.http.routers.memes.tls.certresolver=letsencrypt
+  - traefik.http.services.memes.loadbalancer.server.port=8080
+```
+
+```apache
+<VirtualHost *:443>
+    ServerName memes.example.com
+    # SSLEngine on ... certificates ...
+    ProxyPreserveHost On
+    RequestHeader set X-Forwarded-Proto "https"
+    ProxyPass        / http://meme-arr:8080/
+    ProxyPassReverse / http://meme-arr:8080/
+    ProxyTimeout 300
+</VirtualHost>
+```
+
+In **Nginx Proxy Manager**, add a proxy host to `meme-arr:8080`, turn on "Block
+Common Exploits" if you like, enable SSL (Let's Encrypt), and leave "Websockets
+Support" off; it sends the forwarded headers itself. Whatever the proxy, give
+previews and exports a long read timeout (a few minutes) and don't buffer
+responses; the app supports `Range` requests, which the video player and
+resumable downloads need, so don't strip that header.
+
+### Under a sub-path
+
+To share a host name (`https://home.example.com/meme-arr/`) there are two ways:
+
+- **The proxy keeps the prefix** (same convention as Sonarr/Radarr): set
+  `URL_BASE=/meme-arr` and forward the whole path unchanged.
+
+  ```nginx
+  location /meme-arr/ {
+      proxy_pass http://meme-arr:8080;   # no trailing slash/URI: keeps /meme-arr
+      proxy_set_header Host $host;
+      proxy_set_header X-Forwarded-Proto $scheme;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  }
+  ```
+
+- **The proxy strips the prefix** (Traefik `StripPrefix`, nginx with a trailing
+  slash on `proxy_pass`, Caddy `handle_path`): leave `URL_BASE` unset and have
+  the proxy send **`X-Forwarded-Prefix: /meme-arr`**. The app puts that prefix in
+  front of every link and callback address. (Traefik's `StripPrefix` middleware
+  sets this header itself.)
+
+  ```nginx
+  location /meme-arr/ {
+      proxy_pass http://meme-arr:8080/;  # trailing slash: strips /meme-arr
+      proxy_set_header X-Forwarded-Prefix /meme-arr;
+      proxy_set_header Host $host;
+      proxy_set_header X-Forwarded-Proto $scheme;
+  }
+  ```
+
+With a base set, everything (page, assets, `/api/*`) lives under it, and
 `/meme-arr` redirects to `/meme-arr/`. `/healthz` also still answers at the
 container's root, so the image's `HEALTHCHECK` works unchanged. Callback URLs
 (Authentik, Plex login) include the base: register
 `https://home.example.com/meme-arr/api/auth/oidc/callback` with Authentik. The
 built frontend is base-agnostic (relative assets + a value the server injects
-into `index.html`), so one image serves both layouts.
+into `index.html`), so one image serves every layout.
+
+### HTTPS details
+
+- The session cookie is marked **Secure** whenever the visitor used HTTPS (as seen
+  through the headers or `PUBLIC_URL`) and left unmarked on plain HTTP, where a
+  browser would drop it.
+- **`HSTS_MAX_AGE`** (seconds, default `0` = off) adds `Strict-Transport-Security`
+  to responses for HTTPS requests. Many people set this on the proxy instead;
+  use one or the other. Start small (`300`) before committing to a year.
+- Opening the app over plain HTTP on a LAN keeps working; only the clipboard
+  "Copy" buttons and Secure cookies differ, and the app handles both.
 
 ## First run
 

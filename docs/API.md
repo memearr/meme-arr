@@ -172,6 +172,14 @@ changes `.srt` files, and the shift must be 1 ms to 10 minutes).
 Ask Bazarr to re-time the subtitle file beside the video (`400` if there is none).
 Bazarr works in the background; re-index the item afterwards.
 
+### `GET /api/system/connection`
+How the app reads the connection this request came in on, for checking a reverse proxy or
+HTTPS setup: `{ "https", "host", "prefix", "app_url", "oidc_callback", "plex_callback",
+"peer", "client_ip", "forwarded_trusted", "public_url", "hsts_max_age", "headers": {...},
+"warnings": [...] }`. `forwarded_trusted` says whether the `X-Forwarded-*` headers were believed
+(the sender is on the Trusted proxies list or a private address); `warnings` explains problems
+in plain words.
+
 ### `GET /api/settings/plex-login` / `DELETE`
 ```json
 { "linked": true, "username": "plexuser" }

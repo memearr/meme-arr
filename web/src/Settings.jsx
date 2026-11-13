@@ -1,5 +1,6 @@
 import { SERVERS, serverPayload } from "./wizard.js";
 import { BazarrSettingsPanel } from "./BazarrSettingsPanel.jsx";
+import { ConnectionPanel } from "./ConnectionPanel.jsx";
 import { FontsPanel } from "./FontsPanel.jsx";
 import { api } from "./api.js";
 import { useEffect, useState } from "react";
@@ -298,6 +299,7 @@ export function Settings({ onChange }) {
       <PlexLoginPanel />
       <ApiKeyPanel />
       <TrustedProxiesPanel />
+      <ConnectionPanel />
     </section>
   );
 }

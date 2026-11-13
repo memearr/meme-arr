@@ -2,6 +2,7 @@
 
 use crate::diskstats::fmt_bytes;
 use crate::export::{self, ExportRequest};
+use crate::forwarded::Conn;
 use crate::mediaserver::{valid_item_id, MediaServer, ServerKind};
 use crate::state::{AppState, Job, JobStatus, LogLevel};
 use crate::tasks::{self, Task};
@@ -219,6 +220,7 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/settings/test", post(test_settings))
         .route("/api/system/browse", get(browse_dirs))
+        .route("/api/system/connection", get(system_connection))
         // Anything else under /api is an unknown API path: answer in JSON like
         // every other API error (it used to fall through to the web page, with
         // a 200). More specific routes above always win over these. The auth
@@ -232,6 +234,31 @@ pub fn router(state: AppState) -> Router {
 }
 
 // ---- error handling ------------------------------------------------------
+
+/// How this request reached us (scheme, host, proxy prefix), from the TCP peer
+/// and the forwarding headers -- see `forwarded`.
+impl axum::extract::FromRequestParts<AppState> for Conn {
+    type Rejection = std::convert::Infallible;
+
+    async fn from_request_parts(
+        parts: &mut axum::http::request::Parts,
+        st: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let peer = parts
+            .extensions
+            .get::<ConnectInfo<SocketAddr>>()
+            .map(|c| c.0.ip())
+            .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED));
+        let s = st.settings();
+        Ok(Conn::from_parts(
+            peer,
+            &parts.headers,
+            &s.trusted_proxies,
+            st.config.public_url.as_ref(),
+            &st.config.url_base,
+        ))
+    }
+}
 
 pub struct AppError(anyhow::Error);
 
@@ -366,22 +393,6 @@ mod tests {
 
     #[test]
     fn the_session_cookie_is_secure_only_behind_https() {
-        let mut h = HeaderMap::new();
-        assert!(!request_is_https(&h));
-        h.insert("x-forwarded-proto", "http".parse().unwrap());
-        assert!(!request_is_https(&h));
-        h.insert("x-forwarded-proto", "HTTPS".parse().unwrap());
-        assert!(request_is_https(&h));
-        h.insert("x-forwarded-proto", "https, http".parse().unwrap());
-        assert!(request_is_https(&h), "first hop is what the client used");
-
-        let mut f = HeaderMap::new();
-        f.insert(
-            header::FORWARDED,
-            "for=1.2.3.4;proto=https".parse().unwrap(),
-        );
-        assert!(request_is_https(&f));
-
         assert_eq!(session_cookie("t".into(), true).secure(), Some(true));
         assert_eq!(session_cookie("t".into(), false).secure(), Some(false));
         assert_eq!(session_cookie("t".into(), true).http_only(), Some(true));

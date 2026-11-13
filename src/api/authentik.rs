@@ -8,59 +8,24 @@ use super::*;
 /// doesn't linger.
 pub(super) const OIDC_FLOW_TTL_SECS: i64 = 10 * 60;
 
-/// Build this deployment's own callback URL from the incoming request's
-/// Host header, trusting `X-Forwarded-Proto` if a reverse proxy set it
-/// (defaulting to plain `http` otherwise, since this app is routinely
-/// served that way on a LAN). No separate "public URL" setting to keep in
-/// sync — the same approach several other self-hosted apps use.
-/// This deployment's own origin (`scheme://host`), from the incoming
-/// request's Host header, trusting `X-Forwarded-Proto` if a reverse proxy
-/// set it (defaulting to plain `http` otherwise — this app is routinely
-/// served that way on a LAN). Used to build callback URLs for both
-/// Authentik and Plex login without a separate "public URL" setting to
-/// keep in sync.
-pub(super) fn request_origin(headers: &axum::http::HeaderMap) -> Result<String, &'static str> {
-    let host = headers
-        .get(header::HOST)
-        .and_then(|v| v.to_str().ok())
-        .ok_or("Missing Host header")?;
-    let scheme = headers
-        .get("x-forwarded-proto")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("http");
-    Ok(format!("{scheme}://{host}"))
+/// Where this app lives, as the browser sees it (`scheme://host`, any proxy
+/// prefix, then `URL_BASE`): the base of every URL a browser or Authentik or
+/// Plex is sent back to. See `forwarded` for how the pieces are decided.
+pub(super) fn app_origin(st: &AppState, conn: &Conn) -> Result<String, &'static str> {
+    conn.app_base(&st.config.url_base)
 }
 
-/// `request_origin` plus the configured URL base -- where this app lives, for
-/// building URLs a browser or Authentik will be sent back to.
-pub(super) fn app_origin(
-    st: &AppState,
-    headers: &axum::http::HeaderMap,
-) -> Result<String, &'static str> {
-    Ok(format!(
-        "{}{}",
-        request_origin(headers)?,
-        st.config.url_base
-    ))
-}
-
-pub(super) fn oidc_redirect_uri(
-    st: &AppState,
-    headers: &axum::http::HeaderMap,
-) -> Result<String, &'static str> {
-    Ok(format!(
-        "{}/api/auth/oidc/callback",
-        app_origin(st, headers)?
-    ))
+pub(super) fn oidc_redirect_uri(st: &AppState, conn: &Conn) -> Result<String, &'static str> {
+    Ok(format!("{}/api/auth/oidc/callback", app_origin(st, conn)?))
 }
 
 /// Redirects the browser to Authentik. Public (no session needed yet) —
 /// this *is* a login path.
 pub(super) async fn oidc_login(
     State(st): State<AppState>,
-    headers: axum::http::HeaderMap,
+    conn: Conn,
 ) -> Result<Response, AppError> {
-    let redirect_uri = match oidc_redirect_uri(&st, &headers) {
+    let redirect_uri = match oidc_redirect_uri(&st, &conn) {
         Ok(u) => u,
         Err(msg) => return Ok(bad_request(msg).into_response()),
     };
@@ -119,7 +84,7 @@ pub(super) struct OidcCallbackParams {
 /// login. Public, same reasoning as `oidc_login`.
 pub(super) async fn oidc_callback(
     State(st): State<AppState>,
-    headers: axum::http::HeaderMap,
+    conn: Conn,
     Query(p): Query<OidcCallbackParams>,
 ) -> Result<Response, AppError> {
     if let Some(e) = p.error {
@@ -128,7 +93,7 @@ pub(super) async fn oidc_callback(
     let (Some(code), Some(state_token)) = (p.code, p.state) else {
         return Ok(bad_request("Missing code/state from Authentik").into_response());
     };
-    let redirect_uri = match oidc_redirect_uri(&st, &headers) {
+    let redirect_uri = match oidc_redirect_uri(&st, &conn) {
         Ok(u) => u,
         Err(msg) => return Ok(bad_request(msg).into_response()),
     };
@@ -183,7 +148,7 @@ pub(super) async fn oidc_callback(
         format!("Logged in via Authentik (subject: {subject})"),
     );
 
-    let cookie = session_cookie(token, request_is_https(&headers));
+    let cookie = session_cookie(token, conn.https);
     let jar = CookieJar::new().add(cookie);
     Ok((
         jar,

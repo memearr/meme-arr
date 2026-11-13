@@ -523,3 +523,114 @@ pub(super) async fn clear_exports(State(st): State<AppState>) -> impl IntoRespon
     );
     Json(json!({ "bytes": bytes, "files": files }))
 }
+
+/// What the app concludes about a request that came through a proxy, and what
+/// looks wrong, in plain words. `forwarding_seen`: any `X-Forwarded-*` or
+/// `Forwarded` header was on the request; `xff_seen`: `X-Forwarded-For` was;
+/// `peer_listed`: the peer is on the Trusted proxies list.
+pub(super) fn connection_warnings(
+    conn: &Conn,
+    forwarding_seen: bool,
+    xff_seen: bool,
+    peer_listed: bool,
+) -> Vec<String> {
+    let mut out = Vec::new();
+    if forwarding_seen && !conn.forwarded_trusted && !conn.from_public_url {
+        out.push(format!(
+            "Forwarding headers arrived from {}, which isn't a private address or on the Trusted proxies list, so they were ignored (the address and HTTPS are taken from this connection itself). Add it under Trusted proxies, or set PUBLIC_URL.",
+            conn.peer
+        ));
+    }
+    if xff_seen && !peer_listed {
+        out.push(format!(
+            "X-Forwarded-For was sent, but {} isn't on the Trusted proxies list, so the client address is {} and the login rate limit sees every visitor as one. Add it under Trusted proxies.",
+            conn.peer, conn.peer
+        ));
+    }
+    out
+}
+
+/// `GET /api/system/connection`: how the app sees the connection you are using
+/// right now (for checking a reverse proxy or HTTPS setup).
+pub(super) async fn system_connection(
+    State(st): State<AppState>,
+    conn: Conn,
+    headers: HeaderMap,
+) -> Json<serde_json::Value> {
+    let s = st.settings();
+    let seen = |name: &str| {
+        headers
+            .get(name)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_string)
+    };
+    let forwarding_seen = [
+        "x-forwarded-for",
+        "x-forwarded-proto",
+        "x-forwarded-host",
+        "x-forwarded-port",
+        "x-forwarded-prefix",
+        "forwarded",
+    ]
+    .iter()
+    .any(|n| headers.contains_key(*n));
+    let peer_listed = s.trusted_proxies.iter().any(|n| n.contains(conn.peer));
+    let xff = seen("x-forwarded-for");
+    let client = crate::proxies::client_ip(conn.peer, xff.as_deref(), &s.trusted_proxies);
+    let app_url = conn.app_base(&st.config.url_base).ok();
+    Json(json!({
+        "https": conn.https,
+        "host": conn.host,
+        "prefix": conn.prefix,
+        "url_base": st.config.url_base,
+        "app_url": app_url,
+        "oidc_callback": app_url.as_ref().map(|u| format!("{u}/api/auth/oidc/callback")),
+        "plex_callback": app_url.as_ref().map(|u| format!("{u}/api/auth/plex/callback")),
+        "peer": conn.peer.to_string(),
+        "client_ip": client.to_string(),
+        "forwarded_trusted": conn.forwarded_trusted,
+        "public_url": st.config.public_url.is_some(),
+        "hsts_max_age": st.config.hsts_max_age,
+        "headers": {
+            "host": seen("host"),
+            "x-forwarded-for": xff,
+            "x-forwarded-proto": seen("x-forwarded-proto"),
+            "x-forwarded-host": seen("x-forwarded-host"),
+            "x-forwarded-port": seen("x-forwarded-port"),
+            "x-forwarded-prefix": seen("x-forwarded-prefix"),
+            "forwarded": seen("forwarded"),
+        },
+        "warnings": connection_warnings(&conn, forwarding_seen, seen("x-forwarded-for").is_some(), peer_listed),
+    }))
+}
+
+#[cfg(test)]
+mod connection_tests {
+    use super::*;
+
+    fn conn(peer: &str, trusted: bool, https: bool) -> Conn {
+        Conn {
+            peer: peer.parse().unwrap(),
+            https,
+            host: Some("h".into()),
+            prefix: String::new(),
+            forwarded_trusted: trusted,
+            from_public_url: false,
+        }
+    }
+
+    #[test]
+    fn warns_when_forwarding_headers_come_from_an_untrusted_sender() {
+        let w = connection_warnings(&conn("203.0.113.9", false, false), true, false, false);
+        assert!(w.iter().any(|m| m.contains("were ignored")), "{w:?}");
+    }
+
+    #[test]
+    fn warns_when_the_client_address_cannot_be_told_apart() {
+        let w = connection_warnings(&conn("10.0.0.2", true, true), true, true, false);
+        assert!(w.iter().any(|m| m.contains("rate limit")), "{w:?}");
+        // fine once the proxy is listed
+        let w = connection_warnings(&conn("10.0.0.2", true, true), true, true, true);
+        assert!(w.is_empty(), "{w:?}");
+    }
+}
