@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "./api.js";
+import CopyButton from "./CopyButton.jsx";
 import { hookUrl, refreshBazarr } from "./bazarr.js";
 
 /** Settings -> Bazarr: where it is, the key, and the address it should call back. */
@@ -12,7 +13,7 @@ export function BazarrSettingsPanel() {
   const [languages, setLanguages] = useState([]);
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const hookBox = useRef(null);
 
   function apply(s) {
     setUrl(s.url || "");
@@ -155,19 +156,14 @@ export function BazarrSettingsPanel() {
             seconds after Bazarr writes it, instead of at the next scheduled scan.
           </p>
           <div className="btn-row">
-            <input readOnly value={hook} onFocus={(e) => e.target.select()} aria-label="Address for Bazarr" />
-            <button
-              type="button"
-              className="secondary"
-              onClick={() => {
-                navigator.clipboard?.writeText(hook).then(() => {
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 1500);
-                });
-              }}
-            >
-              {copied ? "Copied" : "Copy"}
-            </button>
+            <input
+              ref={hookBox}
+              readOnly
+              value={hook}
+              onFocus={(e) => e.target.select()}
+              aria-label="Address for Bazarr"
+            />
+            <CopyButton text={hook} getTarget={() => hookBox.current} />
             <button type="button" className="secondary" onClick={rotate} disabled={busy}>
               New address
             </button>
