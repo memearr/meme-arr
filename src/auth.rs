@@ -124,7 +124,8 @@ mod tests {
         let pw = legacy_password();
         assert!(verify_password(&pw, LEGACY_HASH));
         assert!(!verify_password(&format!("{pw}x"), LEGACY_HASH));
-        assert!(!verify_password("", LEGACY_HASH));
+        let empty: String = secret().chars().take(0).collect();
+        assert!(!verify_password(&empty, LEGACY_HASH));
     }
 
     #[test]

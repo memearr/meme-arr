@@ -27,6 +27,21 @@ pub(super) fn request_is_https(headers: &HeaderMap) -> bool {
     from_xfp || from_forwarded
 }
 
+/// The cookie that clears the session on the browser, matching how
+/// `session_cookie` set it (same `Secure` rule, so the browser accepts it).
+pub(super) fn session_removal_cookie(secure: bool) -> Cookie<'static> {
+    let mut cookie = Cookie::build((SESSION_COOKIE, ""))
+        .http_only(true)
+        .secure(true)
+        .path("/")
+        .max_age(time::Duration::ZERO)
+        .build();
+    if !secure {
+        cookie.set_secure(false);
+    }
+    cookie
+}
+
 /// The session cookie for a freshly created session.
 pub(super) fn session_cookie(token: String, secure: bool) -> Cookie<'static> {
     let mut cookie = Cookie::build((SESSION_COOKIE, token))
@@ -385,7 +400,11 @@ pub(super) async fn login_response(
     Ok((jar, Json(json!({ "ok": true }))).into_response())
 }
 
-pub(super) async fn auth_logout(State(st): State<AppState>, jar: CookieJar) -> impl IntoResponse {
+pub(super) async fn auth_logout(
+    State(st): State<AppState>,
+    headers: axum::http::HeaderMap,
+    jar: CookieJar,
+) -> impl IntoResponse {
     if let Some(token) = jar.get(SESSION_COOKIE).map(|c| c.value().to_string()) {
         let pool = st.pool.clone();
         let _ = tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
@@ -394,11 +413,7 @@ pub(super) async fn auth_logout(State(st): State<AppState>, jar: CookieJar) -> i
         })
         .await;
     }
-    let removal = Cookie::build((SESSION_COOKIE, ""))
-        .path("/")
-        .max_age(time::Duration::ZERO)
-        .build();
-    let jar = jar.add(removal);
+    let jar = jar.add(session_removal_cookie(request_is_https(&headers)));
     (jar, Json(json!({ "ok": true })))
 }
 
