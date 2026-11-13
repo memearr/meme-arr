@@ -1,0 +1,66 @@
+name: ffmpeg image
+
+# Builds the ffmpeg that goes into the meme-arr image and publishes it to GHCR as
+# ghcr.io/<owner>/ffmpeg:<version> (see docker/ffmpeg/Dockerfile). It only runs when
+# that Dockerfile changes, so the slow compile happens once per ffmpeg version,
+# not on every build. Pull requests build and check it without publishing.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - docker/ffmpeg/**
+      - .github/workflows/ffmpeg-image.yml
+  pull_request:
+    paths:
+      - docker/ffmpeg/**
+      - .github/workflows/ffmpeg-image.yml
+  workflow_dispatch:
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/ffmpeg
+
+jobs:
+  ffmpeg:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Read the ffmpeg version
+        id: ver
+        run: echo "version=$(sed -n 's/^ARG FFMPEG_VERSION=//p' docker/ffmpeg/Dockerfile)" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v4
+
+      # Builds ffmpeg and runs the checks in the `check` stage; fails the job
+      # if the encoders, filters or a test encode are missing or broken.
+      - name: Build and check
+        uses: docker/build-push-action@v7
+        with:
+          context: docker/ffmpeg
+          target: check
+          cache-from: type=gha,scope=ffmpeg
+          cache-to: type=gha,scope=ffmpeg,mode=max
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v7
+        with:
+          context: docker/ffmpeg
+          target: artifact
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.IMAGE }}:${{ steps.ver.outputs.version }}
+          cache-from: type=gha,scope=ffmpeg
