@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { api } from "./api.js";
+import BazarrActions from "./BazarrActions.jsx";
 import SubtitleRequests from "./SubtitleRequests.jsx";
 import SubtitleSearch, { CapabilityNote, useCapability } from "./SubtitleSearch.jsx";
 import { LibraryFilter } from "./LibraryFilter.jsx";
@@ -234,6 +235,7 @@ export default function WantedView({ onOpen, focus, onFocusHandled }) {
                       Open
                     </button>
                     </div>
+                    <BazarrActions itemId={item.rating_key} compact />
                   </td>
                 </tr>,
               ];

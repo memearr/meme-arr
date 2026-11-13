@@ -26,6 +26,7 @@ use std::net::SocketAddr;
 use tracing::{info, warn};
 
 mod authentik;
+mod bazarr;
 mod clips;
 mod fonts;
 mod frames;
@@ -37,6 +38,7 @@ mod settings;
 mod subtitle_api;
 mod system;
 use self::authentik::*;
+use self::bazarr::*;
 use self::clips::*;
 use self::fonts::*;
 use self::frames::*;
@@ -112,6 +114,24 @@ pub fn router(state: AppState) -> Router {
                 .layer(DefaultBodyLimit::max(crate::fonts::MAX_FONT_BYTES + 4096)),
         )
         .route("/api/fonts/{id}", delete(delete_font))
+        .route(
+            "/api/settings/bazarr",
+            get(get_bazarr_settings)
+                .put(put_bazarr_settings)
+                .delete(delete_bazarr_settings),
+        )
+        .route("/api/settings/bazarr/test", post(test_bazarr_settings))
+        .route("/api/settings/bazarr/rotate-hook", post(rotate_bazarr_hook))
+        .route("/api/hooks/bazarr/{token}", post(bazarr_hook))
+        .route("/api/media/{rating_key}/bazarr", get(media_bazarr))
+        .route(
+            "/api/media/{rating_key}/bazarr/search",
+            post(media_bazarr_search),
+        )
+        .route(
+            "/api/media/{rating_key}/bazarr/sync",
+            post(media_bazarr_sync),
+        )
         .route("/api/libraries", get(libraries))
         .route("/api/search", get(search))
         .route("/api/search/title", get(search_title))
@@ -326,6 +346,15 @@ fn default_font(fonts_dir: &std::path::Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_the_bazarr_hook_with_a_secret_in_its_path_is_public() {
+        assert!(is_public_api_path("/api/hooks/bazarr/abc123"));
+        assert!(!is_public_api_path("/api/hooks/bazarr"));
+        assert!(!is_public_api_path("/api/hooks/other/abc"));
+        assert!(!is_public_api_path("/api/settings/bazarr"));
+        assert!(!is_public_api_path("/api/media/1/bazarr/search"));
+    }
 
     fn libs(q: &str) -> Vec<String> {
         libraries_from_query(&Some(q.to_string()))

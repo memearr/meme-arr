@@ -1,3 +1,4 @@
+import BazarrActions from "./BazarrActions.jsx";
 import SubtitleSearch from "./SubtitleSearch.jsx";
 import { FrameCheck } from "./FrameCheck.jsx";
 import { Timeline } from "./Timeline.jsx";
@@ -962,6 +963,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence }) {
           <FrameCheck ratingKey={item.rating_key} start={start} end={end} fps={srcFps} />
 
           <SubtitleSearch itemId={item.rating_key} onIndexed={() => setCuesReload((n) => n + 1)} />
+          <BazarrActions itemId={item.rating_key} onChanged={() => setCuesReload((n) => n + 1)} />
 
           {allCues.length > 0 && (
             <div className="cue-browser">

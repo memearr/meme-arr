@@ -1985,3 +1985,24 @@ fieldset label.disabled {
 .font-list .muted {
   margin-right: auto;
 }
+
+/* ---- Bazarr ---- */
+.bazarr h4,
+.bazarr-hook h4 {
+  margin: 8px 0 4px;
+  font-size: 13px;
+}
+.bazarr.compact {
+  margin-top: 4px;
+}
+.bazarr-hook {
+  margin-top: 14px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.bazarr-hook .btn-row input {
+  flex: 1;
+  min-width: 200px;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+}

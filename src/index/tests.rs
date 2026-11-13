@@ -127,3 +127,51 @@ async fn a_non_utf8_srt_beside_a_video_loads_with_every_line() {
     assert_eq!(cues.len(), 2, "{text}");
     assert!(cues[0].text.contains("Café"));
 }
+
+// ---- which sidecar wins: language, forced, hard-of-hearing, format ----------
+
+fn rank(name: &str, preferred: &[&str]) -> (u8, usize, u8, u8) {
+    let ext = name.rsplit('.').next().unwrap();
+    let preferred: Vec<String> = preferred.iter().map(|s| s.to_string()).collect();
+    sidecar_rank(name, "Movie", ext, &preferred)
+}
+
+#[test]
+fn forced_subtitles_lose_to_a_full_one() {
+    assert!(rank("Movie.en.srt", &[]) < rank("Movie.en.forced.srt", &[]));
+    // even when the forced one is in the preferred language and the full one is not
+    assert!(rank("Movie.fr.srt", &["en"]) < rank("Movie.en.forced.srt", &["en"]));
+}
+
+#[test]
+fn the_preferred_language_wins_in_the_order_given() {
+    let prefs = ["fr", "en"];
+    assert!(rank("Movie.fr.srt", &prefs) < rank("Movie.en.srt", &prefs));
+    assert!(rank("Movie.en.srt", &prefs) < rank("Movie.de.srt", &prefs));
+    // with no preference: English first, as it always was; no tag means English
+    assert!(rank("Movie.srt", &[]) <= rank("Movie.en.srt", &[]));
+    assert!(rank("Movie.en.srt", &[]) < rank("Movie.fr.srt", &[]));
+}
+
+#[test]
+fn a_plain_subtitle_beats_one_for_the_hard_of_hearing_then_srt_beats_ass() {
+    assert!(rank("Movie.en.srt", &[]) < rank("Movie.en.hi.srt", &[]));
+    assert!(rank("Movie.en.sdh.srt", &[]) > rank("Movie.en.srt", &[]));
+    assert!(rank("Movie.en.srt", &[]) < rank("Movie.en.ass", &[]));
+}
+
+#[test]
+fn find_sidecar_picks_the_full_english_file_over_forced_and_hi() {
+    let dir = tempfile::tempdir().unwrap();
+    for name in [
+        "Movie.mkv",
+        "Movie.en.forced.srt",
+        "Movie.en.hi.srt",
+        "Movie.en.srt",
+        "Movie.fr.srt",
+    ] {
+        touch(dir.path(), name);
+    }
+    let found = find_sidecar(&dir.path().join("Movie.mkv")).unwrap();
+    assert_eq!(found.file_name().unwrap(), "Movie.en.srt");
+}

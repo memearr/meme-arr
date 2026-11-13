@@ -213,10 +213,17 @@ pub(super) fn save_counterpart(
         }
         Err(e) => {
             warn!("could not save {}: {e}", target.display());
+            // Bazarr writes from its own mount, so a read-only folder here
+            // doesn't stop it.
+            let hint = if state.settings().bazarr().is_some() {
+                " Bazarr is connected: \"Search with Bazarr\" saves subtitles from its own mount."
+            } else {
+                ""
+            };
             state.log_event(
                 LogLevel::Warn,
                 format!(
-                    "Couldn't save {name} next to the video for '{title}': {e}. Is the media folder mounted read-only? The subtitle is still indexed."
+                    "Couldn't save {name} next to the video for '{title}': {e}. Is the media folder mounted read-only? The subtitle is still indexed.{hint}"
                 ),
             );
             false

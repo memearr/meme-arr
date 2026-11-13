@@ -1,4 +1,5 @@
 import { SERVERS, serverPayload } from "./wizard.js";
+import { BazarrSettingsPanel } from "./BazarrSettingsPanel.jsx";
 import { FontsPanel } from "./FontsPanel.jsx";
 import { api } from "./api.js";
 import { useEffect, useState } from "react";
@@ -290,6 +291,7 @@ export function Settings({ onChange }) {
 
       {msg && <p className={msg.ok ? "test ok" : "error"}>{msg.text}</p>}
 
+      <BazarrSettingsPanel />
       <FontsPanel />
       <ChangePasswordPanel />
       <AuthentikSettingsPanel />

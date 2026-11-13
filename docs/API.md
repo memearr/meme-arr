@@ -124,6 +124,47 @@ whether one is set:
 — `client_secret` optional (omit/blank to keep the existing one, same
 convention as the Plex token field).
 
+### `GET /api/settings/bazarr` / `PUT` / `DELETE`
+Connect [Bazarr](https://www.bazarr.media/). `GET` never returns the API key,
+only whether one is set; it does return the secret for the webhook below:
+```json
+{ "configured": true, "url": "http://bazarr:6767", "key_set": true,
+  "hook_token": "…", "languages": ["en", "fr"] }
+```
+`PUT` body `{ "url": "...", "api_key": "..." }` (`api_key` optional: blank keeps the
+saved one) saves, makes the webhook secret on first use, then tests the saved
+connection; the reply is the same object plus `"check": { "ok": true, "version":
+"1.5.0", "languages": [...] }` or `{ "ok": false, "error": "..." }`. `languages` are
+Bazarr's profile languages, which the indexer prefers when a video has several
+subtitle files. `DELETE` removes it.
+
+### `POST /api/settings/bazarr/test` / `POST /api/settings/bazarr/rotate-hook`
+Re-test the saved connection (`{ "ok", "version" | "error" }`); make a new webhook
+secret (returns the settings object).
+
+### `POST /api/hooks/bazarr/:token` 🔓
+Bazarr's notification call (an Apprise `json://` URL pointing here). The secret in
+the path is the credential; a wrong one is `404`. The body is ignored. Answers `202`
+and, after about 20 seconds (calls close together share one), starts a library scan
+so the new subtitle is indexed.
+
+### `GET /api/media/:rating_key/bazarr`
+Is this item in Bazarr? `{ "configured": false }`, or `{ "configured": true,
+"found": true, "target": { "kind": "movie"|"episode", "title": "...", "missing":
+[{ "code2": "en", "forced": false, "hi": false }] }, "sidecar": "Movie.en.srt",
+"can_sync": true }`. `found: false` when Bazarr doesn't have the file or more than
+one entry matches it. `502` if Bazarr can't be reached.
+
+### `POST /api/media/:rating_key/bazarr/search`
+Ask Bazarr to search for the subtitles it is missing for this item
+(`{ "asked": <languages>, "target": {...}, "message": "..." }`; `asked: 0` means it
+isn't missing any). `404` if Bazarr doesn't have the file, `409` if Bazarr isn't set
+up, `502` if it can't be reached.
+
+### `POST /api/media/:rating_key/bazarr/sync`
+Ask Bazarr to re-time the subtitle file beside the video (`400` if there is none).
+Bazarr works in the background; re-index the item afterwards.
+
 ### `GET /api/settings/plex-login` / `DELETE`
 ```json
 { "linked": true, "username": "plexuser" }
