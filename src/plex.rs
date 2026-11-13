@@ -424,9 +424,7 @@ impl PlexClient {
 
     pub fn new(base_url: impl Into<String>, token: impl Into<String>) -> Self {
         let base_url = base_url.into();
-        let http = crate::tls::client(Some(&base_url))
-            .build()
-            .unwrap_or_default();
+        let http = crate::tls::client().build().unwrap_or_default();
         Self {
             base_url,
             token: token.into(),

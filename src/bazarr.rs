@@ -224,7 +224,7 @@ impl Client {
         Client {
             base: url.trim().trim_end_matches('/').to_string(),
             key: key.trim().to_string(),
-            http: crate::tls::client(Some(url))
+            http: crate::tls::client()
                 .timeout(Duration::from_secs(20))
                 .build()
                 .unwrap_or_default(),

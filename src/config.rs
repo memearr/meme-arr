@@ -64,9 +64,6 @@ pub struct Config {
     /// system's, for HTTPS to Plex, Jellyfin, Bazarr and Authentik (env
     /// `EXTRA_CA_CERTS`, comma-separated). See `tls`.
     pub extra_ca_certs: Option<String>,
-    /// Host names whose HTTPS certificate is not checked (env
-    /// `TLS_INSECURE_HOSTS`): a last resort for one server at a time.
-    pub tls_insecure_hosts: String,
     /// Send `Strict-Transport-Security` with this max-age (seconds, env
     /// `HSTS_MAX_AGE`) on requests that came in over HTTPS. 0 = never.
     pub hsts_max_age: u64,
@@ -154,7 +151,6 @@ impl Config {
         let extra_ca_certs = std::env::var("EXTRA_CA_CERTS")
             .ok()
             .filter(|v| !v.trim().is_empty());
-        let tls_insecure_hosts = env_or("TLS_INSECURE_HOSTS", "");
         let hsts_max_age = env_or("HSTS_MAX_AGE", "0")
             .trim()
             .parse::<u64>()
@@ -166,7 +162,6 @@ impl Config {
             tls_cert,
             tls_key,
             extra_ca_certs,
-            tls_insecure_hosts,
             hsts_max_age,
             plex_url,
             plex_token,

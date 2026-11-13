@@ -355,7 +355,7 @@ impl JellyfinClient {
         Self {
             base_url: base_url.clone(),
             api_key: api_key.into(),
-            http: crate::tls::client(Some(&base_url))
+            http: crate::tls::client()
                 .timeout(Duration::from_secs(60))
                 .build()
                 .unwrap_or_default(),

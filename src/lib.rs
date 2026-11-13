@@ -91,23 +91,13 @@ pub async fn run(logs: Arc<logs::LogControl>) -> Result<()> {
         Some(spec) => tls::load_extra_ca(spec).context("EXTRA_CA_CERTS")?,
         None => Vec::new(),
     };
-    let insecure_hosts = tls::parse_hosts(&config.tls_insecure_hosts);
     if !extra_ca_pem.is_empty() {
         info!(
             "trusting {} extra CA certificate file(s) from EXTRA_CA_CERTS",
             extra_ca_pem.len()
         );
     }
-    if !insecure_hosts.is_empty() {
-        warn!(
-            "HTTPS certificates are NOT checked for: {} (TLS_INSECURE_HOSTS). Prefer EXTRA_CA_CERTS.",
-            insecure_hosts.join(", ")
-        );
-    }
-    tls::init(tls::Options {
-        extra_ca_pem,
-        insecure_hosts,
-    });
+    tls::init(tls::Options { extra_ca_pem });
 
     let state = AppState {
         config: Arc::new(config.clone()),

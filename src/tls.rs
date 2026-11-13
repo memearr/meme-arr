@@ -2,14 +2,12 @@
 //! plex.tv, GitHub): which certificates to trust.
 //!
 //! Servers on a home network often use a certificate from a private CA or a
-//! self-signed one, which a normal client refuses. Two settings cover it:
-//!
-//! * `EXTRA_CA_CERTS`: PEM files (or folders of them) whose certificates are
-//!   trusted in addition to the system's. The right fix: trust *your* CA and
-//!   keep checking everything.
-//! * `TLS_INSECURE_HOSTS`: host names whose certificate is not checked at all.
-//!   A last resort, for one named server at a time; it applies only to the
-//!   servers you configured, never to plex.tv or GitHub.
+//! self-signed one, which a normal client refuses. `EXTRA_CA_CERTS` covers it:
+//! PEM files (or folders of them) whose certificates are trusted in addition
+//! to the system's. For a private CA, give its certificate; for a self-signed
+//! server, give the server's own certificate. Everything is still checked
+//! (name, expiry, signature); there is deliberately no switch that turns the
+//! check off.
 
 use anyhow::{bail, Context, Result};
 use std::path::Path;
@@ -20,8 +18,6 @@ use std::sync::OnceLock;
 pub struct Options {
     /// Each entry is the bytes of one PEM file (one or more certificates).
     pub extra_ca_pem: Vec<Vec<u8>>,
-    /// Lower-case host names (`plex.lan`, `192.168.1.5`, `*.lan`, or `*` for all).
-    pub insecure_hosts: Vec<String>,
 }
 
 static OPTIONS: OnceLock<Options> = OnceLock::new();
@@ -102,73 +98,31 @@ pub fn load_extra_ca(spec: &str) -> Result<Vec<Vec<u8>>> {
     Ok(out)
 }
 
-/// Parse `TLS_INSECURE_HOSTS`: comma- or space-separated host names.
-pub fn parse_hosts(list: &str) -> Vec<String> {
-    list.split(|c: char| c == ',' || c.is_whitespace())
-        .map(|h| h.trim().to_lowercase())
-        .filter(|h| !h.is_empty())
-        .collect()
-}
-
-/// The host of a URL, lower-cased, without port or brackets.
-fn host_of(url: &str) -> Option<String> {
-    let rest = url.split_once("://").map_or(url, |(_, r)| r);
-    let authority = rest.split(['/', '?', '#']).next()?;
-    let authority = authority.rsplit_once('@').map_or(authority, |(_, h)| h);
-    let host = if let Some(v6) = authority.strip_prefix('[') {
-        v6.split(']').next()?
-    } else {
-        authority.split(':').next()?
-    };
-    (!host.is_empty()).then(|| host.to_lowercase())
-}
-
-/// Is `url`'s host one whose certificate is not checked?
-pub fn is_insecure(hosts: &[String], url: &str) -> bool {
-    let Some(host) = host_of(url) else {
-        return false;
-    };
-    hosts.iter().any(|h| {
-        h == "*"
-            || *h == host
-            || h.strip_prefix("*.")
-                .is_some_and(|suffix| host.ends_with(&format!(".{suffix}")))
-    })
-}
-
-/// An HTTP client for a server the user configured at `url` (`Some`), or for a
-/// public service (`None`: plex.tv, GitHub): the extra CAs are trusted for
-/// both; certificate checking is switched off only for a listed host.
-pub fn client(url: Option<&str>) -> reqwest::ClientBuilder {
-    client_with(&options(), url)
+/// An HTTP client that trusts the extra CAs as well as the system's.
+pub fn client() -> reqwest::ClientBuilder {
+    client_with(&options())
 }
 
 /// `client` with the options given (rather than the process-wide ones).
-pub fn client_with(opts: &Options, url: Option<&str>) -> reqwest::ClientBuilder {
+pub fn client_with(opts: &Options) -> reqwest::ClientBuilder {
     let mut b = reqwest::Client::builder();
     for pem in &opts.extra_ca_pem {
         for cert in reqwest::Certificate::from_pem_bundle(pem).unwrap_or_default() {
             b = b.add_root_certificate(cert);
         }
     }
-    if url.is_some_and(|u| is_insecure(&opts.insecure_hosts, u)) {
-        b = b.danger_accept_invalid_certs(true);
-    }
     b
 }
 
 /// The same for the OpenID Connect library, which carries its own copy of
-/// `reqwest`. `url` is the issuer.
-pub fn oidc_client(url: &str) -> openidconnect::reqwest::ClientBuilder {
+/// `reqwest`.
+pub fn oidc_client() -> openidconnect::reqwest::ClientBuilder {
     let opts = options();
     let mut b = openidconnect::reqwest::ClientBuilder::new();
     for pem in &opts.extra_ca_pem {
         for cert in openidconnect::reqwest::Certificate::from_pem_bundle(pem).unwrap_or_default() {
             b = b.add_root_certificate(cert);
         }
-    }
-    if is_insecure(&opts.insecure_hosts, url) {
-        b = b.danger_accept_invalid_certs(true);
     }
     b
 }
@@ -188,8 +142,8 @@ pub fn hint(error_text: &str) -> Option<&'static str> {
     ];
     cert.iter().any(|k| t.contains(k)).then_some(
         "The server's HTTPS certificate isn't trusted. Add the certificate authority that signed it \
-         with EXTRA_CA_CERTS (a PEM file or folder), or, as a last resort for that one server, list its \
-         host name in TLS_INSECURE_HOSTS.",
+         (or, for a self-signed server, its own certificate) with EXTRA_CA_CERTS, a PEM file or folder, \
+         and connect using a host name that is on the certificate.",
     )
 }
 
@@ -211,37 +165,6 @@ mod tests {
             .unwrap()
             .cert
             .pem()
-    }
-
-    #[test]
-    fn hosts_are_taken_from_urls() {
-        assert_eq!(
-            host_of("https://Plex.LAN:32400/x?y").as_deref(),
-            Some("plex.lan")
-        );
-        assert_eq!(
-            host_of("http://user:pw@host.example/").as_deref(),
-            Some("host.example")
-        );
-        assert_eq!(host_of("https://[::1]:8920").as_deref(), Some("::1"));
-        assert_eq!(host_of("192.168.1.5:8096").as_deref(), Some("192.168.1.5"));
-        assert_eq!(host_of("https://"), None);
-    }
-
-    #[test]
-    fn only_listed_hosts_skip_certificate_checks() {
-        let hosts = parse_hosts("Plex.lan, 192.168.1.5  *.home.arpa");
-        assert!(is_insecure(&hosts, "https://plex.lan:32400"));
-        assert!(is_insecure(&hosts, "https://192.168.1.5:8920/x"));
-        assert!(is_insecure(&hosts, "https://jelly.home.arpa"));
-        assert!(
-            !is_insecure(&hosts, "https://home.arpa"),
-            "wildcard needs a subdomain"
-        );
-        assert!(!is_insecure(&hosts, "https://plex.tv"));
-        assert!(!is_insecure(&hosts, "https://notplex.lan"));
-        assert!(!is_insecure(&[], "https://plex.lan"));
-        assert!(is_insecure(&parse_hosts("*"), "https://anything.example"));
     }
 
     #[test]
@@ -313,12 +236,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn an_unknown_certificate_is_refused_then_trusted_by_ca_or_by_host() {
+    async fn an_unknown_certificate_is_refused_then_trusted_when_added_as_a_ca() {
         let (url, cert_pem) = https_server().await;
         let get = |opts: Options| {
             let url = url.clone();
             async move {
-                client_with(&opts, Some(&url))
+                client_with(&opts)
                     .build()
                     .unwrap()
                     .get(&url)
@@ -336,50 +259,26 @@ mod tests {
             "a certificate error should be recognised: {err}"
         );
 
-        // 2. its own certificate trusted as a CA: works, with checking still on
+        // 2. the server's own certificate trusted as a CA: works, with checking still on
         let trusted = Options {
-            extra_ca_pem: vec![cert_pem.clone().into_bytes()],
-            ..Default::default()
+            extra_ca_pem: vec![cert_pem.into_bytes()],
         };
         assert_eq!(get(trusted).await, Ok(true));
 
-        // 3. the host listed as insecure: works without it
-        let lax = Options {
-            insecure_hosts: parse_hosts("localhost"),
-            ..Default::default()
-        };
-        assert_eq!(get(lax).await, Ok(true));
-
-        // 4. another host listed: still refused
-        let other = Options {
-            insecure_hosts: parse_hosts("elsewhere.lan"),
-            ..Default::default()
-        };
-        assert!(get(other).await.is_err());
-    }
-
-    #[tokio::test]
-    async fn a_public_service_is_never_exempted() {
-        let (url, _cert) = https_server().await;
-        let opts = Options {
-            insecure_hosts: parse_hosts("*"),
-            ..Default::default()
-        };
-        // `None` = a public service such as plex.tv: the exemption does not apply
-        let err = client_with(&opts, None)
-            .build()
+        // 3. some other certificate trusted: the server is still refused
+        let other = rcgen::generate_simple_self_signed(vec!["localhost".to_string()])
             .unwrap()
-            .get(&url)
-            .send()
-            .await
-            .unwrap_err();
-        assert!(hint(&format!("{err:?}")).is_some());
+            .cert
+            .pem();
+        let wrong = Options {
+            extra_ca_pem: vec![other.into_bytes()],
+        };
+        assert!(get(wrong).await.is_err());
     }
 
     #[test]
     fn clients_build_with_and_without_options() {
-        assert!(client(None).build().is_ok());
-        assert!(client(Some("https://plex.lan")).build().is_ok());
-        assert!(oidc_client("https://auth.example.com/").build().is_ok());
+        assert!(client().build().is_ok());
+        assert!(oidc_client().build().is_ok());
     }
 }

@@ -112,7 +112,6 @@ vars on an already-configured deployment does nothing.
 | `URL_BASE` | — | host the app under a sub-path, e.g. `/meme-arr` (like Sonarr's URL Base) — see "Behind a reverse proxy" below. Invalid values stop startup with an explanation |
 | `TLS_CERT` / `TLS_KEY` | — | serve HTTPS directly: PEM certificate chain and private key (both or neither) — see "HTTPS without a proxy" |
 | `EXTRA_CA_CERTS` | — | PEM files or folders of certificate authorities to trust for HTTPS to Plex, Jellyfin, Bazarr and Authentik |
-| `TLS_INSECURE_HOSTS` | — | host names whose HTTPS certificate is not checked (last resort) |
 | `PUBLIC_URL` | — | the address people use to reach the app, e.g. `https://memes.example.com` (may include a sub-path). Overrides what a reverse proxy's headers say about HTTPS, host and prefix — see "Behind a reverse proxy" |
 | `HSTS_MAX_AGE` | `0` | seconds for a `Strict-Transport-Security` header on HTTPS requests; `0` = off |
 | `RESET_ADMIN_PASSWORD` | — | auth recovery, see AUTHENTICATION.md — checked every startup, not auto-cleared |
@@ -285,12 +284,11 @@ self-signed certificate works but every browser warns about it.
 Plex, Jellyfin, Bazarr and Authentik are often on HTTPS with a certificate from
 a private CA, or a self-signed one. This app then refuses the connection
 (settings tests and errors say "the server's HTTPS certificate isn't trusted").
-Two settings fix it:
-
-| Variable | Purpose |
-|---|---|
-| `EXTRA_CA_CERTS` | PEM files, or folders of `.pem`/`.crt`/`.cer` files (comma-separated), whose certificates are trusted **in addition to** the system's. Use this: it trusts your CA and still checks everything. A missing or invalid file stops startup, so a typo isn't silent. |
-| `TLS_INSECURE_HOSTS` | host names (comma-separated; `*.lan` for a domain, `*` for all) whose certificate is **not checked at all**. A last resort for one named server. It never applies to plex.tv or GitHub, and a warning is logged at startup. |
+**`EXTRA_CA_CERTS`** fixes it: PEM files, or folders of `.pem`/`.crt`/`.cer` files
+(comma-separated), whose certificates are trusted **in addition to** the system's.
+For a private CA, give its certificate; for a self-signed server, give the server's
+own certificate. Everything is still checked (name, expiry, signature), and a
+missing or invalid file stops startup so a typo isn't silent.
 
 ```yaml
 environment:
@@ -299,9 +297,12 @@ volumes:
   - ./my-ca.pem:/certs/my-ca.pem:ro
 ```
 
-Plex's own `*.plex.direct` addresses have valid certificates; connecting to a Plex
-server by bare IP over HTTPS does not, so either use the `plex.direct` name, or
-`http://` on the LAN, or one of the settings above.
+There is deliberately no setting that switches certificate checking off. The
+address you connect to has to be a name (or IP address) that is on the
+certificate. Plex's own `*.plex.direct` addresses have valid certificates;
+connecting to a Plex server by bare IP over HTTPS does not match, so use the
+`plex.direct` name, make a certificate that includes the IP address, or use `http://`
+on the LAN.
 
 ### HTTPS details
 

@@ -41,8 +41,8 @@ pub struct LoginStart {
 
 /// An HTTP client with redirects disabled — required by `openidconnect`'s
 /// own docs to avoid SSRF via a malicious redirect from the issuer.
-fn http_client(issuer_url: &str) -> Result<openidconnect::reqwest::Client> {
-    Ok(crate::tls::oidc_client(issuer_url)
+fn http_client() -> Result<openidconnect::reqwest::Client> {
+    Ok(crate::tls::oidc_client()
         .redirect(openidconnect::reqwest::redirect::Policy::none())
         .build()?)
 }
@@ -56,7 +56,7 @@ fn http_client(issuer_url: &str) -> Result<openidconnect::reqwest::Client> {
 async fn discover(
     settings: &OidcSettings,
 ) -> Result<(CoreProviderMetadata, openidconnect::reqwest::Client)> {
-    let http = http_client(&settings.issuer_url)?;
+    let http = http_client()?;
     let issuer =
         IssuerUrl::new(settings.issuer_url.clone()).context("invalid Authentik issuer URL")?;
     let metadata = CoreProviderMetadata::discover_async(issuer, &http)

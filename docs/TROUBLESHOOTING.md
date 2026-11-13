@@ -264,11 +264,11 @@ certificate isn't signed by an authority this app knows: a self-signed certifica
 one from a private CA, or a name that doesn't match (an IP address instead of the
 host name on the certificate).
 
-- **Best:** trust the CA that signed it. Mount its PEM file into the container and set
-  `EXTRA_CA_CERTS=/path/in/container/my-ca.pem`. Everything else is still checked.
-- Use the host name that is on the certificate rather than an IP address.
-- **Last resort:** list that one server's host name in `TLS_INSECURE_HOSTS` (for example
-  `plex.lan`). It switches certificate checking off for that host only.
+- Trust the CA that signed it: mount its PEM file into the container and set
+  `EXTRA_CA_CERTS=/path/in/container/my-ca.pem`. For a self-signed server, give the
+  server's own certificate file the same way. Everything else is still checked.
+- Use the host name that is on the certificate rather than an IP address (a self-signed
+  certificate made with the IP address in it also works).
 
 See [Deployment](DEPLOYMENT.md#https-to-your-other-servers).
 
