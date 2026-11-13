@@ -1,8 +1,9 @@
 import { SERVERS, serverPayload } from "./wizard.js";
 import { BazarrSettingsPanel } from "./BazarrSettingsPanel.jsx";
 import { FontsPanel } from "./FontsPanel.jsx";
+import CopyButton from "./CopyButton.jsx";
 import { api } from "./api.js";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { withBase } from "./base.js";
 
 function emptyMapping() {
@@ -349,6 +350,7 @@ function TrustedProxiesPanel() {
 function ApiKeyPanel() {
   const [enabled, setEnabled] = useState(null);
   const [fresh, setFresh] = useState(null); // plaintext, shown once
+  const freshBox = useRef(null);
   const [err, setErr] = useState(null);
 
   useEffect(() => {
@@ -394,10 +396,8 @@ function ApiKeyPanel() {
       {fresh && (
         <div className="test ok">
           <p>Copy it now — it won't be shown again:</p>
-          <code className="api-key">{fresh}</code>{" "}
-          <button type="button" className="secondary small" onClick={() => navigator.clipboard?.writeText(fresh)}>
-            Copy
-          </button>
+          <code className="api-key" ref={freshBox}>{fresh}</code>{" "}
+          <CopyButton text={fresh} small getTarget={() => freshBox.current} />
         </div>
       )}
       <p className="hint">{enabled == null ? "…" : enabled ? "An API key is set." : "No API key set."}</p>
