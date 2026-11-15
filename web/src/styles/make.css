@@ -1,0 +1,198 @@
+/* ---- Libraries overview (Make page) ---- */
+.libraries {
+  margin-bottom: 18px;
+}
+.lib-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 10px;
+}
+.libstat {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  text-align: left;
+  font-weight: 400;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.libstat:hover {
+  border-color: var(--accent);
+}
+.libstat.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.libstat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.libname {
+  font-weight: 600;
+}
+.kindtag {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--panel-2);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+.libstat-count {
+  font-size: 13px;
+  color: var(--muted);
+}
+.libstat-foot {
+  display: flex;
+  gap: 12px;
+  font-size: 13px;
+}
+.good {
+  color: var(--good);
+}
+.warn {
+  color: var(--warn);
+}
+.missing-panel {
+  margin-top: 12px;
+}
+.missing-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 340px;
+  overflow: auto;
+}
+.missing-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.missing-list .mtitle {
+  flex-shrink: 0;
+  min-width: 180px;
+}
+.missing-list .ep-open {
+  text-align: left;
+  padding: 0;
+  font-weight: 500;
+}
+.missing-list .mpath {
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- Make view: results + editor ---- */
+.make-body {
+  display: grid;
+  /* minmax(0, 1fr), not 1fr: a bare 1fr won't shrink below its content's
+     minimum width, so a wide editor pushed the whole page past the screen. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+.make-body > * {
+  min-width: 0;
+}
+@media (min-width: 900px) {
+  .make-body {
+    grid-template-columns: clamp(360px, 26vw, 600px) minmax(0, 1fr);
+  }
+}
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: calc(100vh - var(--topbar-h) - 60px);
+  overflow: auto;
+}
+.result {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  text-align: left;
+  padding: 12px;
+  border-radius: 10px;
+  font-weight: 400;
+}
+.result:hover {
+  border-color: var(--accent);
+  background: var(--panel-2);
+}
+.quote {
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+.meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.show-matches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.show-match {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-weight: 500;
+  font-size: 14px;
+}
+.show-match:hover {
+  border-color: var(--accent);
+  background: var(--panel-2);
+}
+.ts {
+  color: var(--accent);
+}
+
+/* ---- Library ---- */
+.filter {
+  min-width: 220px;
+}
+.lib-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+.lib-card {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  text-align: left;
+  font-weight: 400;
+}
+.lib-card:hover {
+  border-color: var(--accent);
+  background: var(--panel-2);
+}
+.lib-title {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.lib-sub {
+  font-size: 12px;
+  color: var(--muted);
+}
+

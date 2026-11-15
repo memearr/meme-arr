@@ -1,0 +1,104 @@
+/* ---- Shell: fixed sidebar + main column ---- */
+.shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  background: var(--sidebar);
+  border-right: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 18px;
+  height: var(--topbar-h);
+  border-bottom: 1px solid var(--border);
+  font-size: 19px;
+  font-weight: 700;
+}
+.brand .logo {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  flex-shrink: 0;
+}
+.brand .arr {
+  color: var(--accent);
+}
+.nav {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 8px;
+  gap: 2px;
+  flex: 1;
+}
+.navitem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: none;
+  color: var(--muted);
+  font-weight: 500;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border-left: 3px solid transparent;
+}
+.navitem:hover {
+  background: var(--panel);
+  color: var(--text);
+}
+.navitem.on {
+  background: var(--accent-soft);
+  color: var(--text);
+  border-left-color: var(--accent);
+}
+.navitem .nic {
+  width: 20px;
+  text-align: center;
+}
+.navbadge {
+  margin-left: auto;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 3px 7px;
+  border-radius: 999px;
+}
+.sidefoot {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
+}
+.foot-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.version {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 11px;
+}
+.logout-link {
+  align-self: flex-start;
+}
+

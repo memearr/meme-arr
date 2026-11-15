@@ -1,0 +1,208 @@
+/* ---- Responsive: collapse sidebar to a top strip ---- */
+@media (max-width: 760px) {
+  .shell {
+    flex-direction: column;
+  }
+  .sidebar {
+    width: 100%;
+    height: auto;
+    position: static;
+    flex-direction: row;
+    align-items: center;
+    overflow-x: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .brand {
+    border-bottom: none;
+    border-right: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .nav {
+    flex-direction: row;
+    padding: 6px;
+  }
+  .navitem {
+    border-left: none;
+    border-bottom: 3px solid transparent;
+    white-space: nowrap;
+  }
+  .navitem.on {
+    border-left: none;
+    border-bottom-color: var(--accent);
+  }
+  .navitem .nlabel {
+    display: none;
+  }
+  .sidefoot {
+    display: none;
+  }
+  .topbar {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 10px 16px;
+  }
+  /* On a phone the search box gets its own full-width row under the
+     Dialogue/Title switch, the tips button and Search, instead of being
+     squeezed to nothing between them. */
+  .search {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+  }
+  .search input {
+    order: 3;
+    flex: 1 1 100%;
+  }
+  .search .search-tips {
+    margin-left: auto;
+  }
+  .topbar-actions {
+    flex: 1 1 100%;
+    justify-content: flex-end;
+  }
+  .search-tips-pop {
+    position: fixed;
+    top: auto;
+    left: 12px;
+    right: 12px;
+    width: auto;
+  }
+  .map-head {
+    display: none;
+  }
+  .map-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.backups-panel {
+  margin-top: 14px;
+}
+.backup-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+.backup-actions .health-head button {
+  margin-left: 0;
+}
+.button-like {
+  cursor: pointer;
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 8px;
+}
+
+.api-key {
+  word-break: break-all;
+  font-size: 12px;
+}
+
+.wizard-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 16px;
+}
+.wizard {
+  width: min(720px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+}
+.wizard-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.wizard-head h2 {
+  margin: 0;
+}
+.wizard-steps {
+  list-style: none;
+  display: flex;
+  gap: 16px;
+  padding: 0;
+  margin: 12px 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.wizard-steps li.on {
+  color: var(--accent);
+  font-weight: 600;
+}
+.wizard-steps li.done {
+  color: var(--good);
+}
+.wizard label {
+  display: block;
+  margin: 8px 0;
+  font-size: 13px;
+}
+.wizard-nav {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+.wizard-table input {
+  width: 100%;
+}
+.mono {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+}
+
+.theme-toggle {
+  align-self: flex-start;
+}
+
+.logs-panel {
+  margin-top: 14px;
+}
+.log-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0;
+  font-size: 12px;
+}
+.log-controls label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.log-controls select,
+.log-controls input {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+.log-tail {
+  height: 320px;
+  overflow: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-family: ui-monospace, monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.log-line {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.log-line.error {
+  color: var(--error);
+}
+.log-line.warn {
+  color: var(--warn);
+}
+.log-line.debug,
+.log-line.trace {
+  color: var(--muted);
+}
+

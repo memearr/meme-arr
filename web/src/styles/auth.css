@@ -1,0 +1,213 @@
+/* ---- Auth: setup/login screen ---- */
+.auth-shell {
+  align-items: center;
+  justify-content: center;
+}
+.auth-panel {
+  width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.auth-panel .brand {
+  padding: 0;
+  border-bottom: none;
+  justify-content: center;
+}
+.auth-panel h2 {
+  margin: 0;
+  text-align: center;
+  font-size: 18px;
+}
+.auth-panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.auth-panel input {
+  width: 100%;
+}
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.auth-sso-btn {
+  display: block;
+  text-align: center;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.auth-sso-btn.inline {
+  display: inline-block;
+}
+.auth-sso-btn:hover {
+  background: var(--border);
+}
+
+.version .ver {
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
+}
+.version .upd {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+.version .upd:hover {
+  text-decoration: underline;
+}
+.version .uptodate {
+  color: var(--good);
+}
+.version .ghlink {
+  color: var(--muted);
+  text-decoration: none;
+}
+.version .ghlink:hover {
+  color: var(--text);
+}
+.version .icbtn {
+  background: none;
+  color: var(--muted);
+  padding: 0 4px;
+  font-size: 13px;
+  margin-left: auto;
+}
+.version .icbtn:hover {
+  background: none;
+  color: var(--text);
+}
+.version .icbtn.labeled {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 11px;
+}
+.version .icbtn.labeled:hover {
+  border-color: var(--accent);
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--live);
+  flex-shrink: 0;
+}
+.dot.live {
+  background: var(--accent);
+  animation: pulse 1s infinite;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.topbar {
+  height: var(--topbar-h);
+  background: var(--topbar);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.search {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.search input {
+  flex: 1;
+  min-width: 0;
+}
+.seg {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.seg button {
+  background: var(--panel-2);
+  color: var(--muted);
+  border-radius: 0;
+  padding: 9px 12px;
+}
+.seg button.on {
+  background: var(--accent);
+  color: #fff;
+}
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.page {
+  padding: 20px;
+  flex: 1;
+}
+.view {
+  /* Use the screen: wide monitors get wide pages. Forms and the Wanted list read
+     badly stretched out, so they keep a narrower column (below). */
+  max-width: min(100%, 2200px);
+}
+.view.settings,
+.view.wanted {
+  max-width: 1100px;
+}
+.view-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.view h2 {
+  font-size: 18px;
+  margin: 0 0 14px;
+}
+.view h3 {
+  font-size: 14px;
+  margin: 0 0 10px;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.hint {
+  color: var(--muted);
+}
+.muted {
+  color: var(--muted);
+  font-size: 13px;
+}

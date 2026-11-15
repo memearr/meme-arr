@@ -95,7 +95,7 @@ To check proxy handling without a proxy, send the headers yourself, for example
 Dark is the default; Light and Auto (follow the OS via `prefers-color-scheme`)
 are in the sidebar's "Theme" toggle, remembered in `localStorage` and applied
 by a tiny script in `web/index.html` before first paint (no dark flash for
-light users). All colors are CSS variables in `styles.css`; the light palette
+light users). All colors are CSS variables in `styles/base.css`; the light palette
 appears twice (`:root[data-theme="light"]` and the Auto media query) because
 CSS can't share a block — keep the two identical. Don't hardcode colors in new
 rules: use or add a variable, and check text pairs against WCAG AA (4.5:1).
