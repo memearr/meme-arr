@@ -6,18 +6,24 @@ use rusqlite::{params, OptionalExtension};
 use serde::Serialize;
 use std::path::Path;
 
+mod cues;
+mod library;
 mod logs;
 mod maintenance;
 mod media;
 mod requests;
+mod search;
 mod sessions;
 mod settings;
 mod tasks;
 
+pub use self::cues::*;
+pub use self::library::*;
 pub use self::logs::*;
 pub use self::maintenance::*;
 pub use self::media::*;
 pub use self::requests::*;
+pub use self::search::*;
 pub use self::sessions::*;
 pub use self::settings::*;
 pub use self::tasks::*;
@@ -270,4 +276,40 @@ pub(super) fn add_media(
         1,
     )
     .unwrap()
+}
+
+#[cfg(test)]
+/// Three libraries, each with `n` episodes that all say "knock knock".
+pub(super) fn seed_libraries(conn: &mut rusqlite::Connection, per_library: usize) {
+    for lib in ["TV", "Anime", "Movies"] {
+        for i in 0..per_library {
+            let key = format!("{lib}-{i}");
+            let kind = if lib == "Movies" { "movie" } else { "episode" };
+            let show = (lib != "Movies").then(|| format!("{lib} Show"));
+            let id = add_media(
+                conn,
+                &key,
+                kind,
+                &format!("{lib} item {i}"),
+                show.as_deref(),
+                "direct",
+                lib,
+            );
+            insert_cues(
+                conn,
+                id,
+                &[crate::subtitles::Cue {
+                    start_ms: 1000,
+                    end_ms: 2000,
+                    text: "knock knock who is there".into(),
+                }],
+            )
+            .unwrap();
+        }
+    }
+}
+
+#[cfg(test)]
+pub(super) fn names(libs: &[&str]) -> Vec<String> {
+    libs.iter().map(|s| s.to_string()).collect()
 }

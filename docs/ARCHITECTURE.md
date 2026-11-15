@@ -107,7 +107,10 @@ Orientation only: each file's own `//!` comment is the authoritative description
 | Module | Purpose |
 |---|---|
 | `db/mod.rs` | Schema and migrations, the connection pool. |
-| `db/media.rs` | Media rows, subtitle cues, dialogue search and the library/Wanted/browse queries. |
+| `db/media.rs` | Media rows: storing and looking up an indexed movie or episode. |
+| `db/cues.rs` | Subtitle cues: storing them for an item and reading a time window. |
+| `db/search.rs` | Dialogue (FTS) and title search, library scope and the search operators. |
+| `db/library.rs` | Library counts, the Wanted and missing-subtitle lists, browse, shows and episodes. |
 | `db/settings.rs`, `db/sessions.rs`, `db/requests.rs`, `db/tasks.rs`, `db/logs.rs`, `db/maintenance.rs` | Key-value settings and path mappings; the admin password, sessions and login flows; subtitle requests; task schedules; the Activity log; database statistics, checkpoint and vacuum. |
 
 **Indexing and search**
