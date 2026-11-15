@@ -19,26 +19,44 @@ pub struct Media {
     pub access_mode: String,
 }
 
+/// What `upsert_media` stores for one item.
+#[derive(Debug, Clone, Copy)]
+pub struct MediaUpsert<'a> {
+    pub rating_key: &'a str,
+    pub kind: &'a str,
+    pub title: &'a str,
+    pub show: Option<&'a str>,
+    pub season: Option<i64>,
+    pub episode: Option<i64>,
+    pub year: Option<i64>,
+    pub file_path: &'a str,
+    pub part_key: Option<&'a str>,
+    pub duration_ms: i64,
+    pub access_mode: &'a str,
+    pub library: Option<&'a str>,
+    pub file_mtime: i64,
+    pub file_size: i64,
+}
+
 /// Insert or replace a media row, returning its id. Clears any existing cues so
 /// a reindex of the same item starts clean.
-#[allow(clippy::too_many_arguments)]
-pub fn upsert_media(
-    conn: &rusqlite::Connection,
-    rating_key: &str,
-    kind: &str,
-    title: &str,
-    show: Option<&str>,
-    season: Option<i64>,
-    episode: Option<i64>,
-    year: Option<i64>,
-    file_path: &str,
-    part_key: Option<&str>,
-    duration_ms: i64,
-    access_mode: &str,
-    library: Option<&str>,
-    file_mtime: i64,
-    file_size: i64,
-) -> Result<i64> {
+pub fn upsert_media(conn: &rusqlite::Connection, item: &MediaUpsert) -> Result<i64> {
+    let MediaUpsert {
+        rating_key,
+        kind,
+        title,
+        show,
+        season,
+        episode,
+        year,
+        file_path,
+        part_key,
+        duration_ms,
+        access_mode,
+        library,
+        file_mtime,
+        file_size,
+    } = *item;
     conn.execute(
         "INSERT INTO media
             (rating_key, kind, title, show, season, episode, year, file_path,
@@ -209,8 +227,23 @@ mod tests {
         assert!(media_fingerprint(&conn, "x").unwrap().is_none());
 
         upsert_media(
-            &conn, "x", "movie", "X", None, None, None, None, "/x.mkv", None, 0, "direct", None,
-            111, 222,
+            &conn,
+            &MediaUpsert {
+                rating_key: "x",
+                kind: "movie",
+                title: "X",
+                show: None,
+                season: None,
+                episode: None,
+                year: None,
+                file_path: "/x.mkv",
+                part_key: None,
+                duration_ms: 0,
+                access_mode: "direct",
+                library: None,
+                file_mtime: 111,
+                file_size: 222,
+            },
         )
         .unwrap();
         // Freshly upserted rows start at indexer_version 0 (not yet stamped).
@@ -227,8 +260,23 @@ mod tests {
         let pool = mem_pool();
         let mut conn = pool.get().unwrap();
         let id = upsert_media(
-            &conn, "k", "movie", "X", None, None, None, None, "/x.mkv", None, 0, "direct", None, 1,
-            1,
+            &conn,
+            &MediaUpsert {
+                rating_key: "k",
+                kind: "movie",
+                title: "X",
+                show: None,
+                season: None,
+                episode: None,
+                year: None,
+                file_path: "/x.mkv",
+                part_key: None,
+                duration_ms: 0,
+                access_mode: "direct",
+                library: None,
+                file_mtime: 1,
+                file_size: 1,
+            },
         )
         .unwrap();
         insert_cues(
@@ -243,8 +291,23 @@ mod tests {
         .unwrap();
         // Re-upsert clears cues.
         let id2 = upsert_media(
-            &conn, "k", "movie", "X", None, None, None, None, "/x.mkv", None, 0, "direct", None, 2,
-            2,
+            &conn,
+            &MediaUpsert {
+                rating_key: "k",
+                kind: "movie",
+                title: "X",
+                show: None,
+                season: None,
+                episode: None,
+                year: None,
+                file_path: "/x.mkv",
+                part_key: None,
+                duration_ms: 0,
+                access_mode: "direct",
+                library: None,
+                file_mtime: 2,
+                file_size: 2,
+            },
         )
         .unwrap();
         assert_eq!(id, id2);
