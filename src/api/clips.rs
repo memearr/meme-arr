@@ -57,6 +57,59 @@ pub(super) fn preview_font_scale() -> u32 {
     100
 }
 
+impl PreviewParams {
+    /// The caption this preview asks for, from the flattened query fields.
+    fn caption(&self) -> anyhow::Result<Option<export::Caption>> {
+        let override_cues: Option<Vec<subtitles::Cue>> = match &self.cues_json {
+            Some(s) if !s.is_empty() => Some(
+                serde_json::from_str(s).map_err(|e| anyhow::anyhow!("invalid cues_json: {e}"))?,
+            ),
+            _ => None,
+        };
+        Ok(match self.caption_mode.as_str() {
+            "source" => Some(export::Caption::Source {
+                cues: override_cues,
+                font: self.font.clone(),
+                font_scale: self.font_scale,
+            }),
+            "meme" => Some(export::Caption::Meme {
+                top: self.top.clone(),
+                bottom: self.bottom.clone(),
+                font_size: self.font_size,
+                font: self.font.clone(),
+                font_scale: self.font_scale,
+            }),
+            _ => None,
+        })
+    }
+
+    /// Everything that affects the rendered frames: file, window, size/fps and
+    /// the caption (mode, text, font, offset). Same inputs, same cache entry.
+    fn cache_key(&self, file_path: &str, end: i64) -> u64 {
+        let mut h = DefaultHasher::new();
+        (
+            (
+                file_path,
+                self.start,
+                end,
+                self.width,
+                self.fps,
+                &self.caption_mode,
+            ),
+            (
+                &self.top,
+                &self.bottom,
+                self.font_size,
+                &self.font,
+                self.font_scale,
+            ),
+            (self.offset_ms, &self.cues_json),
+        )
+            .hash(&mut h);
+        h.finish()
+    }
+}
+
 pub(super) async fn preview(
     State(st): State<AppState>,
     Path(rating_key): Path<String>,
@@ -69,87 +122,22 @@ pub(super) async fn preview(
     // Cap preview length so a mis-set window can't transcode an entire film.
     let end = p.end.min(p.start + 60_000);
 
-    let pool = st.pool.clone();
-    let rk = rating_key.clone();
-    let m = tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
-        let conn = pool.get()?;
-        db::get_media(&conn, &rk)
-    })
-    .await??;
-    let m = match m {
-        Some(m) => m,
-        None => return Ok(not_found("media not indexed")),
+    let (m, direct) = match resolve_source(&st, &rating_key).await? {
+        Ok(found) => found,
+        Err(resp) => return Ok(resp),
     };
-
-    let direct = match paths::resolve(&m.file_path, &st.mappings()) {
-        paths::AccessMode::Direct(p) => p,
-        paths::AccessMode::NotMounted => {
-            return Ok(bad_request(
-                "source file is not on a mounted volume; check your path mappings in Settings",
-            ))
-        }
-    };
-
-    let override_cues: Option<Vec<subtitles::Cue>> = match &p.cues_json {
-        Some(s) if !s.is_empty() => {
-            Some(serde_json::from_str(s).map_err(|e| anyhow::anyhow!("invalid cues_json: {e}"))?)
-        }
-        _ => None,
-    };
-
-    let caption: Option<export::Caption> = match p.caption_mode.as_str() {
-        "source" => Some(export::Caption::Source {
-            cues: override_cues,
-            font: p.font.clone(),
-            font_scale: p.font_scale,
-        }),
-        "meme" => Some(export::Caption::Meme {
-            top: p.top.clone(),
-            bottom: p.bottom.clone(),
-            font_size: p.font_size,
-            font: p.font.clone(),
-            font_scale: p.font_scale,
-        }),
-        _ => None,
-    };
-
-    // Only fetch cues for a "source" preview with no edited override, widened
-    // by the offset so a cue shifted into/out of view is among the candidates
-    // trimmed_srt sees. An override needs no DB round trip at all.
-    let cues = match &caption {
-        Some(export::Caption::Source { cues: None, .. }) => {
-            let pool = st.pool.clone();
-            let media_id = m.id;
-            let pad = p.offset_ms.abs();
-            let (s, e) = (p.start, end);
-            tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
-                let conn = pool.get()?;
-                db::cues_in_window(&conn, media_id, s - pad, e + pad)
-            })
-            .await??
-        }
-        _ => Vec::new(),
-    };
-
+    let caption = p.caption()?;
+    let cues = source_cues_for(&st, m.id, caption.as_ref(), (p.start, end), p.offset_ms).await?;
     let font_path = match caption_font_path(&st, caption.as_ref()) {
         Ok(p) => p,
         Err(msg) => return Ok(bad_request(msg)),
     };
 
-    // Cache previews by everything that affects the rendered frames: file,
-    // window, size/fps, and the caption (mode/text/offset).
     let Some(tmp) = paths::confine(&st.config.data_dir, &st.config.tmp_dir()) else {
         return Err(anyhow::anyhow!("the data folder isn't usable").into());
     };
     std::fs::create_dir_all(&tmp)?;
-    let mut h = DefaultHasher::new();
-    (
-        (&m.file_path, p.start, end, p.width, p.fps, &p.caption_mode),
-        (&p.top, &p.bottom, p.font_size, &p.font, p.font_scale),
-        (p.offset_ms, &p.cues_json),
-    )
-        .hash(&mut h);
-    let hash = h.finish();
+    let hash = p.cache_key(&m.file_path, end);
     let cache = tmp.join(format!("preview-{hash:x}.mp4"));
 
     // One request renders a given clip while identical ones wait; the render
@@ -159,19 +147,23 @@ pub(super) async fn preview(
     let t0 = std::time::Instant::now();
     let title = m.title.clone();
     preview_cache::ensure_rendered(hash, &cache, |out| async move {
-        let frame_height_hint = (p.width as f32 * 0.5625) as u32;
+        let style = export::CaptionStyle::new(
+            caption.as_ref(),
+            &font_path,
+            export::height_hint_for(p.width),
+        );
+        let window = export::CaptionWindow {
+            cues: &cues,
+            start_ms: p.start,
+            end_ms: end,
+            offset_ms: p.offset_ms,
+        };
         let (vf, caption_files) = export::prepare_captions(
             &tmp,
             &format!("preview-{hash:x}"),
-            p.width,
-            p.fps,
-            caption.as_ref(),
-            &cues,
-            p.start,
-            end,
-            p.offset_ms,
-            &font_path,
-            frame_height_hint,
+            (p.width, p.fps),
+            style,
+            &window,
         )?;
         let args = ffmpeg::preview_args(
             &direct.to_string_lossy(),
@@ -204,80 +196,31 @@ pub(super) async fn export_start(
     if req.end_ms <= req.start_ms {
         return Ok(bad_request("end must be greater than start"));
     }
-    if req.end_ms - req.start_ms > 60_000 {
+    if req.end_ms - req.start_ms > export::MAX_CLIP_MS {
         return Ok(bad_request("clips are limited to 60 seconds"));
     }
     if let Some(msg) = export::validate_audio_format(req.format, req.audio) {
         return Ok(bad_request(msg));
     }
 
-    // Resolve the source file now so we can fail fast with a clear error.
-    let pool = st.pool.clone();
-    let rk = req.rating_key.clone();
-    let m = tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
-        let conn = pool.get()?;
-        db::get_media(&conn, &rk)
-    })
-    .await??;
-    let m = match m {
-        Some(m) => m,
-        None => return Ok(not_found("media not indexed")),
+    // Everything that can be refused is checked before a job exists.
+    let (m, file) = match resolve_source(&st, &req.rating_key).await? {
+        Ok(found) => found,
+        Err(resp) => return Ok(resp),
     };
-    let direct = match paths::resolve(&m.file_path, &st.mappings()) {
-        paths::AccessMode::Direct(p) => p,
-        paths::AccessMode::NotMounted => {
-            return Ok(bad_request(
-                "source file is not on a mounted volume; check your path mappings in Settings",
-            ))
-        }
-    };
-
-    let job_id = uuid::Uuid::new_v4().to_string();
-    let filename = export::safe_filename(req.filename.as_deref(), req.format, &job_id[..8]);
-    let out_path = st.config.output_dir.join(&filename);
-
-    st.set_job(Job {
-        id: job_id.clone(),
-        status: JobStatus::Queued,
-        format: req.format,
-        filename: filename.clone(),
-        audio: req.audio,
-        download_path: None,
-        error: None,
-    });
-
-    // Gather cues for burned subtitles — only for "source" captions with no
-    // edited override (an override needs no DB round trip; `run_export` uses
-    // it directly from `req.caption`). Widen by the sync offset so a cue
-    // shifted into/out of view is among the candidates `trimmed_srt` sees.
-    let cues = if matches!(
-        req.caption,
-        Some(export::Caption::Source { cues: None, .. })
-    ) {
-        let pool = st.pool.clone();
-        let media_id = m.id;
-        let (start, end) = (req.start_ms, req.end_ms);
-        let pad = req.subtitle_offset_ms.abs();
-        tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
-            let conn = pool.get()?;
-            db::cues_in_window(&conn, media_id, start - pad, end + pad)
-        })
-        .await??
-    } else {
-        Vec::new()
-    };
-
+    let window = (req.start_ms, req.end_ms);
+    let cues = source_cues_for(
+        &st,
+        m.id,
+        req.caption.as_ref(),
+        window,
+        req.subtitle_offset_ms,
+    )
+    .await?;
     let font_path = match caption_font_path(&st, req.caption.as_ref()) {
         Ok(p) => p,
         Err(msg) => return Ok(bad_request(msg)),
     };
-    let frame_height_hint = (req.width as f32 * 0.5625) as u32;
-    let tmp = st.config.tmp_dir();
-    let ffmpeg_bin = st.config.ffmpeg_bin.clone();
-    let gifsicle_bin = st.config.gifsicle_bin.clone();
-    let st2 = st.clone();
-    let jid = job_id.clone();
-    let dl = format!("{}/api/download/{filename}", st.config.url_base);
     // The one tag the file may carry: what it came from (from the library's
     // own metadata, not the source file's tags).
     let source_title = export::source_label(
@@ -289,61 +232,93 @@ pub(super) async fn export_start(
         m.year,
     );
 
-    tokio::spawn(async move {
-        st2.update_job(&jid, |j| j.status = JobStatus::Running);
-        let res = export::run_export(
-            &ffmpeg_bin,
-            &gifsicle_bin,
-            &tmp,
-            &jid,
-            &direct,
-            &req,
-            &cues,
-            &font_path,
-            frame_height_hint,
-            Some(&source_title),
-            &out_path,
-        )
-        .await;
-        match res {
-            Ok(()) => {
-                info!("export complete: {}", out_path.display());
-                st2.update_job(&jid, |j| {
-                    j.status = JobStatus::Done;
-                    j.download_path = Some(dl);
-                });
-            }
-            Err(e) => {
-                report_export_failure(&st2, "Export", &out_path, &e);
-                st2.update_job(&jid, |j| {
-                    j.status = JobStatus::Failed;
-                    j.error = Some(format!("{e:#}"));
-                });
-            }
-        }
+    let (id, files) = jobs::queue(&st, req.filename.as_deref(), req.format, req.audio);
+    let (st2, job_id, tmp, out_path) = (
+        st.clone(),
+        id.clone(),
+        st.config.tmp_dir(),
+        files.out_path.clone(),
+    );
+    run_in_background(&st, id.clone(), "Export", files, async move {
+        let job = export::JobSpec {
+            id: &job_id,
+            tmp_dir: &tmp,
+            out_path: &out_path,
+            source_title: Some(&source_title),
+        };
+        export::run_export(tools(&st2), job, &file, &req, &cues, &font_path).await
     });
-
-    Ok((StatusCode::ACCEPTED, Json(st.get_job(&job_id))).into_response())
-}
-
-/// Record a failed export somewhere that outlives the job: `tracing` for the
-/// server log and the persistent Activity log for the UI. The job's own
-/// `error` field is in-memory and gone after a restart.
-pub(super) fn report_export_failure(
-    st: &AppState,
-    what: &str,
-    out_path: &std::path::Path,
-    e: &anyhow::Error,
-) {
-    warn!("{what} failed: {}: {e:#}", out_path.display());
-    let name = out_path.file_name().unwrap_or_default().to_string_lossy();
-    st.log_event(LogLevel::Error, format!("{what} failed ({name}): {e:#}"));
+    Ok(accepted(&st, &id))
 }
 
 /// Resolving a sequence can fail per-clip in a way the caller can fix (media
 /// not indexed, file not mounted) as opposed to an actual server error.
 pub(super) type SequenceResolveResult =
     anyhow::Result<std::result::Result<Vec<export::ResolvedSequenceClip>, String>>;
+
+/// Look up every clip's media row, mounted path, own font and (for "source"
+/// caption clips) its subtitle cues, on one connection. A problem the caller
+/// can fix comes back as the `Err` message, naming the clip.
+fn resolve_sequence(
+    conn: &rusqlite::Connection,
+    specs: &[export::SequenceClipSpec],
+    mappings: &[crate::config::PathRewrite],
+    fonts: &crate::fonts::Fonts,
+) -> SequenceResolveResult {
+    let mut out = Vec::with_capacity(specs.len()); // bounded by validate_sequence
+    for (i, spec) in specs.iter().enumerate() {
+        let n = i + 1;
+        let Some(media) = db::get_media(conn, &spec.rating_key)? else {
+            return Ok(Err(format!(
+                "clip #{n} ({}): media not indexed",
+                spec.rating_key
+            )));
+        };
+        let paths::AccessMode::Direct(file) = paths::resolve(&media.file_path, mappings) else {
+            return Ok(Err(format!(
+                "clip #{n} ({}): {NOT_MOUNTED}",
+                spec.rating_key
+            )));
+        };
+        let cues = source_cues(
+            conn,
+            media.id,
+            spec.caption.as_ref(),
+            (spec.start_ms, spec.end_ms),
+            spec.subtitle_offset_ms,
+        )?;
+        // A clip may caption in its own font; the others use the default.
+        let font_path = match spec.caption.as_ref().and_then(|c| c.font_id()) {
+            Some(id) => match fonts.path_of(id) {
+                Some(p) => Some(p.to_string_lossy().to_string()),
+                None => {
+                    return Ok(Err(format!(
+                        "clip #{n}: unknown font {id:?}; see Settings -> Fonts"
+                    )))
+                }
+            },
+            None => None,
+        };
+        out.push(export::ResolvedSequenceClip {
+            font_path,
+            file,
+            start_ms: spec.start_ms,
+            end_ms: spec.end_ms,
+            caption: spec.caption.clone(),
+            subtitle_offset_ms: spec.subtitle_offset_ms,
+            cues,
+            source: export::source_label(
+                &media.kind,
+                &media.title,
+                media.show.as_deref(),
+                media.season,
+                media.episode,
+                media.year,
+            ),
+        });
+    }
+    Ok(Ok(out))
+}
 
 pub(super) async fn sequence_export_start(
     State(st): State<AppState>,
@@ -356,156 +331,46 @@ pub(super) async fn sequence_export_start(
         return Ok(bad_request(msg));
     }
 
-    // Resolve every clip's media row, mounted path, and (for "source" caption
-    // clips) its own subtitle cues, in one connection round trip.
-    let pool = st.pool.clone();
-    let mappings = st.mappings();
-    let clip_specs = req.clips.clone();
-    let fonts = st.config.fonts();
+    let (pool, mappings, specs, fonts) = (
+        st.pool.clone(),
+        st.mappings(),
+        req.clips.clone(),
+        st.config.fonts(),
+    );
     let resolved = tokio::task::spawn_blocking(move || -> SequenceResolveResult {
         let conn = pool.get()?;
-        let mut out = Vec::new(); // bounded by validate_sequence above
-        for (i, spec) in clip_specs.iter().enumerate() {
-            let media = match db::get_media(&conn, &spec.rating_key)? {
-                Some(m) => m,
-                None => {
-                    return Ok(Err(format!(
-                        "clip #{} ({}): media not indexed",
-                        i + 1,
-                        spec.rating_key
-                    )))
-                }
-            };
-            let file = match paths::resolve(&media.file_path, &mappings) {
-                paths::AccessMode::Direct(p) => p,
-                paths::AccessMode::NotMounted => {
-                    return Ok(Err(format!(
-                        "clip #{} ({}): source file is not on a mounted volume; check your path mappings in Settings",
-                        i + 1,
-                        spec.rating_key
-                    )))
-                }
-            };
-            // An edited line list needs no DB round trip; write_caption_files
-            // uses it straight from `caption` via ResolvedSequenceClip.
-            let cues = if matches!(spec.caption, Some(export::Caption::Source { cues: None, .. })) {
-                // Widen the query by the offset so a cue that shifts into view
-                // (or out of it) is actually among the candidates trimmed_srt
-                // sees — the offset itself is applied there, not here.
-                let pad = spec.subtitle_offset_ms.abs();
-                db::cues_in_window(&conn, media.id, spec.start_ms - pad, spec.end_ms + pad)?
-            } else {
-                Vec::new()
-            };
-            // A clip may caption in its own font; the others use the default.
-            let font_path = match spec.caption.as_ref().and_then(|c| c.font_id()) {
-                Some(id) => match fonts.path_of(id) {
-                    Some(p) => Some(p.to_string_lossy().to_string()),
-                    None => {
-                        return Ok(Err(format!(
-                            "clip #{}: unknown font {id:?}; see Settings -> Fonts",
-                            i + 1
-                        )))
-                    }
-                },
-                None => None,
-            };
-            out.push(export::ResolvedSequenceClip {
-                font_path,
-                file,
-                start_ms: spec.start_ms,
-                end_ms: spec.end_ms,
-                caption: spec.caption.clone(),
-                subtitle_offset_ms: spec.subtitle_offset_ms,
-                cues,
-                source: export::source_label(
-                    &media.kind,
-                    &media.title,
-                    media.show.as_deref(),
-                    media.season,
-                    media.episode,
-                    media.year,
-                ),
-            });
-        }
-        Ok(Ok(out))
+        resolve_sequence(&conn, &specs, &mappings, &fonts)
     })
     .await??;
-
     let clips = match resolved {
         Ok(c) => c,
         Err(msg) => return Ok(bad_request(msg)),
     };
 
-    let job_id = uuid::Uuid::new_v4().to_string();
-    let filename = export::safe_filename(req.filename.as_deref(), req.format, &job_id[..8]);
-    let out_path = st.config.output_dir.join(&filename);
-
-    st.set_job(Job {
-        id: job_id.clone(),
-        status: JobStatus::Queued,
-        format: req.format,
-        filename: filename.clone(),
-        audio: req.audio,
-        download_path: None,
-        error: None,
-    });
-
-    let font_path = default_font(&st.config.fonts_dir);
-    let tmp = st.config.tmp_dir();
-    let ffmpeg_bin = st.config.ffmpeg_bin.clone();
-    let gifsicle_bin = st.config.gifsicle_bin.clone();
-    let ffprobe_bin = st.config.ffprobe_bin.clone();
-    let (width, fps, quality, format, audio) =
-        (req.width, req.fps, req.quality, req.format, req.audio);
     // The one tag the sequence may carry: each source it was cut from, once.
     let source_title = if req.credit_source {
         export::combined_source_title(&clips.iter().map(|c| c.source.clone()).collect::<Vec<_>>())
     } else {
         None
     };
-    let st2 = st.clone();
-    let jid = job_id.clone();
-    let dl = format!("{}/api/download/{filename}", st.config.url_base);
-
-    tokio::spawn(async move {
-        st2.update_job(&jid, |j| j.status = JobStatus::Running);
-        let res = export::run_sequence_export(
-            &ffmpeg_bin,
-            &gifsicle_bin,
-            &ffprobe_bin,
-            &tmp,
-            &jid,
-            &clips,
-            format,
-            width,
-            fps,
-            quality,
-            audio,
-            &font_path,
-            source_title.as_deref(),
-            &out_path,
-        )
-        .await;
-        match res {
-            Ok(()) => {
-                info!("sequence export complete: {}", out_path.display());
-                st2.update_job(&jid, |j| {
-                    j.status = JobStatus::Done;
-                    j.download_path = Some(dl);
-                });
-            }
-            Err(e) => {
-                report_export_failure(&st2, "Sequence export", &out_path, &e);
-                st2.update_job(&jid, |j| {
-                    j.status = JobStatus::Failed;
-                    j.error = Some(format!("{e:#}"));
-                });
-            }
-        }
+    let (id, files) = jobs::queue(&st, req.filename.as_deref(), req.format, req.audio);
+    let (st2, job_id, tmp, out_path, font_path) = (
+        st.clone(),
+        id.clone(),
+        st.config.tmp_dir(),
+        files.out_path.clone(),
+        default_font(&st.config.fonts_dir),
+    );
+    run_in_background(&st, id.clone(), "Sequence export", files, async move {
+        let job = export::JobSpec {
+            id: &job_id,
+            tmp_dir: &tmp,
+            out_path: &out_path,
+            source_title: source_title.as_deref(),
+        };
+        export::run_sequence_export(tools(&st2), job, &req, &clips, &font_path).await
     });
-
-    Ok((StatusCode::ACCEPTED, Json(st.get_job(&job_id))).into_response())
+    Ok(accepted(&st, &id))
 }
 
 pub(super) async fn job_status(

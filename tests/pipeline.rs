@@ -11,6 +11,13 @@ use meme_arr::{export, ffmpeg, subtitles};
 use std::path::Path;
 use std::process::Command;
 
+/// The programs the exports run: the ones on the PATH.
+const TOOLS: export::Tools<'static> = export::Tools {
+    ffmpeg: "ffmpeg",
+    ffprobe: "ffprobe",
+    gifsicle: "gifsicle",
+};
+
 fn ffmpeg_available() -> bool {
     Command::new("ffmpeg")
         .arg("-version")
@@ -137,17 +144,17 @@ async fn extract_parse_and_export() {
     };
     let out = tmp.path().join("whistles.gif");
     export::run_export(
-        "ffmpeg",
-        "gifsicle",
-        tmp.path(),
-        "job-test",
+        TOOLS,
+        export::JobSpec {
+            id: "job-test",
+            tmp_dir: tmp.path(),
+            out_path: &out,
+            source_title: None,
+        },
         &sample,
         &req,
         &cues,
         "/nonexistent/font.ttf",
-        135,
-        None,
-        &out,
     )
     .await
     .expect("export");
@@ -181,17 +188,17 @@ async fn export_with_audio_produces_an_opus_track() {
     };
     let out = tmp.path().join("with-audio.mp4");
     export::run_export(
-        "ffmpeg",
-        "gifsicle",
-        tmp.path(),
-        "job-audio-test",
+        TOOLS,
+        export::JobSpec {
+            id: "job-audio-test",
+            tmp_dir: tmp.path(),
+            out_path: &out,
+            source_title: None,
+        },
         &sample,
         &req,
         &[],
         "/nonexistent/font.ttf",
-        135,
-        None,
-        &out,
     )
     .await
     .expect("export");
@@ -240,20 +247,25 @@ async fn sequence_export_with_audio_handles_a_mute_clip() {
 
     let out = tmp.path().join("sequence-with-audio.mp4");
     export::run_sequence_export(
-        "ffmpeg",
-        "gifsicle",
-        "ffprobe",
-        tmp.path(),
-        "job-seq-audio-test",
+        TOOLS,
+        export::JobSpec {
+            id: "job-seq-audio-test",
+            tmp_dir: tmp.path(),
+            out_path: &out,
+            source_title: None,
+        },
+        &export::SequenceExportRequest {
+            clips: vec![],
+            format: Format::Mp4,
+            width: 240,
+            fps: 10,
+            quality: 80,
+            audio: true,
+            filename: None,
+            credit_source: true,
+        },
         &clips,
-        Format::Mp4,
-        240,
-        10,
-        80,
-        true,
         "/nonexistent/font.ttf",
-        None,
-        &out,
     )
     .await
     .expect("sequence export");
@@ -465,17 +477,17 @@ async fn exports_keep_nothing_from_the_source_but_the_credited_title() {
         };
         let out = tmp.path().join(name);
         export::run_export(
-            "ffmpeg",
-            "gifsicle",
-            tmp.path(),
-            &format!("job-{name}"),
+            TOOLS,
+            export::JobSpec {
+                id: &format!("job-{name}"),
+                tmp_dir: tmp.path(),
+                out_path: &out,
+                source_title: Some("The Lantern Cove - S02E03 - Tideline"),
+            },
             &source,
             &req,
             &[],
             "/nonexistent/font.ttf",
-            135,
-            Some("The Lantern Cove - S02E03 - Tideline"),
-            &out,
         )
         .await
         .unwrap_or_else(|e| panic!("{name}: {e:#}"));
@@ -518,17 +530,17 @@ async fn exports_keep_nothing_from_the_source_but_the_credited_title() {
     };
     let out = tmp.path().join("plain.mp4");
     export::run_export(
-        "ffmpeg",
-        "gifsicle",
-        tmp.path(),
-        "job-plain",
+        TOOLS,
+        export::JobSpec {
+            id: "job-plain",
+            tmp_dir: tmp.path(),
+            out_path: &out,
+            source_title: Some("The Lantern Cove - S02E03 - Tideline"),
+        },
         &source,
         &req,
         &[],
         "/nonexistent/font.ttf",
-        135,
-        Some("The Lantern Cove - S02E03 - Tideline"),
-        &out,
     )
     .await
     .unwrap();
@@ -567,20 +579,25 @@ async fn sequence_exports_keep_nothing_from_their_sources_either() {
     ] {
         let out = tmp.path().join(name);
         export::run_sequence_export(
-            "ffmpeg",
-            "gifsicle",
-            "ffprobe",
-            tmp.path(),
-            &format!("job-seq-{name}"),
+            TOOLS,
+            export::JobSpec {
+                id: &format!("job-seq-{name}"),
+                tmp_dir: tmp.path(),
+                out_path: &out,
+                source_title: Some("A (2019) / B - S01E02 - X"),
+            },
+            &export::SequenceExportRequest {
+                clips: vec![],
+                format,
+                width: 240,
+                fps: 10,
+                quality: 70,
+                audio,
+                filename: None,
+                credit_source: true,
+            },
             &clips,
-            format,
-            240,
-            10,
-            70,
-            audio,
             "/nonexistent/font.ttf",
-            Some("A (2019) / B - S01E02 - X"),
-            &out,
         )
         .await
         .unwrap_or_else(|e| panic!("{name}: {e:#}"));
@@ -671,17 +688,17 @@ async fn webm_export_with_audio_is_vp9_plus_opus_with_real_sound() {
     };
     let out = tmp.path().join("clip.webm");
     export::run_export(
-        "ffmpeg",
-        "gifsicle",
-        tmp.path(),
-        "job-webm-audio",
+        TOOLS,
+        export::JobSpec {
+            id: "job-webm-audio",
+            tmp_dir: tmp.path(),
+            out_path: &out,
+            source_title: None,
+        },
         &sample,
         &req,
         &[],
         "/nonexistent/font.ttf",
-        135,
-        None,
-        &out,
     )
     .await
     .expect("webm export");
@@ -726,20 +743,25 @@ async fn webm_sequence_with_audio_keeps_sound_across_a_silent_clip() {
     let clips = vec![clip(loud.clone()), clip(mute), clip(loud)];
     let out = tmp.path().join("seq.webm");
     export::run_sequence_export(
-        "ffmpeg",
-        "gifsicle",
-        "ffprobe",
-        tmp.path(),
-        "job-webm-seq-audio",
+        TOOLS,
+        export::JobSpec {
+            id: "job-webm-seq-audio",
+            tmp_dir: tmp.path(),
+            out_path: &out,
+            source_title: None,
+        },
+        &export::SequenceExportRequest {
+            clips: vec![],
+            format: Format::Webm,
+            width: 240,
+            fps: 10,
+            quality: 70,
+            audio: true,
+            filename: None,
+            credit_source: true,
+        },
         &clips,
-        Format::Webm,
-        240,
-        10,
-        70,
-        true,
         "/nonexistent/font.ttf",
-        None,
-        &out,
     )
     .await
     .expect("webm sequence export");
@@ -762,20 +784,25 @@ async fn webm_sequence_with_audio_keeps_sound_across_a_silent_clip() {
     // the same sequence as MP4: joins clean, and the audio runs as long as the video
     let mp4 = tmp.path().join("seq.mp4");
     export::run_sequence_export(
-        "ffmpeg",
-        "gifsicle",
-        "ffprobe",
-        tmp.path(),
-        "job-mp4-seq-audio",
+        TOOLS,
+        export::JobSpec {
+            id: "job-mp4-seq-audio",
+            tmp_dir: tmp.path(),
+            out_path: &mp4,
+            source_title: None,
+        },
+        &export::SequenceExportRequest {
+            clips: vec![],
+            format: Format::Mp4,
+            width: 240,
+            fps: 10,
+            quality: 70,
+            audio: true,
+            filename: None,
+            credit_source: true,
+        },
         &clips,
-        Format::Mp4,
-        240,
-        10,
-        70,
-        true,
         "/nonexistent/font.ttf",
-        None,
-        &mp4,
     )
     .await
     .expect("mp4 sequence export");
@@ -820,17 +847,17 @@ async fn burned_subtitles_over_a_window_with_no_lines_export_without_captions() 
         };
         let out = tmp.path().join(name);
         export::run_export(
-            "ffmpeg",
-            "gifsicle",
-            tmp.path(),
-            &format!("job-{name}"),
+            TOOLS,
+            export::JobSpec {
+                id: &format!("job-{name}"),
+                tmp_dir: tmp.path(),
+                out_path: &out,
+                source_title: None,
+            },
             &sample,
             &req,
             &cues,
             "/nonexistent/font.ttf",
-            135,
-            None,
-            &out,
         )
         .await
         .unwrap_or_else(|e| {
@@ -905,17 +932,17 @@ async fn a_chosen_font_and_size_are_used_for_both_kinds_of_caption() {
         };
         let out = tmp.path().join(format!("{name}.mp4"));
         export::run_export(
-            "ffmpeg",
-            "gifsicle",
-            tmp.path(),
-            &format!("job-{name}"),
+            TOOLS,
+            export::JobSpec {
+                id: &format!("job-{name}"),
+                tmp_dir: tmp.path(),
+                out_path: &out,
+                source_title: None,
+            },
             &sample,
             &req,
             &cues,
             font,
-            180,
-            None,
-            &out,
         )
         .await
         .unwrap_or_else(|e| panic!("{name}: {e:#}"));
@@ -939,17 +966,17 @@ async fn a_chosen_font_and_size_are_used_for_both_kinds_of_caption() {
     };
     let out = tmp.path().join("plain.mp4");
     export::run_export(
-        "ffmpeg",
-        "gifsicle",
-        tmp.path(),
-        "job-plain-font",
+        TOOLS,
+        export::JobSpec {
+            id: "job-plain-font",
+            tmp_dir: tmp.path(),
+            out_path: &out,
+            source_title: None,
+        },
         &sample,
         &plain,
         &[],
         font,
-        180,
-        None,
-        &out,
     )
     .await
     .unwrap();
@@ -1049,14 +1076,17 @@ async fn a_single_frame_comes_out_as_png_jpg_and_gif_with_its_caption() {
                 };
                 let out = tmp.join(&name);
                 export::run_still(
-                    "ffmpeg",
-                    &tmp,
-                    &format!("still-{name}"),
+                    TOOLS,
+                    export::JobSpec {
+                        id: &format!("still-{name}"),
+                        tmp_dir: &tmp,
+                        out_path: &out,
+                        source_title: None,
+                    },
                     &sample,
                     &req,
                     &cues,
                     font,
-                    &out,
                 )
                 .await
                 .unwrap_or_else(|e| panic!("{name}: {e:#}"));

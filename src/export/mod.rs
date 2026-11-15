@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use tracing::warn;
 
+mod caption;
 mod filters;
 mod request;
 mod run;
@@ -18,10 +19,8 @@ mod still;
 #[cfg(test)]
 mod tests;
 
+pub use self::caption::*;
 pub use self::filters::*;
 pub use self::request::*;
 pub use self::run::*;
 pub use self::still::*;
-
-/// `(srt_path, top_text_path, bottom_text_path, files_to_clean_up)`.
-type CaptionFilePaths = (Option<String>, Option<String>, Option<String>, CaptionFiles);

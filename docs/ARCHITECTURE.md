@@ -92,7 +92,9 @@ Orientation only: each file's own `//!` comment is the authoritative description
 | `api/mod.rs` | The router, `AppError` and shared helpers. |
 | `api/search.rs` | Libraries, dialogue search, title search and media details. |
 | `api/library.rs` | Library browsing (with the libraries and missing-subtitle filters), the Wanted list, stats and reindexing. |
-| `api/clips.rs` | Preview clips, single and sequence exports, jobs and downloads. |
+| `api/clips.rs` | Preview clips, single and sequence exports, job status and downloads. |
+| `api/source.rs` | What every clip request needs first: the item's source file (or the 404/400 to send) and the subtitle lines a caption will draw. |
+| `api/jobs.rs` | Queueing a background export job, running its work and recording how it ended (done, or failed and logged). |
 | `api/subtitle_api.rs` | Online subtitle search and download (Plex and Jellyfin), the Requests list, diagnosis and re-indexing one item. |
 | `api/settings.rs` | Media-server settings, the connection test and the folder browser (confined to `BROWSE_ROOTS`). |
 | `api/frames.rs` | Video facts (frame rate, size), single stills and filmstrips, for the editor's exact trimming, and `POST /api/still`, which saves one captioned frame as a PNG, JPG or GIF. |
@@ -140,7 +142,7 @@ Orientation only: each file's own `//!` comment is the authoritative description
 | Module | Purpose |
 |---|---|
 | `ffmpeg.rs` | Thin orchestration over `ffmpeg`/`ffprobe`: probing the video, stills and filmstrips, previews. Argument building is pure and unit-tested; running the process is not. |
-| `export/` | Turns a clip window or a sequence into WebP/MP4/WebM/GIF. `request.rs` holds the request types, limits and naming; `filters.rs` the pure filtergraph and metadata-stripping arguments; `run.rs` runs ffmpeg. |
+| `export/` | Turns a clip window or a sequence into WebP/MP4/WebM/GIF. `request.rs` holds the request types, limits and naming; `caption.rs` the small types that describe a caption (its window, style and temp files) and writes those files; `filters.rs` the pure filtergraph and metadata-stripping arguments; `run.rs` runs ffmpeg for clips and sequences (`Tools` and `JobSpec` carry the programs and the job's paths); `still.rs` does the same for a single frame. |
 | `preview_cache.rs` | Renders previews safely: to a temporary file, checked for completeness before it becomes a cache entry. |
 | `diskstats.rs` | Disk-usage helpers for the System tab. |
 

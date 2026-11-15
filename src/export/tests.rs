@@ -18,12 +18,16 @@ fn source_caption_adds_subtitles_filter() {
     let core = core_chain(
         480,
         15,
-        Some(&Caption::source(None)),
-        "/app/fonts/DejaVuSans.ttf",
-        Some("/data/tmp/abc.srt"),
-        None,
-        None,
-        270,
+        &CaptionSpec::new(
+            CaptionStyle::new(
+                Some(&Caption::source(None)),
+                "/app/fonts/DejaVuSans.ttf",
+                270,
+            ),
+            Some("/data/tmp/abc.srt"),
+            None,
+            None,
+        ),
     );
     assert!(core.contains("subtitles="));
     assert!(core.contains("abc.srt"));
@@ -46,15 +50,14 @@ fn source_caption_with_override_cues_replaces_indexed_lines() {
     let (_core, files) = prepare_captions(
         dir.path(),
         "job",
-        480,
-        15,
-        Some(&caption),
-        &indexed,
-        0,
-        1000,
-        0,
-        "/app/fonts/DejaVuSans.ttf",
-        270,
+        (480, 15),
+        CaptionStyle::new(Some(&caption), "/app/fonts/DejaVuSans.ttf", 270),
+        &CaptionWindow {
+            cues: &indexed,
+            start_ms: 0,
+            end_ms: 1000,
+            offset_ms: 0,
+        },
     )
     .unwrap();
     let srt = std::fs::read_to_string(files.srt.as_ref().unwrap()).unwrap();
@@ -74,15 +77,14 @@ fn source_caption_without_override_falls_back_to_passed_cues() {
     let (_core, files) = prepare_captions(
         dir.path(),
         "job2",
-        480,
-        15,
-        Some(&caption),
-        &indexed,
-        0,
-        1000,
-        0,
-        "/app/fonts/DejaVuSans.ttf",
-        270,
+        (480, 15),
+        CaptionStyle::new(Some(&caption), "/app/fonts/DejaVuSans.ttf", 270),
+        &CaptionWindow {
+            cues: &indexed,
+            start_ms: 0,
+            end_ms: 1000,
+            offset_ms: 0,
+        },
     )
     .unwrap();
     let srt = std::fs::read_to_string(files.srt.as_ref().unwrap()).unwrap();
@@ -95,12 +97,12 @@ fn meme_caption_adds_two_drawtext() {
     let core = core_chain(
         480,
         15,
-        Some(&cap),
-        "/app/fonts/Impact.ttf",
-        None,
-        Some("/data/tmp/t.txt"),
-        Some("/data/tmp/b.txt"),
-        270,
+        &CaptionSpec::new(
+            CaptionStyle::new(Some(&cap), "/app/fonts/Impact.ttf", 270),
+            None,
+            Some("/data/tmp/t.txt"),
+            Some("/data/tmp/b.txt"),
+        ),
     );
     assert_eq!(core.matches("drawtext=").count(), 2);
     assert!(core.contains("fontsize=40"));
@@ -241,12 +243,12 @@ fn clip_core_chain_scales_and_pads_to_canvas() {
         480,
         270,
         15,
-        None,
-        "/app/fonts/DejaVuSans.ttf",
-        None,
-        None,
-        None,
-        270,
+        &CaptionSpec::new(
+            CaptionStyle::new(None, "/app/fonts/DejaVuSans.ttf", 270),
+            None,
+            None,
+            None,
+        ),
     );
     assert!(core.contains("scale=480:270:force_original_aspect_ratio=decrease"));
     assert!(core.contains("pad=480:270"));
@@ -345,12 +347,12 @@ fn clip_core_chain_still_supports_captions() {
         480,
         270,
         15,
-        Some(&cap),
-        "/app/fonts/Impact.ttf",
-        None,
-        Some("/data/tmp/t.txt"),
-        None,
-        270,
+        &CaptionSpec::new(
+            CaptionStyle::new(Some(&cap), "/app/fonts/Impact.ttf", 270),
+            None,
+            Some("/data/tmp/t.txt"),
+            None,
+        ),
     );
     assert!(core.contains("drawtext="));
 }
@@ -508,15 +510,18 @@ fn a_window_with_no_subtitle_lines_burns_nothing_instead_of_an_empty_srt() {
     let (core, files) = prepare_captions(
         dir.path(),
         "empty-window",
-        480,
-        15,
-        Some(&Caption::source(None)),
-        &cues,
-        0,
-        1000,
-        0,
-        "/app/fonts/DejaVuSans.ttf",
-        270,
+        (480, 15),
+        CaptionStyle::new(
+            Some(&Caption::source(None)),
+            "/app/fonts/DejaVuSans.ttf",
+            270,
+        ),
+        &CaptionWindow {
+            cues: &cues,
+            start_ms: 0,
+            end_ms: 1000,
+            offset_ms: 0,
+        },
     )
     .unwrap();
     assert!(files.srt.is_none());
@@ -527,15 +532,18 @@ fn a_window_with_no_subtitle_lines_burns_nothing_instead_of_an_empty_srt() {
     let (core, files) = prepare_captions(
         dir.path(),
         "all-deleted",
-        480,
-        15,
-        Some(&Caption::source(Some(vec![]))),
-        &cues,
-        0,
-        1000,
-        0,
-        "/app/fonts/DejaVuSans.ttf",
-        270,
+        (480, 15),
+        CaptionStyle::new(
+            Some(&Caption::source(Some(vec![]))),
+            "/app/fonts/DejaVuSans.ttf",
+            270,
+        ),
+        &CaptionWindow {
+            cues: &cues,
+            start_ms: 0,
+            end_ms: 1000,
+            offset_ms: 0,
+        },
     )
     .unwrap();
     assert!(files.srt.is_none() && !core.contains("subtitles="));
@@ -552,15 +560,18 @@ fn caption_files_are_removed_when_dropped() {
     let (_core, files) = prepare_captions(
         dir.path(),
         "dropped",
-        480,
-        15,
-        Some(&Caption::source(None)),
-        &cues,
-        0,
-        1000,
-        0,
-        "/app/fonts/DejaVuSans.ttf",
-        270,
+        (480, 15),
+        CaptionStyle::new(
+            Some(&Caption::source(None)),
+            "/app/fonts/DejaVuSans.ttf",
+            270,
+        ),
+        &CaptionWindow {
+            cues: &cues,
+            start_ms: 0,
+            end_ms: 1000,
+            offset_ms: 0,
+        },
     )
     .unwrap();
     assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
@@ -596,12 +607,12 @@ fn a_chosen_font_is_named_by_family_and_its_folder_is_searched() {
     let chain = core_chain(
         480,
         15,
-        Some(&cap),
-        TEST_FONT,
-        Some("/data/tmp/a.srt"),
-        None,
-        None,
-        270,
+        &CaptionSpec::new(
+            CaptionStyle::new(Some(&cap), TEST_FONT, 270),
+            Some("/data/tmp/a.srt"),
+            None,
+            None,
+        ),
     );
     assert!(chain.contains("FontName=Meme Test Sans"), "{chain}");
     assert!(
@@ -641,8 +652,18 @@ fn text_size_scales_subtitles_and_meme_text() {
         font: None,
         font_scale: scale,
     };
-    let chain =
-        |c: &Caption| core_chain(480, 15, Some(c), "/f.ttf", None, Some("/t.txt"), None, 270);
+    let chain = |c: &Caption| {
+        core_chain(
+            480,
+            15,
+            &CaptionSpec::new(
+                CaptionStyle::new(Some(c), "/f.ttf", 270),
+                None,
+                Some("/t.txt"),
+                None,
+            ),
+        )
+    };
     assert!(chain(&meme(100)).contains("fontsize=36"));
     assert!(chain(&meme(150)).contains("fontsize=54"));
     assert!(chain(&meme(50)).contains("fontsize=18"));
@@ -682,11 +703,12 @@ fn still_chain(format: StillFormat, width: u32, caption: Option<&Caption>) -> St
     still_filter(
         format,
         width,
-        caption,
-        "/f/Sans.ttf",
-        Some("/t/a.srt"),
-        Some("/t/top.txt"),
-        None,
+        &CaptionSpec::new(
+            CaptionStyle::new(caption, "/f/Sans.ttf", height_hint_for(width)),
+            Some("/t/a.srt"),
+            Some("/t/top.txt"),
+            None,
+        ),
     )
 }
 

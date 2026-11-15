@@ -25,28 +25,6 @@ fn video_info_cache() -> &'static Mutex<HashMap<PathBuf, ffmpeg::VideoInfo>> {
     CACHE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-/// The source file of an indexed item, or the response to send instead.
-async fn source_file(
-    st: &AppState,
-    rating_key: String,
-) -> Result<std::result::Result<(db::Media, PathBuf), Response>, AppError> {
-    let pool = st.pool.clone();
-    let m = tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
-        let conn = pool.get()?;
-        db::get_media(&conn, &rating_key)
-    })
-    .await??;
-    let Some(m) = m else {
-        return Ok(Err(not_found("media not indexed")));
-    };
-    match paths::resolve(&m.file_path, &st.mappings()) {
-        paths::AccessMode::Direct(p) => Ok(Ok((m, p))),
-        paths::AccessMode::NotMounted => Ok(Err(bad_request(
-            "source file is not on a mounted volume; check your path mappings in Settings",
-        ))),
-    }
-}
-
 fn jpeg(bytes: Vec<u8>) -> Response {
     (
         [
@@ -65,7 +43,7 @@ pub(super) async fn video_info(
     State(st): State<AppState>,
     Path(rating_key): Path<String>,
 ) -> Result<Response, AppError> {
-    let (m, file) = match source_file(&st, rating_key).await? {
+    let (m, file) = match resolve_source(&st, &rating_key).await? {
         Ok(found) => found,
         Err(resp) => return Ok(resp),
     };
@@ -119,7 +97,7 @@ pub(super) async fn frame(
         return Ok(bad_request("t must not be negative"));
     }
     let width = p.width.clamp(80, 1280);
-    let (m, file) = match source_file(&st, rating_key).await? {
+    let (m, file) = match resolve_source(&st, &rating_key).await? {
         Ok(found) => found,
         Err(resp) => return Ok(resp),
     };
@@ -168,7 +146,7 @@ pub(super) async fn filmstrip(
     }
     let count = p.count.clamp(2, 40);
     let height = p.height.clamp(24, 160);
-    let (_, file) = match source_file(&st, rating_key).await? {
+    let (_, file) = match resolve_source(&st, &rating_key).await? {
         Ok(found) => found,
         Err(resp) => return Ok(resp),
     };
@@ -188,7 +166,7 @@ pub(super) async fn still_export(
     if req.t_ms < 0 {
         return Ok(bad_request("t_ms must not be negative"));
     }
-    let (m, file) = match source_file(&st, req.rating_key.clone()).await? {
+    let (m, file) = match resolve_source(&st, &req.rating_key).await? {
         Ok(found) => found,
         Err(resp) => return Ok(resp),
     };
@@ -200,46 +178,35 @@ pub(super) async fn still_export(
         Err(msg) => return Ok(bad_request(msg)),
     };
     // The indexed subtitle lines around that moment, unless the editor sent its own.
-    let cues = if matches!(
-        req.caption,
-        Some(export::Caption::Source { cues: None, .. })
-    ) {
-        let pool = st.pool.clone();
-        let media_id = m.id;
-        let pad = req.subtitle_offset_ms.abs();
-        let t = req.t_ms;
-        tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
-            let conn = pool.get()?;
-            db::cues_in_window(&conn, media_id, t - pad, t + 1 + pad)
-        })
-        .await??
-    } else {
-        Vec::new()
-    };
+    let moment = (req.t_ms, req.t_ms + 1);
+    let cues = source_cues_for(
+        &st,
+        m.id,
+        req.caption.as_ref(),
+        moment,
+        req.subtitle_offset_ms,
+    )
+    .await?;
 
     let id = uuid::Uuid::new_v4().to_string();
-    let filename = export::safe_filename_ext(req.filename.as_deref(), req.format.ext(), &id[..8]);
-    let out_path = st.config.output_dir.join(&filename);
+    let files = JobFiles::with_ext(&st, req.filename.as_deref(), req.format.ext(), &id);
+    let tmp = st.config.tmp_dir();
     let _slot = still_slots().acquire().await?;
-    if let Err(e) = export::run_still(
-        &st.config.ffmpeg_bin,
-        &st.config.tmp_dir(),
-        &id,
-        &file,
-        &req,
-        &cues,
-        &font_path,
-        &out_path,
-    )
-    .await
-    {
-        report_export_failure(&st, "Frame export", &out_path, &e);
+    let job = export::JobSpec {
+        id: &id,
+        tmp_dir: &tmp,
+        out_path: &files.out_path,
+        source_title: None,
+    };
+    if let Err(e) = export::run_still(tools(&st), job, &file, &req, &cues, &font_path).await {
+        report_export_failure(&st, "Frame export", &files.out_path, &e);
         return Err(e.into());
     }
+    let filename = &files.filename;
     Ok(Json(json!({
         "filename": filename,
         "format": req.format.ext(),
-        "download_path": format!("{}/api/download/{filename}", st.config.url_base),
+        "download_path": files.download,
     }))
     .into_response())
 }
