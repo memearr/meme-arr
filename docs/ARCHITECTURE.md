@@ -170,8 +170,11 @@ renders. Built with Vite; `npm run build` emits static files the Rust binary ser
 
 - `web/src/main.jsx` mounts `<App />`; `web/src/App.jsx` is the shell: the auth gate (setup or login
   screen), the sidebar and top bar, and which tab is showing.
-- **One component file per area**: `Editor.jsx` (the editor: player, `Timeline.jsx`, `TrimPanel.jsx` for exact
-  In/Out, `FrameCheck.jsx`, subtitle lines, captions, export), `SequenceView.jsx` (the sequence as a
+- **One component file per area**: `Editor.jsx` (the editor; it holds the state and the wiring and is made of
+  `PlayerPanel.jsx`, `Timeline.jsx`, `TrimPanel.jsx` for exact In/Out, `FrameCheck.jsx`, `CueBrowser.jsx`,
+  `CueEditor.jsx`, `CaptionPanel.jsx`, `ExportSettings.jsx`, `FrameSaver.jsx`, `ExportBar.jsx` and
+  `JobResult.jsx`; the hooks `useTrim.js` (In/Out with undo and redo) and `usePreviewProxy.js` (the working
+  preview render) and `editorStorage.js` hold the logic that is not drawing), `SequenceView.jsx` (the sequence as a
   set, built from `SequencePlayer.jsx`, `SequenceTimeline.jsx`, `SectionEditor.jsx` and
   `SequenceBulkEdit.jsx`), `BazarrActions.jsx` and `BazarrSettingsPanel.jsx` (Bazarr),
   `ConnectionPanel.jsx` (Settings → Check this connection), `CopyButton.jsx`,

@@ -2,93 +2,35 @@ import BazarrActions from "./BazarrActions.jsx";
 import SubtitleSearch from "./SubtitleSearch.jsx";
 import { FrameCheck } from "./FrameCheck.jsx";
 import { Timeline } from "./Timeline.jsx";
-import { TrimPanel, ValueField } from "./TrimPanel.jsx";
+import { TrimPanel } from "./TrimPanel.jsx";
 import { AUDIO_FORMATS } from "./clipSettings.js";
 import { PADDING_MS } from "./clipSettings.js";
 import { api } from "./api.js";
+import { CaptionPanel } from "./CaptionPanel.jsx";
+import { CueBrowser } from "./CueBrowser.jsx";
+import { CueEditor } from "./CueEditor.jsx";
+import { ExportSettings } from "./ExportSettings.jsx";
+import { ExportBar } from "./ExportBar.jsx";
+import { FrameSaver } from "./FrameSaver.jsx";
+import { PlayerPanel } from "./PlayerPanel.jsx";
+import { JobResult } from "./JobResult.jsx";
+import { browserStorage, loadVolume, saveVolume, typingInto } from "./editorStorage.js";
 import { captionMetrics, containedRect } from "./captionPreview.js";
 import { effective, newCue, overlaps, retimeCue, shiftCues, sortCues, splitCue, textAt } from "./cueEdit.js";
 import { useBazarrConfigured } from "./bazarr.js";
-import {
-  SCALE_DEFAULT,
-  SCALE_MAX,
-  SCALE_MIN,
-  SCALE_STEP,
-  fontOptions,
-  loadFontChoice,
-  saveFontChoice,
-  usableFont,
-} from "./fonts.js";
+import { loadFontChoice, saveFontChoice, usableFont } from "./fonts.js";
 import { episodeLabel, fmtTime } from "./format.js";
-import { findCueMatches, stepMatch } from "./cueFind.js";
 import { editorSeed, updatedClip } from "./sequenceClip.js";
 import {
   MAX_CLIP_MS,
-  clampTrim,
   fitView,
-  formatTimecode,
   fpsOf,
-  fpsValue,
-  parseTimecode,
   stepFrames,
   zoomView,
 } from "./timecode.js";
+import { usePreviewProxy } from "./usePreviewProxy.js";
+import { useTrim } from "./useTrim.js";
 import { useEffect, useRef, useState } from "react";
-
-/** localStorage, or null where the browser won't give it out. */
-function browserStorage() {
-  try {
-    return window.localStorage;
-  } catch (_) {
-    return null;
-  }
-}
-
-/** The editor never grows a clip past what the server will preview in one go. */
-const PREVIEW_MAX_MS = 60_000;
-/** Footage rendered either side of the clip, so trimming wider needs no new render. */
-const PROXY_PAD_MS = 3000;
-/** The picture-only working copy is drawn this wide: small, so it renders fast. */
-const PROXY_WIDTH = 480;
-const SPEEDS = [0.25, 0.5, 1];
-
-function Nudge({ label, onNudge }) {
-  const steps = [-500, -100, 100, 500];
-  return (
-    <div className="nudge">
-      <span>{label}</span>
-      {steps.map((s) => (
-        <button key={s} type="button" onClick={() => onNudge(s)}>
-          {s > 0 ? `+${s}` : s}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/** True when a key press is meant for a text box, not for the editor's shortcuts. */
-function loadVolume(store) {
-  try {
-    const v = JSON.parse(store?.getItem("memearr.volume") || "null");
-    if (v && typeof v.level === "number") return { level: Math.min(1, Math.max(0, v.level)), muted: !!v.muted };
-  } catch (_) {
-    /* fall through */
-  }
-  return { level: 0.7, muted: false };
-}
-function saveVolume(store, v) {
-  try {
-    store?.setItem("memearr.volume", JSON.stringify(v));
-  } catch (_) {
-    /* a convenience only */
-  }
-}
-
-function typingInto(el) {
-  if (!el) return false;
-  const tag = el.tagName;
-  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
-}
 
 /**
  * `sequenceEdit` (optional) opens a clip that is already in a sequence: the
@@ -100,8 +42,6 @@ function typingInto(el) {
 export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) {
   const seed = sequenceEdit ? editorSeed(sequenceEdit.clip) : null;
   const hasInitialTiming = item.start_ms != null && item.end_ms != null;
-  const [start, setStart] = useState(hasInitialTiming ? item.start_ms : 0);
-  const [end, setEnd] = useState(hasInitialTiming ? item.end_ms : 5000);
   const [width, setWidth] = useState(sequenceEdit?.output?.width ?? 480);
   const [fps, setFps] = useState(sequenceEdit?.output?.fps ?? 15);
   const [quality, setQuality] = useState(80);
@@ -136,6 +76,14 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   const [stillWidth, setStillWidth] = useState(960);
   const [still, setStill] = useState(null); // { busy } | { error } | { filename, download_path, at }
 
+  // ---- the trim (In/Out, with undo and redo) ---------------------------------
+  const [mediaDuration, setMediaDuration] = useState(null); // total runtime, once known
+  const { start, end, setStart, setEnd, history, trim, undo, redo } = useTrim({
+    initialStart: hasInitialTiming ? item.start_ms : 0,
+    initialEnd: hasInitialTiming ? item.end_ms : 5000,
+    mediaDuration,
+  });
+
   // ---- the file's own frame rate, the timeline and the playhead ------------
   const [videoInfo, setVideoInfo] = useState(null);
   const srcFps = fpsOf(videoInfo); // { num, den } or null until known
@@ -146,25 +94,11 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   const [ready, setReady] = useState(false); // the starting window has been chosen
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
-  // Undo/redo of the trim: the states before and after the present one.
-  const [history, setHistory] = useState({ past: [], future: [] });
-  const gesture = useRef(null); // the trim as it was before the change under way
 
   // ---- the working preview -------------------------------------------------
   // One picture-only render of the clip plus some footage either side. Moving
   // the In/Out points inside it needs no new render: the player just seeks. A
   // new render is only made when the clip leaves what was rendered.
-  const [proxy, setProxy] = useState(null); // { src, from, to }
-  const [proxyLoading, setProxyLoading] = useState(false);
-  const [previewError, setPreviewError] = useState(null);
-  const [previewStalled, setPreviewStalled] = useState(false);
-  const previewUrlRef = useRef(null);
-  const previewSeq = useRef(0);
-  const previewAbort = useRef(null);
-  const previewStarted = useRef(false);
-  const videoRef = useRef(null);
-  const proxyRef = useRef(null);
-  proxyRef.current = proxy;
   // Sound, for the player only (not the export). The preview carries the clip's audio.
   const [volume, setVolume] = useState(() => loadVolume(browserStorage()));
   // Where the picture sits inside the player (it is letterboxed), so the caption
@@ -173,16 +107,31 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
 
   // Media-wide context: total runtime + every subtitle line, so the user can
   // jump to a specific moment instead of only nudging by fixed increments.
-  const [mediaDuration, setMediaDuration] = useState(null);
   const [allCues, setAllCues] = useState([]);
   const [cuesReload, setCuesReload] = useState(0); // bumped when a subtitle is indexed for this item
-  const [showCues, setShowCues] = useState(false);
-  const [cueFind, setCueFind] = useState("");
-  const [findIndex, setFindIndex] = useState(-1); // position within cueMatches, not allCues
-  const cueItemRefs = useRef([]);
 
   const clipLength = Math.max(0, end - start);
   const tooLong = clipLength > MAX_CLIP_MS;
+  const {
+    proxy,
+    proxyLoading,
+    previewError,
+    setPreviewError,
+    previewStalled,
+    setPreviewStalled,
+    previewStarted,
+    videoRef,
+    proxyRef,
+  } = usePreviewProxy({
+    ratingKey: item.rating_key,
+    width,
+    srcFps,
+    ready,
+    start,
+    end,
+    mediaDuration,
+    tooLong,
+  });
 
   // Indexed lines currently overlapping the clip window (offset-adjusted, so
   // a line the sync correction just pulled into view shows up here too).
@@ -190,46 +139,6 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   // What's actually shown for editing: the user's edits once they've started,
   // else the indexed lines as a starting point.
   const displayCues = editedCues ?? clipCues;
-
-  // ---- trimming ---------------------------------------------------------
-
-  /**
-   * Set the trim. `commit` false is a change still under way (a drag, a half-typed
-   * time); true ends it and makes it one undo step. `moved` is the edge the
-   * caller changed, which decides which one gives way if they collide.
-   */
-  function trim(s, e, commit = true, moved = "end") {
-    const t = clampTrim(Math.round(s), Math.round(e), mediaDuration || 0, moved);
-    if (!gesture.current) gesture.current = { start, end };
-    setStart(t.start);
-    setEnd(t.end);
-    if (commit) {
-      const before = gesture.current;
-      gesture.current = null;
-      if (before.start !== t.start || before.end !== t.end) {
-        setHistory((h) => ({ past: [...h.past, before].slice(-100), future: [] }));
-      }
-    }
-  }
-
-  function undo() {
-    setHistory((h) => {
-      if (h.past.length === 0) return h;
-      const prev = h.past[h.past.length - 1];
-      setStart(prev.start);
-      setEnd(prev.end);
-      return { past: h.past.slice(0, -1), future: [{ start, end }, ...h.future] };
-    });
-  }
-  function redo() {
-    setHistory((h) => {
-      if (h.future.length === 0) return h;
-      const next = h.future[0];
-      setStart(next.start);
-      setEnd(next.end);
-      return { past: [...h.past, { start, end }], future: h.future.slice(1) };
-    });
-  }
 
   // ---- editing the burned lines ---------------------------------------------
 
@@ -314,68 +223,6 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   }, [font, fontScale]);
 
   // ---- the working preview: render only when the clip leaves it --------------
-
-  async function renderProxy(wStart, wEnd) {
-    // A newer request replaces an older one: cancel it (the server stops
-    // rendering it) and never let its answer arrive after the newer one's.
-    previewAbort.current?.abort();
-    const ctrl = new AbortController();
-    previewAbort.current = ctrl;
-    const seq = ++previewSeq.current;
-    setProxyLoading(true);
-    setPreviewError(null);
-    setPreviewStalled(false);
-    previewStarted.current = false;
-    try {
-      const url = await api.fetchBlobUrl(
-        api.previewUrl(item.rating_key, {
-          start: wStart,
-          end: wEnd,
-          width: Math.min(width, PROXY_WIDTH),
-          fps: srcFps ? Math.min(30, Math.max(8, Math.round(fpsValue(srcFps)))) : 24,
-          captionMode: "none",
-        }),
-        ctrl.signal
-      );
-      if (seq !== previewSeq.current) {
-        URL.revokeObjectURL(url); // superseded while it was loading
-        return;
-      }
-      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
-      previewUrlRef.current = url;
-      setProxy({ src: url, from: wStart, to: wEnd });
-    } catch (e) {
-      if (e.name === "AbortError" || seq !== previewSeq.current) return;
-      setProxy(null);
-      setPreviewError(e.message);
-    } finally {
-      if (seq === previewSeq.current) setProxyLoading(false);
-    }
-  }
-
-  // Keep a render that covers the clip. Anything inside the current one is free;
-  // otherwise render again a moment after the trim stops moving.
-  useEffect(() => {
-    if (!ready || tooLong || end <= start) return undefined;
-    if (proxy && start >= proxy.from && end <= proxy.to) return undefined;
-    const pad = Math.max(0, Math.min(PROXY_PAD_MS, Math.floor((PREVIEW_MAX_MS - (end - start)) / 2)));
-    const wStart = Math.max(0, start - pad);
-    let wEnd = end + pad;
-    if (mediaDuration > 0) wEnd = Math.min(mediaDuration, wEnd);
-    const t = setTimeout(() => renderProxy(wStart, wEnd), 350);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, start, end, proxy, mediaDuration, tooLong]);
-
-  // A render that is on screen but never starts (the thing that looks like a
-  // button that does nothing): say so after a few seconds instead of leaving it.
-  useEffect(() => {
-    if (!proxy) return undefined;
-    const t = setTimeout(() => {
-      if (!previewStarted.current) setPreviewStalled(true);
-    }, 6000);
-    return () => clearTimeout(t);
-  }, [proxy]);
 
   // Volume and mute apply to whichever video element is on screen.
   useEffect(() => {
@@ -470,8 +317,6 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   useEffect(
     () => () => {
       clearInterval(pollRef.current);
-      previewAbort.current?.abort();
-      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
     },
     []
   );
@@ -624,7 +469,6 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
 
   function jumpToCue(cue) {
     trim(Math.max(0, cue.start_ms - PADDING_MS), cue.end_ms + PADDING_MS, true, "end");
-    setShowCues(false);
   }
 
   // A subtitle was just indexed for this item: pull the new lines in.
@@ -641,33 +485,6 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cuesReload]);
-
-  const cueMatches = findCueMatches(allCues, cueFind);
-  const currentMatchCueIndex = findIndex >= 0 ? cueMatches[findIndex] : -1;
-
-  useEffect(() => {
-    setFindIndex(cueMatches.length > 0 ? 0 : -1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cueFind, allCues]);
-
-  useEffect(() => {
-    if (currentMatchCueIndex < 0) return;
-    cueItemRefs.current[currentMatchCueIndex]?.scrollIntoView({
-      block: "center",
-      behavior: "smooth",
-    });
-  }, [currentMatchCueIndex]);
-
-  function goToMatch(delta) {
-    if (cueMatches.length === 0) return;
-    setFindIndex((i) => stepMatch(i, delta, cueMatches.length));
-  }
-
-  function handleFindKeyDown(e) {
-    if (e.key !== "Enter") return;
-    e.preventDefault();
-    goToMatch(e.shiftKey ? -1 : 1);
-  }
 
   function buildCaption() {
     return captionMode === "none"
@@ -857,138 +674,36 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
 
       <div className="editor-grid">
         <div className="editor-stage">
-          <div className="player">
-            <div className="preview">
-              {previewError && (
-                <div className="placeholder preview-error">
-                  <div>⚠ Preview failed</div>
-                  <p className="error">{previewError}</p>
-                </div>
-              )}
-              {!previewError && proxy && (
-                <div className="player-stage">
-                  <video
-                    key={proxy.src}
-                    ref={videoRef}
-                    src={proxy.src}
-                    playsInline
-                    onLoadedMetadata={measurePicture}
-                    onLoadedData={proxyLoaded}
-                    onPlay={() => setPlaying(true)}
-                    onPause={() => setPlaying(false)}
-                    onSeeked={() => {
-                      if (!playing) {
-                        const now = mediaTimeNow();
-                        if (now != null) setPlayhead(now);
-                      }
-                    }}
-                    onError={() =>
-                      setPreviewError(
-                        "The preview file was generated but this browser couldn't decode it " +
-                          "(likely an unusual pixel format or codec quirk in the source). " +
-                          "Exporting may still work — try a smaller width or a different format."
-                      )
-                    }
-                  />
-                  {capStyle && (
-                    <div className="cap-layer" style={capStyle.layer}>
-                      {captionMode === "source" && overlayText && (
-                        <div className="cap-overlay cap-bottom" style={capStyle.bottom}>
-                          {overlayText}
-                        </div>
-                      )}
-                      {captionMode === "meme" && top && (
-                        <div className="cap-overlay cap-top" style={capStyle.top}>
-                          {top}
-                        </div>
-                      )}
-                      {captionMode === "meme" && bottom && (
-                        <div className="cap-overlay cap-bottom" style={capStyle.bottom}>
-                          {bottom}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  <span className="player-chip mono">
-                    {fmtTime(playhead)}
-                    {srcFps ? ` · f${Math.round((playhead * srcFps.num) / (1000 * srcFps.den))}` : ""}
-                  </span>
-                </div>
-              )}
-              {!previewError && !proxy && (
-                <div className="placeholder">{proxyLoading ? "Preparing the preview…" : "Preview will appear here"}</div>
-              )}
-              {previewStalled && !previewError && (
-                <p className="hint preview-stalled" role="status">
-                  The preview hasn't started. Move the clip a little to render it again; if it keeps happening,
-                  the server log (System → Logs) says why.
-                </p>
-              )}
-            </div>
-
-            <div className="transport">
-              <button type="button" className="tp" onClick={() => seekTo(start)} aria-label="Go to In point" title="Go to In">
-                ⏮
-              </button>
-              <button type="button" className="tp" onClick={() => stepPlayhead(-1)} aria-label="Back one frame" title="Back one frame (,)">
-                ◀
-              </button>
-              <button
-                type="button"
-                className="tp hot"
-                onClick={togglePlay}
-                aria-label={playing ? "Pause" : "Play the clip"}
-                title="Play / pause (Space)"
-                disabled={!proxy}
-              >
-                {playing ? "⏸" : "▶"}
-              </button>
-              <button type="button" className="tp" onClick={() => stepPlayhead(1)} aria-label="Forward one frame" title="Forward one frame (.)">
-                ▶
-              </button>
-              <button type="button" className="tp" onClick={() => seekTo(Math.max(start, end - 1))} aria-label="Go to Out point" title="Go to Out">
-                ⏭
-              </button>
-              <label className="tp-speed">
-                Speed
-                <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
-                  {SPEEDS.map((s) => (
-                    <option key={s} value={s}>
-                      {s}×
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="tp-volume">
-                <button
-                  type="button"
-                  className="tp"
-                  onClick={() => setVolume((v) => ({ ...v, muted: !v.muted }))}
-                  aria-label={volume.muted || volume.level === 0 ? "Turn sound on" : "Mute"}
-                  aria-pressed={volume.muted}
-                  title={volume.muted ? "Sound is off (click to turn on)" : "Sound is on (click to mute)"}
-                >
-                  {volume.muted || volume.level === 0 ? "🔇" : volume.level < 0.4 ? "🔈" : "🔊"}
-                </button>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  value={volume.muted ? 0 : volume.level}
-                  aria-label="Volume"
-                  onChange={(e) => {
-                    const level = Number(e.target.value);
-                    setVolume({ level, muted: level === 0 });
-                  }}
-                />
-              </div>
-              <span className="tp-spacer" />
-              <span className={"player-status" + (proxyLoading ? " busy" : "")} role="status">
-                {proxyLoading ? "Updating preview…" : "Preview in sync"}
-              </span>
-            </div>
-          </div>
+          <PlayerPanel
+            previewError={previewError}
+            setPreviewError={setPreviewError}
+            proxy={proxy}
+            proxyLoading={proxyLoading}
+            previewStalled={previewStalled}
+            videoRef={videoRef}
+            measurePicture={measurePicture}
+            proxyLoaded={proxyLoaded}
+            playing={playing}
+            setPlaying={setPlaying}
+            setPlayhead={setPlayhead}
+            mediaTimeNow={mediaTimeNow}
+            capStyle={capStyle}
+            captionMode={captionMode}
+            overlayText={overlayText}
+            top={top}
+            bottom={bottom}
+            playhead={playhead}
+            srcFps={srcFps}
+            seekTo={seekTo}
+            start={start}
+            end={end}
+            stepPlayhead={stepPlayhead}
+            togglePlay={togglePlay}
+            speed={speed}
+            setSpeed={setSpeed}
+            volume={volume}
+            setVolume={setVolume}
+          />
           <FrameSaver
             format={stillFormat}
             onFormat={setStillFormat}
@@ -1064,346 +779,81 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
           <SubtitleSearch itemId={item.rating_key} onIndexed={() => setCuesReload((n) => n + 1)} />
           <BazarrActions itemId={item.rating_key} onChanged={() => setCuesReload((n) => n + 1)} />
 
-          {allCues.length > 0 && (
-            <div className="cue-browser">
-              <button type="button" className="secondary" onClick={() => setShowCues((v) => !v)}>
-                {showCues ? "▾" : "▸"} Browse subtitles ({allCues.length} lines)
-              </button>
-              {showCues && (
-                <div className="cue-list-wrap">
-                  <div className="cue-find-row">
-                    <input
-                      className="cue-filter"
-                      placeholder="Find in subtitles… (Enter for next)"
-                      value={cueFind}
-                      onChange={(e) => setCueFind(e.target.value)}
-                      onKeyDown={handleFindKeyDown}
-                    />
-                    <button
-                      type="button"
-                      className="cue-find-btn"
-                      title="Previous match (Shift+Enter)"
-                      disabled={cueMatches.length === 0}
-                      onClick={() => goToMatch(-1)}
-                    >
-                      ▲
-                    </button>
-                    <button
-                      type="button"
-                      className="cue-find-btn"
-                      title="Next match (Enter)"
-                      disabled={cueMatches.length === 0}
-                      onClick={() => goToMatch(1)}
-                    >
-                      ▼
-                    </button>
-                    {cueFind.trim() && (
-                      <span className="cue-find-status">
-                        {cueMatches.length > 0 ? `${findIndex + 1} of ${cueMatches.length}` : "No matches"}
-                      </span>
-                    )}
-                  </div>
-                  <ul className="cue-list">
-                    {allCues.map((c, i) => (
-                      <li key={i}>
-                        <button
-                          type="button"
-                          ref={(el) => {
-                            // A block, not an expression: React 19 treats a returned
-                            // function as this ref's cleanup, so return nothing.
-                            cueItemRefs.current[i] = el;
-                          }}
-                          className={"cue-item" + (i === currentMatchCueIndex ? " current-match" : "")}
-                          onClick={() => jumpToCue(c)}
-                        >
-                          <span className="cue-ts">{fmtTime(c.start_ms)}</span>
-                          <span className="cue-text">{c.text}</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
+          <CueBrowser allCues={allCues} onJump={jumpToCue} />
         </div>
 
         <div className="editor-side">
           <div className="controls">
-            <fieldset>
-              <legend>Captions</legend>
-              <label>
-                <input type="radio" checked={captionMode === "none"} onChange={() => setCaptionMode("none")} />
-                None
-              </label>
-              <label>
-                <input type="radio" checked={captionMode === "source"} onChange={() => setCaptionMode("source")} />
-                Burn subtitles
-              </label>
-              <label>
-                <input type="radio" checked={captionMode === "meme"} onChange={() => setCaptionMode("meme")} />
-                Meme text
-              </label>
-              {captionMode !== "none" && (
-                <div className="font-controls">
-                  <label>
-                    Font
-                    <select value={font} onChange={(e) => setFont(e.target.value)}>
-                      {fontOptions(fontList.fonts, fontList.default).map((o) => (
-                        <option key={o.id} value={o.id}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Text size <b>{fontScale}%</b>
-                    <input
-                      type="range"
-                      min={SCALE_MIN}
-                      max={SCALE_MAX}
-                      step={SCALE_STEP}
-                      value={fontScale}
-                      onChange={(e) => setFontScale(Number(e.target.value))}
-                    />
-                  </label>
-                  {fontScale !== SCALE_DEFAULT && (
-                    <button type="button" className="link" onClick={() => setFontScale(SCALE_DEFAULT)}>
-                      reset size
-                    </button>
-                  )}
-                  <p className="hint tiny">
-                    Add fonts in Settings. The player shows the size and position the export will use; the
-                    typeface itself is only matched in the exported file.
-                  </p>
-                </div>
-              )}
-              {captionMode === "meme" && (
-                <div className="meme-inputs">
-                  <input placeholder="Top text" value={top} onChange={(e) => setTop(e.target.value)} />
-                  <input placeholder="Bottom text" value={bottom} onChange={(e) => setBottom(e.target.value)} />
-                </div>
-              )}
-              {captionMode === "source" && (
-                <div className="sync-control">
-                  <div className="sync-value">
-                    Subtitle sync:{" "}
-                    <b>
-                      {subtitleOffsetMs > 0 ? "+" : ""}
-                      {subtitleOffsetMs}ms
-                    </b>
-                    {subtitleOffsetMs !== 0 && (
-                      <button type="button" className="link" onClick={() => setSubtitleOffsetMs(0)}>
-                        reset
-                      </button>
-                    )}
-                  </div>
-                  <Nudge label="Sync" onNudge={(d) => setSubtitleOffsetMs((v) => v + d)} />
-                  {bazarrOn && (
-                    <div className="btn-row">
-                      <button
-                        type="button"
-                        className="small secondary"
-                        disabled={subtitleOffsetMs === 0 || applying}
-                        onClick={applyToSubtitleFile}
-                        title="Ask Bazarr to shift the subtitle file itself by this amount"
-                      >
-                        {applying ? "Applying…" : "Apply to the subtitle file (Bazarr)"}
-                      </button>
-                    </div>
-                  )}
-                  {applyNote && (
-                    <p className={applyNote.ok ? "hint tiny" : "error"} role="status">
-                      {applyNote.text}
-                    </p>
-                  )}
-                  <p className="hint tiny">
-                    Positive delays subtitles (later), negative advances them (earlier) — use if the
-                    indexed timing drifts from this video. The timeline and player show the change as you make it.
-                  </p>
-                </div>
-              )}
-            </fieldset>
+            <CaptionPanel
+              captionMode={captionMode}
+              setCaptionMode={setCaptionMode}
+              font={font}
+              setFont={setFont}
+              fontList={fontList}
+              fontScale={fontScale}
+              setFontScale={setFontScale}
+              top={top}
+              setTop={setTop}
+              bottom={bottom}
+              setBottom={setBottom}
+              subtitleOffsetMs={subtitleOffsetMs}
+              setSubtitleOffsetMs={setSubtitleOffsetMs}
+              bazarrOn={bazarrOn}
+              applying={applying}
+              applyNote={applyNote}
+              applyToSubtitleFile={applyToSubtitleFile}
+            />
 
             {!sequenceEdit && (
-            <fieldset>
-              <legend>Format</legend>
-              {["webp", "mp4", "webm", "gif"].map((f) => {
-                const disabled = audio && !AUDIO_FORMATS.includes(f);
-                return (
-                  <label key={f} className={disabled ? "disabled" : undefined}>
-                    <input
-                      type="radio"
-                      checked={format === f}
-                      disabled={disabled}
-                      onChange={() => setFormat(f)}
-                    />
-                    {f.toUpperCase()}
-                  </label>
-                );
-              })}
-              <label className="audio-toggle">
-                <input type="checkbox" checked={audio} onChange={(e) => toggleAudio(e.target.checked)} />
-                Include audio (Opus)
-              </label>
-              {audio && <p className="hint tiny">GIF and WebP can't carry audio — MP4/WebM only while this is on.</p>}
-              <label
-                className="audio-toggle"
-                title="Everything else from the original file (its name, tags, chapters, subtitle tracks) is always removed from the export."
-              >
-                <input type="checkbox" checked={creditSource} onChange={(e) => setCreditSource(e.target.checked)} />
-                Name the source in the file's title (MP4/WebM)
-              </label>
-            </fieldset>
-            )}
-
-            {!sequenceEdit && (
-            <fieldset>
-              <legend>Output</legend>
-              <label className="slider">
-                Width {width}px
-                <input type="range" min="240" max="960" step="40" value={width} onChange={(e) => setWidth(+e.target.value)} />
-              </label>
-              <label className="slider">
-                FPS {fps}
-                <input type="range" min="8" max="30" value={fps} onChange={(e) => setFps(+e.target.value)} />
-              </label>
-              {srcFps && (
-                <button
-                  type="button"
-                  className="link"
-                  onClick={() => setFps(Math.min(30, Math.max(8, Math.round(fpsValue(srcFps)))))}
-                  title="Use the video's own frame rate, so every source frame is kept"
-                >
-                  match source ({fpsValue(srcFps).toFixed(3)} fps)
-                </button>
-              )}
-              <label className="slider">
-                Quality {quality}
-                <input type="range" min="10" max="100" value={quality} onChange={(e) => setQuality(+e.target.value)} />
-              </label>
-              <p className="hint tiny output-note">
-                ≈ {outFrames} frame{outFrames === 1 ? "" : "s"} at {fps} fps · {(clipLength / 1000).toFixed(2)} s
-              </p>
-            </fieldset>
+              <ExportSettings
+                format={format}
+                setFormat={setFormat}
+                audio={audio}
+                toggleAudio={toggleAudio}
+                creditSource={creditSource}
+                setCreditSource={setCreditSource}
+                width={width}
+                setWidth={setWidth}
+                fps={fps}
+                setFps={setFps}
+                quality={quality}
+                setQuality={setQuality}
+                srcFps={srcFps}
+                clipLength={clipLength}
+                outFrames={outFrames}
+              />
             )}
           </div>
 
           {captionMode === "source" && (
-            <div className="cue-editor">
-              <div className="cue-editor-head">
-                <h4>Subtitle lines to burn ({displayCues.filter((c) => overlaps(c, start, end, subtitleOffsetMs)).length})</h4>
-                {editedCues && (
-                  <button type="button" className="link" onClick={resetCues}>
-                    ↺ reset to indexed lines
-                  </button>
-                )}
-              </div>
-              <ul className="cue-edit-list">
-                {displayCues.map((c, i) => {
-                  if (!overlaps(c, start, end, subtitleOffsetMs)) return null;
-                  const eff = effective(c, subtitleOffsetMs);
-                  const parse = (t) => parseTimecode(t, srcFps || { num: 24, den: 1 });
-                  return (
-                    <li key={i} className="cue-edit-row">
-                      <div className="cue-edit-times">
-                        <ValueField
-                          label="From"
-                          value={eff.start_ms}
-                          parse={parse}
-                          format={formatTimecode}
-                          onLive={(v) => moveCue(i, v, Math.max(eff.end_ms, v + 100))}
-                          onCommit={(v) => moveCue(i, v, Math.max(eff.end_ms, v + 100))}
-                        />
-                        <ValueField
-                          label="To"
-                          value={eff.end_ms}
-                          parse={parse}
-                          format={formatTimecode}
-                          onLive={(v) => moveCue(i, eff.start_ms, v)}
-                          onCommit={(v) => moveCue(i, eff.start_ms, v)}
-                        />
-                        <button
-                          type="button"
-                          className="secondary small"
-                          onClick={() => seekTo(eff.start_ms)}
-                          title="Show the player at this line's start"
-                        >
-                          ⌖
-                        </button>
-                        <button
-                          type="button"
-                          className="secondary small"
-                          onClick={() => splitCueAtPlayhead(i)}
-                          title="Split this line at the playhead"
-                        >
-                          ✂
-                        </button>
-                        <button
-                          type="button"
-                          className="danger small"
-                          onClick={() => removeCue(i)}
-                          title="Remove this line"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                      <textarea
-                        value={c.text}
-                        aria-label={`Text of the line at ${fmtTime(eff.start_ms)}`}
-                        onChange={(e) => editCueText(i, e.target.value)}
-                        rows={2}
-                      />
-                    </li>
-                  );
-                })}
-              </ul>
-              <div className="cue-editor-actions">
-                <button type="button" className="secondary" onClick={addCueAtPlayhead}>
-                  + Add a line at the playhead
-                </button>
-              </div>
-              <p className="hint tiny">
-                Correct, shorten, reword or retime what gets burned in — the timeline, player and export all use
-                these. Lines you edit stay put when you move the clip; “reset” brings back the indexed ones.
-              </p>
-              {displayCues.every((c) => !overlaps(c, start, end, subtitleOffsetMs)) && (
-                <p className="hint">No subtitle lines fall inside this window, so no subtitles will be burned in.</p>
-              )}
-            </div>
+            <CueEditor
+              displayCues={displayCues}
+              start={start}
+              end={end}
+              subtitleOffsetMs={subtitleOffsetMs}
+              editedCues={editedCues}
+              resetCues={resetCues}
+              srcFps={srcFps}
+              moveCue={moveCue}
+              seekTo={seekTo}
+              splitCueAtPlayhead={splitCueAtPlayhead}
+              removeCue={removeCue}
+              editCueText={editCueText}
+              addCueAtPlayhead={addCueAtPlayhead}
+            />
           )}
 
-          {sequenceEdit ? (
-            <div className="export-row">
-              <button type="button" className="export" onClick={() => handleSaveToSequence(false)} disabled={tooLong}>
-                Save to sequence
-              </button>
-              {sequenceEdit.hasNext && (
-                <button type="button" className="secondary" onClick={() => handleSaveToSequence(true)} disabled={tooLong}>
-                  Save and edit next clip
-                </button>
-              )}
-              <button type="button" className="secondary" onClick={onClose}>
-                Back without saving
-              </button>
-            </div>
-          ) : null}
-          {!sequenceEdit && (
-            <div className="export-row">
-              <input
-                className="filename"
-                placeholder="meme name (optional)"
-                value={filename}
-                onChange={(e) => setFilename(e.target.value)}
-              />
-              <button type="button" className="secondary" onClick={handleAddToSequence} disabled={tooLong}>
-                🔗 Add to sequence
-              </button>
-              <button className="export" onClick={doExport} disabled={tooLong}>
-                Export {format.toUpperCase()}
-              </button>
-            </div>
-          )}
+          <ExportBar
+            sequenceEdit={sequenceEdit}
+            tooLong={tooLong}
+            handleSaveToSequence={handleSaveToSequence}
+            onClose={onClose}
+            filename={filename}
+            setFilename={setFilename}
+            handleAddToSequence={handleAddToSequence}
+            doExport={doExport}
+            format={format}
+          />
           {error && <p className="error">{error}</p>}
         </div>
       </div>
@@ -1413,82 +863,3 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   );
 }
 
-const FRAME_FORMATS = [
-  ["png", "PNG", "sharp, any size"],
-  ["jpg", "JPG", "smallest file"],
-  ["gif", "GIF", "pastes anywhere"],
-];
-const FRAME_WIDTHS = [480, 720, 960, 1280, 1920];
-
-/** Take the frame the player is on, with the caption chosen above, as a picture. */
-export function FrameSaver({ format, onFormat, width, onWidth, captionMode, playhead, srcFps, state, onSave }) {
-  const caption =
-    captionMode === "source"
-      ? "with the subtitle that is on screen"
-      : captionMode === "meme"
-      ? "with your meme text"
-      : "with no caption (choose one above to add it)";
-  const frameNo = srcFps ? ` · f${Math.round((playhead * srcFps.num) / (1000 * srcFps.den))}` : "";
-  return (
-    <div className="frame-saver">
-      <div className="frame-saver-row">
-        <span className="frame-saver-title">Save this frame</span>
-        <div className="radio-row" role="radiogroup" aria-label="Picture format">
-          {FRAME_FORMATS.map(([id, label, hint]) => (
-            <label key={id} title={hint}>
-              <input type="radio" checked={format === id} onChange={() => onFormat(id)} />
-              {label}
-            </label>
-          ))}
-        </div>
-        <label className="frame-width">
-          Width
-          <select value={width} onChange={(e) => onWidth(+e.target.value)}>
-            {FRAME_WIDTHS.map((w) => (
-              <option key={w} value={w}>
-                {w}px
-              </option>
-            ))}
-          </select>
-        </label>
-        <button type="button" className="frame-save-btn" onClick={onSave} disabled={state?.busy}>
-          {state?.busy ? "Saving…" : `📷 Save frame at ${fmtTime(playhead)}${frameNo}`}
-        </button>
-      </div>
-      <p className="hint tiny">The picture is made {caption}. Move the playhead to pick the frame.</p>
-      {state?.error && <p className="error">{state.error}</p>}
-      {state?.download_path && (
-        <div className="still-out">
-          <img src={state.download_path} alt={`Frame at ${fmtTime(state.at)}`} />
-          <a className="download" href={state.download_path} download={state.filename}>
-            ⬇ Download {state.filename}
-          </a>
-        </div>
-      )}
-    </div>
-  );
-}
-
-export function JobResult({ job }) {
-  if (job.status === "failed") return <p className="error">Export failed: {job.error}</p>;
-  if (job.status !== "done") return <p className="hint">Rendering… ({job.status})</p>;
-  const url = job.download_path;
-  const isVideo = job.format === "mp4" || job.format === "webm";
-  return (
-    <div className="result-out">
-      <p>
-        Done: <b>{job.filename}</b>
-      </p>
-      <div className="out-preview">
-        {isVideo ? (
-          <video src={url} controls autoPlay loop muted={!job.audio} />
-        ) : (
-          <img src={url} alt={job.filename} />
-        )}
-      </div>
-      <a className="download" href={url} download={job.filename}>
-        ⬇ Download {job.filename}
-      </a>
-    </div>
-  );
-}

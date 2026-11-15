@@ -1,5 +1,6 @@
 import { AUDIO_FORMATS } from "./clipSettings.js";
-import { Editor, JobResult } from "./Editor.jsx";
+import { Editor } from "./Editor.jsx";
+import { JobResult } from "./JobResult.jsx";
 import { SectionEditor } from "./SectionEditor.jsx";
 import { SequenceBulkEdit } from "./SequenceBulkEdit.jsx";
 import SequencePlayer from "./SequencePlayer.jsx";
