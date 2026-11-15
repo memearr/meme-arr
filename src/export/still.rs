@@ -75,24 +75,9 @@ pub fn caption_for_width(caption: Option<&Caption>, width: u32) -> Option<Captio
 }
 
 /// The `-vf` chain: size, caption, then whatever the format needs.
-pub fn still_filter(
-    format: StillFormat,
-    width: u32,
-    caption: Option<&Caption>,
-    font_path: &str,
-    srt_path: Option<&str>,
-    top_text_file: Option<&str>,
-    bottom_text_file: Option<&str>,
-) -> String {
+pub fn still_filter(format: StillFormat, width: u32, spec: &CaptionSpec) -> String {
     let mut parts = vec![format!("scale={width}:-2:flags=lanczos")];
-    parts.extend(caption_filters(
-        caption,
-        font_path,
-        srt_path,
-        top_text_file,
-        bottom_text_file,
-        (width as f32 * 0.5625) as u32,
-    ));
+    parts.extend(caption_filters(spec));
     match format {
         StillFormat::Png => {}
         // the full-range format a JPEG expects, whatever the source uses
@@ -142,53 +127,38 @@ pub fn still_args(
     args
 }
 
-/// Render the frame to `out_path`.
-#[allow(clippy::too_many_arguments)]
+/// Render the frame to `job.out_path`.
 pub async fn run_still(
-    ffmpeg_bin: &str,
-    tmp_dir: &Path,
-    job_id: &str,
+    tools: Tools<'_>,
+    job: JobSpec<'_>,
     file: &Path,
     req: &StillRequest,
     cues: &[Cue],
     font_path: &str,
-    out_path: &Path,
 ) -> Result<()> {
-    std::fs::create_dir_all(tmp_dir)?;
-    if let Some(parent) = out_path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
+    job.prepare_dirs()?;
     let width = req.clamped_width();
     let caption = caption_for_width(req.caption.as_ref(), width);
     // A window one millisecond long: the subtitle lines on screen at that
     // moment come out starting at 0, which is where the single frame is.
-    let (srt, top, bottom, files) = super::run::write_caption_files(
-        tmp_dir,
-        job_id,
-        caption.as_ref(),
+    let window = CaptionWindow {
         cues,
-        req.t_ms,
-        req.t_ms + 1,
-        req.subtitle_offset_ms,
-    )?;
-    let vf = still_filter(
-        req.format,
-        width,
-        caption.as_ref(),
-        font_path,
-        srt.as_deref(),
-        top.as_deref(),
-        bottom.as_deref(),
-    );
+        start_ms: req.t_ms,
+        end_ms: req.t_ms + 1,
+        offset_ms: req.subtitle_offset_ms,
+    };
+    let written = write_caption_files(job.tmp_dir, job.id, caption.as_ref(), &window)?;
+    let style = CaptionStyle::new(caption.as_ref(), font_path, height_hint_for(width));
+    let vf = still_filter(req.format, width, &written.spec(style));
     let args = still_args(
         &file.to_string_lossy(),
         req.t_ms,
         &vf,
         req.format,
         req.quality,
-        &out_path.to_string_lossy(),
+        &job.out_path.to_string_lossy(),
     );
-    let result = ffmpeg::run(ffmpeg_bin, &args).await;
-    files.cleanup();
+    let result = ffmpeg::run(tools.ffmpeg, &args).await;
+    written.cleanup();
     result
 }

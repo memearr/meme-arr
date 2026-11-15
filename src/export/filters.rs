@@ -52,19 +52,16 @@ pub(super) fn subtitle_style(caption: &Caption, font_path: &str) -> String {
 
 /// Build the caption portion of a filter chain (`subtitles=`/`drawtext=`),
 /// shared by every chain-builder below.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn caption_filters(
-    caption: Option<&Caption>,
-    font_path: &str,
-    srt_path: Option<&str>,
-    top_text_file: Option<&str>,
-    bottom_text_file: Option<&str>,
-    frame_height_hint: u32,
-) -> Vec<String> {
+pub(super) fn caption_filters(spec: &CaptionSpec) -> Vec<String> {
+    let CaptionStyle {
+        caption,
+        font_path,
+        height_hint,
+    } = spec.style;
     let mut parts = Vec::new();
     match caption {
         Some(c @ Caption::Source { .. }) => {
-            if let Some(srt) = srt_path {
+            if let Some(srt) = spec.srt {
                 let fonts_dir = Path::new(font_path)
                     .parent()
                     .map(|p| p.to_string_lossy().to_string())
@@ -79,11 +76,11 @@ pub(super) fn caption_filters(
         }
         Some(c @ Caption::Meme { font_size, .. }) => {
             let fs = scaled_size(*font_size, c.font_scale_pct());
-            let margin = (frame_height_hint as f32 * 0.05).max(8.0) as u32;
-            if let Some(tf) = top_text_file {
+            let margin = (height_hint as f32 * 0.05).max(8.0) as u32;
+            if let Some(tf) = spec.top {
                 parts.push(drawtext(font_path, tf, fs, &format!("{margin}")));
             }
-            if let Some(bf) = bottom_text_file {
+            if let Some(bf) = spec.bottom {
                 parts.push(drawtext(font_path, bf, fs, &format!("h-th-{margin}")));
             }
         }
@@ -94,29 +91,12 @@ pub(super) fn caption_filters(
 
 /// Build the core (pre-palette) filter chain segments for a single, standalone
 /// clip: scale to a target width, height following automatically.
-#[allow(clippy::too_many_arguments)]
-pub fn core_chain(
-    width: u32,
-    fps: u32,
-    caption: Option<&Caption>,
-    font_path: &str,
-    srt_path: Option<&str>,
-    top_text_file: Option<&str>,
-    bottom_text_file: Option<&str>,
-    frame_height_hint: u32,
-) -> String {
+pub fn core_chain(width: u32, fps: u32, spec: &CaptionSpec) -> String {
     let mut parts = vec![
         format!("fps={fps}"),
         format!("scale={width}:-2:flags=lanczos"),
     ];
-    parts.extend(caption_filters(
-        caption,
-        font_path,
-        srt_path,
-        top_text_file,
-        bottom_text_file,
-        frame_height_hint,
-    ));
+    parts.extend(caption_filters(spec));
     parts.join(",")
 }
 
@@ -133,31 +113,13 @@ pub fn canvas_dims(width: u32) -> (u32, u32) {
 /// down to fit a fixed canvas (preserving the source's own aspect ratio) and
 /// pad with black bars to fill it exactly, so every clip in the sequence has
 /// identical output dimensions and can be concatenated losslessly.
-#[allow(clippy::too_many_arguments)]
-pub fn clip_core_chain(
-    width: u32,
-    height: u32,
-    fps: u32,
-    caption: Option<&Caption>,
-    font_path: &str,
-    srt_path: Option<&str>,
-    top_text_file: Option<&str>,
-    bottom_text_file: Option<&str>,
-    frame_height_hint: u32,
-) -> String {
+pub fn clip_core_chain(width: u32, height: u32, fps: u32, spec: &CaptionSpec) -> String {
     let mut parts = vec![
         format!("fps={fps}"),
         format!("scale={width}:{height}:force_original_aspect_ratio=decrease:flags=lanczos"),
         format!("pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black"),
     ];
-    parts.extend(caption_filters(
-        caption,
-        font_path,
-        srt_path,
-        top_text_file,
-        bottom_text_file,
-        frame_height_hint,
-    ));
+    parts.extend(caption_filters(spec));
     parts.join(",")
 }
 
@@ -369,7 +331,6 @@ pub fn privacy_args(title: Option<&str>) -> Vec<String> {
 /// Assemble the full ffmpeg argv for an export (input seek + filters + codec +
 /// privacy options + out). `title` is the one tag the file may carry, see
 /// [`privacy_args`].
-#[allow(clippy::too_many_arguments)]
 pub fn export_args(
     file: &str,
     start_ms: i64,

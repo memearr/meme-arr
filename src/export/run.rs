@@ -2,137 +2,73 @@
 
 use super::*;
 
-/// Write whatever caption files a caption mode needs (SRT for source subs,
-/// text files for meme top/bottom lines) to `tmp_dir`, named from `id`.
-/// Returns the paths to pass into a chain-builder, plus the files to clean up.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn write_caption_files(
-    tmp_dir: &Path,
-    id: &str,
-    caption: Option<&Caption>,
-    cues: &[Cue],
-    start_ms: i64,
-    end_ms: i64,
-    offset_ms: i64,
-) -> Result<CaptionFilePaths> {
-    let mut files = CaptionFiles {
-        srt: None,
-        text_files: Vec::new(),
-    };
-    let mut srt_path: Option<String> = None;
-    let mut top_file: Option<String> = None;
-    let mut bottom_file: Option<String> = None;
+/// The programs the exports run.
+#[derive(Clone, Copy)]
+pub struct Tools<'a> {
+    pub ffmpeg: &'a str,
+    pub ffprobe: &'a str,
+    pub gifsicle: &'a str,
+}
 
-    match caption {
-        Some(Caption::Source {
-            cues: override_cues,
-            ..
-        }) => {
-            // An edited line list (corrected/shortened/reworded in the
-            // editor) replaces the indexed cues entirely; either way the
-            // offset still applies uniformly below.
-            let effective: &[Cue] = override_cues.as_ref().map(|v| v.as_slice()).unwrap_or(cues);
-            let srt = subtitles::trimmed_srt(effective, start_ms, end_ms, offset_ms);
-            // No line falls inside the window: there is nothing to burn. An empty
-            // SRT would make ffmpeg's subtitles filter fail ("Unable to open ...
-            // Invalid data found"), so no file is written and no filter is built.
-            if !srt.trim().is_empty() {
-                let path = tmp_dir.join(format!("{id}.srt"));
-                std::fs::write(&path, srt)?;
-                srt_path = Some(path.to_string_lossy().to_string());
-                files.srt = Some(path);
-            }
+/// Where one export works and writes: a name for its temp files, the folder they
+/// go in, the finished file, and the one tag the file may carry (what it came from).
+#[derive(Clone, Copy)]
+pub struct JobSpec<'a> {
+    pub id: &'a str,
+    pub tmp_dir: &'a Path,
+    pub out_path: &'a Path,
+    pub source_title: Option<&'a str>,
+}
+
+impl JobSpec<'_> {
+    /// Make sure the folder the finished file goes in, and the temp folder, exist.
+    pub(super) fn prepare_dirs(&self) -> Result<()> {
+        std::fs::create_dir_all(self.tmp_dir)?;
+        if let Some(parent) = self.out_path.parent() {
+            std::fs::create_dir_all(parent)?;
         }
-        Some(Caption::Meme { top, bottom, .. }) => {
-            if let Some(t) = top.as_ref().filter(|s| !s.trim().is_empty()) {
-                let path = tmp_dir.join(format!("{id}.top.txt"));
-                std::fs::write(&path, t)?;
-                top_file = Some(path.to_string_lossy().to_string());
-                files.text_files.push(path);
-            }
-            if let Some(b) = bottom.as_ref().filter(|s| !s.trim().is_empty()) {
-                let path = tmp_dir.join(format!("{id}.bottom.txt"));
-                std::fs::write(&path, b)?;
-                bottom_file = Some(path.to_string_lossy().to_string());
-                files.text_files.push(path);
-            }
-        }
-        _ => {}
+        Ok(())
     }
+}
 
-    Ok((srt_path, top_file, bottom_file, files))
+/// The picture height meme text is placed against, for a 16:9 picture `width` wide.
+pub fn height_hint_for(width: u32) -> u32 {
+    (width as f32 * 0.5625) as u32
 }
 
 /// Write temp caption files (srt for source subs, text files for meme lines) and
 /// return both the files to clean up and the core filter chain to use.
-#[allow(clippy::too_many_arguments)]
 pub fn prepare_captions(
     tmp_dir: &Path,
     id: &str,
-    width: u32,
-    fps: u32,
-    caption: Option<&Caption>,
-    cues: &[Cue],
-    start_ms: i64,
-    end_ms: i64,
-    subtitle_offset_ms: i64,
-    font_path: &str,
-    frame_height_hint: u32,
-) -> Result<(String, CaptionFiles)> {
-    let (srt_path, top_file, bottom_file, files) = write_caption_files(
-        tmp_dir,
-        id,
-        caption,
-        cues,
-        start_ms,
-        end_ms,
-        subtitle_offset_ms,
-    )?;
-    let core = core_chain(
-        width,
-        fps,
-        caption,
-        font_path,
-        srt_path.as_deref(),
-        top_file.as_deref(),
-        bottom_file.as_deref(),
-        frame_height_hint,
-    );
-    Ok((core, files))
+    (width, fps): (u32, u32),
+    style: CaptionStyle,
+    window: &CaptionWindow,
+) -> Result<(String, WrittenCaptions)> {
+    let written = write_caption_files(tmp_dir, id, style.caption, window)?;
+    let core = core_chain(width, fps, &written.spec(style));
+    Ok((core, written))
 }
 
-/// Run a full export end to end, writing the finished file to `out_path`.
-#[allow(clippy::too_many_arguments)]
+/// Run a full export end to end, writing the finished file to `job.out_path`.
 pub async fn run_export(
-    ffmpeg_bin: &str,
-    gifsicle_bin: &str,
-    tmp_dir: &Path,
-    job_id: &str,
+    tools: Tools<'_>,
+    job: JobSpec<'_>,
     file: &Path,
     req: &ExportRequest,
     cues: &[Cue],
     font_path: &str,
-    frame_height_hint: u32,
-    source_title: Option<&str>,
-    out_path: &Path,
 ) -> Result<()> {
-    std::fs::create_dir_all(tmp_dir)?;
-    if let Some(parent) = out_path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    let (core, caption_files) = prepare_captions(
-        tmp_dir,
-        job_id,
-        req.width,
-        req.fps,
-        req.caption.as_ref(),
+    job.prepare_dirs()?;
+    let style = CaptionStyle::new(req.caption.as_ref(), font_path, height_hint_for(req.width));
+    let window = CaptionWindow {
         cues,
-        req.start_ms,
-        req.end_ms,
-        req.subtitle_offset_ms,
-        font_path,
-        frame_height_hint,
-    )?;
+        start_ms: req.start_ms,
+        end_ms: req.end_ms,
+        offset_ms: req.subtitle_offset_ms,
+    };
+    let (core, caption_files) =
+        prepare_captions(job.tmp_dir, job.id, (req.width, req.fps), style, &window)?;
     let vf = video_filter(req.format, &core);
     let audio_mode = if req.audio {
         AudioMode::Encode
@@ -146,13 +82,13 @@ pub async fn run_export(
         req.end_ms,
         &vf,
         &codec,
-        source_title.filter(|_| req.credit_source),
-        &out_path.to_string_lossy(),
+        job.source_title.filter(|_| req.credit_source),
+        &job.out_path.to_string_lossy(),
     );
-    let result = ffmpeg::run(ffmpeg_bin, &args).await;
+    let result = ffmpeg::run(tools.ffmpeg, &args).await;
     caption_files.cleanup();
     result?;
-    maybe_optimize_gif(gifsicle_bin, req.format, req.quality, out_path).await;
+    maybe_optimize_gif(tools.gifsicle, req.format, req.quality, job.out_path).await;
     Ok(())
 }
 
@@ -194,6 +130,15 @@ pub struct ResolvedSequenceClip {
     pub font_path: Option<String>,
 }
 
+/// What every clip of one sequence is rendered to: the frame rate, the shared
+/// canvas size, and whether the sound is kept.
+#[derive(Clone, Copy)]
+pub struct SequenceLook {
+    pub fps: u32,
+    pub canvas: (u32, u32),
+    pub audio: bool,
+}
+
 /// Render one sequence clip to an intermediate file matched to the shared
 /// canvas size (letterboxed to preserve its own aspect ratio), with its own
 /// caption burned in. Decent fixed quality — this is an intermediate; the
@@ -201,46 +146,35 @@ pub struct ResolvedSequenceClip {
 ///
 /// When `audio` is set, the part carries uncompressed PCM audio; phase 3
 /// does the one lossy Opus encode over the joined result.
-#[allow(clippy::too_many_arguments)]
 pub(super) async fn render_sequence_clip(
-    ffmpeg_bin: &str,
-    ffprobe_bin: &str,
+    tools: Tools<'_>,
     tmp_dir: &Path,
     id: &str,
     clip: &ResolvedSequenceClip,
-    fps: u32,
-    canvas: (u32, u32),
+    look: SequenceLook,
     font_path: &str,
-    audio: bool,
 ) -> Result<PathBuf> {
-    let (width, height) = canvas;
-    let (srt_path, top_file, bottom_file, caption_files) = write_caption_files(
-        tmp_dir,
-        id,
-        clip.caption.as_ref(),
-        &clip.cues,
-        clip.start_ms,
-        clip.end_ms,
-        clip.subtitle_offset_ms,
-    )?;
-    let core = clip_core_chain(
-        width,
-        height,
+    let SequenceLook {
         fps,
-        clip.caption.as_ref(),
-        font_path,
-        srt_path.as_deref(),
-        top_file.as_deref(),
-        bottom_file.as_deref(),
-        height,
-    );
+        canvas: (width, height),
+        audio,
+    } = look;
+    let window = CaptionWindow {
+        cues: &clip.cues,
+        start_ms: clip.start_ms,
+        end_ms: clip.end_ms,
+        offset_ms: clip.subtitle_offset_ms,
+    };
+    let caption_files = write_caption_files(tmp_dir, id, clip.caption.as_ref(), &window)?;
+    let style = CaptionStyle::new(clip.caption.as_ref(), font_path, height);
+    let core = clip_core_chain(width, height, fps, &caption_files.spec(style));
     let out_path = tmp_dir.join(format!("{id}.part.{}", part_ext(audio)));
 
     let args = if audio {
         // A probe failure just means "treat this clip as silent" rather
         // than failing the whole sequence over it -- the clip still
         // exports fine, just without sound for this one segment.
-        let has_audio = ffmpeg::probe(ffprobe_bin, &clip.file)
+        let has_audio = ffmpeg::probe(tools.ffprobe, &clip.file)
             .await
             .map(|p| p.has_audio)
             .unwrap_or(false);
@@ -265,7 +199,7 @@ pub(super) async fn render_sequence_clip(
         )
     };
 
-    let result = ffmpeg::run(ffmpeg_bin, &args).await;
+    let result = ffmpeg::run(tools.ffmpeg, &args).await;
     caption_files.cleanup();
     result?;
     Ok(out_path)
@@ -362,46 +296,32 @@ pub(super) fn concat_list(parts: &[PathBuf]) -> String {
 /// combined video is run through the normal single-pass format encoder —
 /// palette generation for GIF, transcode for the others (phase 3). Captions
 /// are burned per clip in phase 1, so phase 3 never applies a caption.
-#[allow(clippy::too_many_arguments)]
 pub async fn run_sequence_export(
-    ffmpeg_bin: &str,
-    gifsicle_bin: &str,
-    ffprobe_bin: &str,
-    tmp_dir: &Path,
-    job_id: &str,
+    tools: Tools<'_>,
+    job: JobSpec<'_>,
+    req: &SequenceExportRequest,
     clips: &[ResolvedSequenceClip],
-    format: Format,
-    width: u32,
-    fps: u32,
-    quality: u32,
-    audio: bool,
     font_path: &str,
-    source_title: Option<&str>,
-    out_path: &Path,
 ) -> Result<()> {
-    std::fs::create_dir_all(tmp_dir)?;
-    if let Some(parent) = out_path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
+    let SequenceExportRequest {
+        format,
+        width,
+        fps,
+        quality,
+        audio,
+        ..
+    } = *req;
+    let (tmp_dir, job_id, out_path) = (job.tmp_dir, job.id, job.out_path);
+    job.prepare_dirs()?;
     let canvas = canvas_dims(width);
+    let look = SequenceLook { fps, canvas, audio };
 
     // Phase 1: render each clip to a canvas-matched intermediate.
     let mut parts = Vec::with_capacity(clips.len());
     for (i, clip) in clips.iter().enumerate() {
         let id = format!("{job_id}-{i}");
-        match render_sequence_clip(
-            ffmpeg_bin,
-            ffprobe_bin,
-            tmp_dir,
-            &id,
-            clip,
-            fps,
-            canvas,
-            clip.font_path.as_deref().unwrap_or(font_path),
-            audio,
-        )
-        .await
-        {
+        let font = clip.font_path.as_deref().unwrap_or(font_path);
+        match render_sequence_clip(tools, tmp_dir, &id, clip, look, font).await {
             Ok(path) => parts.push(path),
             Err(e) => {
                 cleanup_paths(&parts);
@@ -444,7 +364,7 @@ pub async fn run_sequence_export(
     }));
     concat_args.extend(privacy_args(None));
     concat_args.push(concat_path.to_string_lossy().into_owned());
-    if let Err(e) = ffmpeg::run(ffmpeg_bin, &concat_args).await {
+    if let Err(e) = ffmpeg::run(tools.ffmpeg, &concat_args).await {
         cleanup_paths(&parts);
         let _ = std::fs::remove_file(&list_path);
         return Err(e);
@@ -457,12 +377,12 @@ pub async fn run_sequence_export(
     // scale is a no-op here — it exists only to apply fps + (no) caption.
     // Audio -- when present -- is encoded to Opus here, once, over the
     // joined PCM.
-    let probed = ffmpeg::probe(ffprobe_bin, &concat_path).await;
+    let probed = ffmpeg::probe(tools.ffprobe, &concat_path).await;
     let total_ms: i64 = match &probed {
         Ok(p) if p.duration_ms > 0 => p.duration_ms,
         _ => clips.iter().map(|c| c.end_ms - c.start_ms).sum(),
     };
-    let core = core_chain(canvas.0, fps, None, font_path, None, None, None, canvas.1);
+    let core = core_chain(canvas.0, fps, &CaptionSpec::none(canvas.1));
     let vf = video_filter(format, &core);
     let codec = codec_args(
         format,
@@ -479,13 +399,13 @@ pub async fn run_sequence_export(
         total_ms,
         &vf,
         &codec,
-        source_title,
+        job.source_title,
         &out_path.to_string_lossy(),
     );
-    let result = ffmpeg::run(ffmpeg_bin, &args).await;
+    let result = ffmpeg::run(tools.ffmpeg, &args).await;
     let _ = std::fs::remove_file(&concat_path);
     result?;
-    maybe_optimize_gif(gifsicle_bin, format, quality, out_path).await;
+    maybe_optimize_gif(tools.gifsicle, format, quality, out_path).await;
     Ok(())
 }
 
