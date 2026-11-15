@@ -340,3 +340,21 @@ pub struct Job {
     pub download_path: Option<String>,
     pub error: Option<String>,
 }
+
+/// An `AppState` over an empty in-memory database, for handler tests.
+#[cfg(test)]
+pub(crate) fn test_state() -> AppState {
+    AppState {
+        config: Arc::new(Config::from_env().expect("default config")),
+        pool: db::test_pool(),
+        settings: Arc::new(RwLock::new(AppSettings::default())),
+        index: Arc::new(Mutex::new(IndexStatus::default())),
+        jobs: Arc::new(Mutex::new(HashMap::new())),
+        compact: Arc::new(RwLock::new(None)),
+        started_at: Instant::now(),
+        login_limiter: Arc::new(LoginLimiter::default()),
+        running_tasks: Arc::new(Mutex::new(HashSet::new())),
+        health: Arc::new(RwLock::new(crate::health::Report::default())),
+        logs: crate::logs::LogControl::detached(),
+    }
+}

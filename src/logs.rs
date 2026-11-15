@@ -78,7 +78,7 @@ pub fn init() -> Arc<LogControl> {
 impl LogControl {
     /// A control not attached to any subscriber, for tests.
     #[cfg(test)]
-    fn detached() -> Arc<LogControl> {
+    pub(crate) fn detached() -> Arc<LogControl> {
         let (_layer, handle) = reload::Layer::new(EnvFilter::new("info"));
         Arc::new(LogControl {
             buffer: Mutex::new(Buffer::default()),
