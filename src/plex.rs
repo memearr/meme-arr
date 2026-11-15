@@ -4,11 +4,16 @@
 
 /// A subtitle file is a few hundred KB; refuse anything absurd.
 const MAX_SUBTITLE_BYTES: usize = 8 * 1024 * 1024;
+/// How long any one request to Plex may take. Generous, because asking Plex to
+/// search subtitle providers is slow; but a server that has hung can't stall a
+/// scan for ever.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
 
 use crate::mediaserver::{DownloadAck, Item, Section, ServerSubtitle, SubtitleCandidate};
 use anyhow::{Context, Result};
 use reqwest::Client;
 use serde::Deserialize;
+use std::time::Duration;
 
 pub struct PlexClient {
     base_url: String,
@@ -423,8 +428,19 @@ impl PlexClient {
     }
 
     pub fn new(base_url: impl Into<String>, token: impl Into<String>) -> Self {
+        Self::with_timeout(base_url, token, REQUEST_TIMEOUT)
+    }
+
+    fn with_timeout(
+        base_url: impl Into<String>,
+        token: impl Into<String>,
+        timeout: Duration,
+    ) -> Self {
         let base_url = base_url.into();
-        let http = crate::tls::client().build().unwrap_or_default();
+        let http = crate::tls::client()
+            .timeout(timeout)
+            .build()
+            .unwrap_or_default();
         Self {
             base_url,
             token: token.into(),
@@ -730,5 +746,29 @@ mod tests {
         let env: Envelope<ItemStreamsContainer> =
             serde_json::from_str(r#"{"MediaContainer":{"Metadata":[{}]}}"#).unwrap();
         assert!(subtitle_streams_from(env.container).is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_server_that_never_answers_does_not_hang_the_request() {
+        // Accepts the connection and then says nothing.
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let _held = std::thread::spawn(move || {
+            let _conn = listener.accept();
+            std::thread::sleep(Duration::from_secs(5));
+        });
+        let client =
+            PlexClient::with_timeout(format!("http://{addr}"), "tok", Duration::from_millis(300));
+        let started = std::time::Instant::now();
+        let err = client.sections().await.unwrap_err();
+        assert!(
+            started.elapsed() < Duration::from_secs(4),
+            "took {:?}",
+            started.elapsed()
+        );
+        assert!(
+            !format!("{err:#}").contains("tok"),
+            "the token leaked: {err:#}"
+        );
     }
 }
