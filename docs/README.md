@@ -50,7 +50,7 @@ first meme, with a screenshot of every step. Something not working? Go to
 - **Where things live**: `src/` is the whole Rust crate (binary = `src/main.rs`,
   everything else lives in the library at `src/lib.rs` so integration tests
   can reach it); `web/` is the frontend (the shell in `App.jsx`, one component file per area, small
-  unit-tested logic modules, `api.js` — a thin fetch wrapper — and `styles.css`); `tests/` has an end-to-end pipeline
+  unit-tested logic modules, `api.js` — a thin fetch wrapper — and `styles/`); `tests/` has an end-to-end pipeline
   test and the compact-index research benchmark.
 - **What's authoritative vs. in-progress**: `subtitle_cue`/`subtitle_fts`
   (SQLite FTS5) is the real, live dialogue search path today. There's a

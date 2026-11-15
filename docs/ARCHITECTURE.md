@@ -193,8 +193,9 @@ renders. Built with Vite; `npm run build` emits static files the Rust binary ser
 - `web/src/api.js` is a thin `fetch` wrapper: one function per endpoint, and a shared `json()`
   helper that throws on non-OK responses and fires a `memearr:unauthorized` window event on a
   401 (the app listens for that and drops back to the login screen from anywhere).
-- `web/src/styles.css` is one stylesheet with CSS custom properties for the colour tokens and no
-  CSS framework.
+- `web/src/styles/` holds the stylesheet in parts (`index.css` lists them in cascade order; the
+  colour tokens are CSS custom properties in `base.css`, the light palette in `theme-light.css`),
+  then `editor.css`. No CSS framework.
 
 ### Tabs
 

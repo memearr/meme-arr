@@ -1,7 +1,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+// The stylesheet is split into parts under styles/; index.css lists them in cascade order.
+const css = [...readFileSync(new URL("./styles/index.css", import.meta.url), "utf8").matchAll(/@import "\.\/([\w-]+\.css)"/g)]
+  .map((m) => readFileSync(new URL(`./styles/${m[1]}`, import.meta.url), "utf8"))
+  .join("");
 
 /** The `--name: value` declarations of the block that starts with `marker`. */
 function palette(marker) {

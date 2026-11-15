@@ -1,0 +1,12 @@
+/* The app's styles, in cascade order -- later files win ties. editor.css follows. */
+@import "./base.css"; /* Colour tokens (dark), reset, typography, buttons and form controls */
+@import "./shell.css"; /* App shell: fixed sidebar and main column */
+@import "./auth.css"; /* Setup / login screen */
+@import "./theme-light.css"; /* The light theme, explicit and following the OS */
+@import "./common.css"; /* Shared bits: errors, health panel, notices, panels, progress bars, jobs, tables, pills */
+@import "./make.css"; /* Libraries overview, the Make view's results and the Library page */
+@import "./editor-player.css"; /* The editor: player, timeline, trim, captions, save-this-frame (more in editor.css) */
+@import "./settings.css"; /* Settings */
+@import "./responsive.css"; /* Narrow screens: sidebar collapses to a top strip */
+@import "./subtitles.css"; /* Online subtitle search, Wanted, requests, diagnosis, filters, fonts */
+@import "./extras.css"; /* Bazarr and the sequence tab */

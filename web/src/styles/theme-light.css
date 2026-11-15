@@ -1,0 +1,57 @@
+/* Explicit light theme, or "auto" (no data-theme) following the OS. The
+   variable block is repeated because CSS can't share one between a
+   selector and a media query. */
+:root[data-theme="light"] {
+  --bg: #f4f5fa;
+  --sidebar: #ffffff;
+  --topbar: #ffffff;
+  --panel: #ffffff;
+  --panel-2: #eef0f6;
+  --border: #d9dce6;
+  --text: #1c1f2a;
+  --muted: #5b6475;
+  --accent: #7c3aed;
+  --accent-2: #6d28d9;
+  --accent-soft: rgba(124, 58, 237, 0.12);
+  --error: #c62828;
+  --warn: #8a4f00;
+  --good: #1e7a45;
+  --danger-bg: #fde8e8;
+  --danger-fg: #b42318;
+  --danger-border: #f3b8b8;
+  --danger-hover: #fbd3d3;
+  --notice-bg: #f1ebfd;
+  --notice-fg: #4b2a8f;
+  --live: #2e9e4f;
+  --on-error: #ffffff;
+  --on-warn: #ffffff;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]):not([data-theme="light"]) {
+    --bg: #f4f5fa;
+    --sidebar: #ffffff;
+    --topbar: #ffffff;
+    --panel: #ffffff;
+    --panel-2: #eef0f6;
+    --border: #d9dce6;
+    --text: #1c1f2a;
+    --muted: #5b6475;
+    --accent: #7c3aed;
+    --accent-2: #6d28d9;
+    --accent-soft: rgba(124, 58, 237, 0.12);
+    --error: #c62828;
+    --warn: #8a4f00;
+    --good: #1e7a45;
+    --danger-bg: #fde8e8;
+    --danger-fg: #b42318;
+    --danger-border: #f3b8b8;
+    --danger-hover: #fbd3d3;
+    --notice-bg: #f1ebfd;
+    --notice-fg: #4b2a8f;
+    --live: #2e9e4f;
+    --on-error: #ffffff;
+    --on-warn: #ffffff;
+    color-scheme: light;
+  }
+}

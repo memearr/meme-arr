@@ -1,0 +1,403 @@
+/* ---- Online subtitle search ---- */
+.subsearch {
+  margin: 12px 0;
+  min-width: 0;
+}
+.subsearch-body {
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.subsearch-cap {
+  margin-bottom: 8px;
+  padding-left: 10px;
+  border-left: 3px solid var(--border);
+}
+.subsearch-cap.ok {
+  border-left-color: var(--good);
+}
+.subsearch-cap.bad {
+  border-left-color: var(--danger-fg);
+}
+.subsearch-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+}
+.subsearch-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.subsearch-table td:last-child {
+  font-family: inherit;
+}
+.subsearch-title {
+  word-break: break-word;
+}
+.subsearch-table .pill {
+  margin-right: 4px;
+  white-space: nowrap;
+  display: inline-block;
+}
+.subsearch-followup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  font-size: 13px;
+}
+.subsearch-status {
+  margin-top: 14px;
+}
+
+/* Narrow screens: one card per result instead of a four-column table. */
+@media (max-width: 640px) {
+  .stack-table,
+  .stack-table tbody,
+  .stack-table tr,
+  .stack-table td {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .stack-table thead {
+    display: none;
+  }
+  .stack-table tr {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .stack-table td,
+  .stack-table td:last-child {
+    border: 0;
+    padding: 2px 8px;
+    text-align: left;
+    white-space: normal;
+  }
+  .stack-table td[data-label]::before {
+    content: attr(data-label) ": ";
+    color: var(--muted);
+    font-size: 11px;
+    text-transform: uppercase;
+  }
+}
+
+/* ---- Wanted ---- */
+.wanted .view-head {
+  flex-wrap: wrap;
+}
+.wanted-library {
+  width: auto;
+  min-width: 150px;
+}
+.wanted-table td:last-child {
+  font-family: inherit;
+  white-space: normal;
+}
+.wanted-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+  align-items: center;
+}
+/* The answer to a button in the row goes on a line of its own, under the buttons. */
+.wanted-actions .bazarr-note {
+  flex-basis: 100%;
+  text-align: right;
+}
+.wanted-table td.wanted-search-cell {
+  text-align: left;
+  background: var(--panel-2);
+}
+@media (max-width: 640px) {
+  .wanted-actions {
+    justify-content: flex-start;
+  }
+}
+
+/* ---- Subtitle result details ---- */
+.subsearch-more {
+  padding: 0 2px;
+  font-size: 11px;
+}
+.subsearch-table td.subsearch-title {
+  text-align: left;
+}
+.subsearch-details-row td {
+  background: var(--panel-2);
+  text-align: left !important;
+  font-family: inherit !important;
+  white-space: normal !important;
+}
+.subsearch-details {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 14px;
+  margin: 4px 0;
+  font-size: 12px;
+}
+.subsearch-details dt {
+  color: var(--muted);
+}
+.subsearch-details dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+/* ---- Update-check failure: click for the reason ---- */
+.version button.linklike {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+.version .version-why {
+  flex-basis: 100%;
+  padding: 6px 8px;
+  border-left: 3px solid var(--warn);
+  background: var(--panel-2);
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+/* ---- Wanted tabs + Requests ---- */
+.wanted > .view-head {
+  flex-wrap: wrap;
+}
+.wanted-filters {
+  margin-top: 4px;
+  justify-content: flex-start;
+}
+.subreq .btn-row {
+  margin: 8px 0;
+}
+.subreq-table td:last-child {
+  font-family: inherit;
+  white-space: normal;
+}
+.subreq-what {
+  word-break: break-word;
+}
+.subreq-note-row td {
+  background: var(--panel-2);
+  text-align: left !important;
+  font-family: inherit !important;
+  white-space: normal !important;
+  font-size: 12px;
+}
+.pill.queued,
+.pill.done,
+.pill.failed {
+  white-space: nowrap;
+}
+
+/* ---- Subtitle diagnosis ---- */
+.subreq-diag-row td {
+  background: var(--panel-2);
+  text-align: left !important;
+  font-family: inherit !important;
+  white-space: normal !important;
+}
+.diag-findings {
+  list-style: none;
+  margin: 4px 0 8px;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.diag-finding {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.diag-icon {
+  flex: 0 0 1.4em;
+  text-align: center;
+  font-weight: 700;
+}
+.diag-finding.ok .diag-icon {
+  color: var(--good);
+}
+.diag-finding.warn .diag-icon {
+  color: var(--warn);
+}
+.diag-finding.error .diag-icon {
+  color: var(--danger-fg);
+}
+.diag-finding.info .diag-icon {
+  color: var(--muted);
+}
+.diag-facts {
+  margin-top: 6px;
+}
+.diag-facts h4 {
+  margin: 12px 0 4px;
+  font-size: 12px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.diag-streams {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+
+/* Library picker (which libraries a search or list covers) */
+.libfilter { position: relative; display: inline-block; }
+.libfilter-btn { cursor: pointer; text-align: left; min-width: 11rem; }
+.libfilter-pop {
+  position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; min-width: 100%;
+  max-height: 18rem; overflow: auto; padding: 6px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+.libfilter-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+.libfilter-row:hover { background: var(--accent-soft); }
+.results-foot { display: flex; align-items: center; gap: 12px; margin: 10px 0; }
+.search-scope { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; }
+
+/* Search operators: tips popover and the "Using ..." line */
+.search-tips { position: relative; display: inline-block; }
+.search-tips-btn { min-width: 2.2rem; font-weight: 700; }
+.search-tips-pop {
+  position: absolute; z-index: 30; top: calc(100% + 6px); right: 0; width: min(34rem, 90vw);
+  padding: 12px 14px; background: var(--panel); border: 1px solid var(--border);
+  border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25); text-align: left;
+}
+.search-tips-head { margin: 0 0 8px; font-weight: 600; }
+.search-tips dl { margin: 0 0 8px; }
+.search-tip { display: flex; gap: 12px; padding: 3px 0; align-items: baseline; }
+.search-tip dt { flex: 0 0 13rem; }
+.search-tip dd { margin: 0; color: var(--muted); }
+.search-tip code { white-space: pre-wrap; }
+.search-understood { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 10px; }
+@media (max-width: 640px) { .search-tip { flex-direction: column; gap: 0; } .search-tip dt { flex: none; } }
+
+/* "No subtitles" / "N missing" notations that link to Wanted */
+.libstat,
+.lib-card {
+  cursor: pointer;
+}
+.libstat:focus-visible,
+.lib-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.missing-link {
+  padding: 0;
+  font-size: inherit;
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+.missing-link:hover {
+  text-decoration-style: solid;
+}
+.pill-link {
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+.pill-link:hover {
+  text-decoration: underline;
+}
+
+/* a result with a "no subtitles" flag in its corner */
+.result-wrap {
+  position: relative;
+}
+.result-wrap > .result {
+  width: 100%;
+}
+.result-flag {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+
+/* Filter chips under the search box */
+.search-scope { flex-wrap: wrap; }
+.scope-chip {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 4px 3px 10px;
+  border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 12px;
+}
+.scope-chip.not { background: var(--danger-bg); color: var(--danger-fg); }
+.scope-chip-x {
+  background: none; color: inherit; border: none; border-radius: 999px; width: 20px; height: 20px;
+  padding: 0; line-height: 1; font-size: 15px; cursor: pointer;
+}
+.scope-chip-x:hover { background: rgba(127, 127, 127, 0.25); }
+.addfilter { position: relative; display: inline-block; }
+.addfilter-pop {
+  position: absolute; z-index: 25; top: calc(100% + 6px); left: 0; width: min(22rem, 86vw);
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 10px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+.addfilter-pop label { display: flex; flex-direction: column; gap: 4px; }
+.addfilter-pop .addfilter-not { flex-direction: row; align-items: center; gap: 8px; }
+.addfilter-actions { display: flex; justify-content: flex-end; }
+
+/* Caption font and text size, under the caption choices in the editor. */
+.font-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin: 0.5rem 0;
+}
+.font-controls label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+.font-controls input[type="range"] {
+  min-width: 6rem;
+  flex: 1;
+}
+.font-controls select {
+  max-width: 16rem;
+}
+.font-controls .hint {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+/* Settings: the list of caption fonts. */
+.font-list {
+  list-style: none;
+  margin: 0.5rem 0;
+  padding: 0;
+}
+.font-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  padding: 0.35rem 0;
+  border-top: 1px solid var(--border, rgba(127, 127, 127, 0.25));
+}
+.font-list .font-name {
+  font-weight: 600;
+}
+.font-list .muted {
+  margin-right: auto;
+}
+
