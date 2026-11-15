@@ -29,12 +29,7 @@ pub(super) async fn oidc_login(
         Ok(u) => u,
         Err(msg) => return Ok(bad_request(msg).into_response()),
     };
-    let pool = st.pool.clone();
-    let settings = tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
-        let conn = pool.get()?;
-        db::get_authentik_settings(&conn)
-    })
-    .await??;
+    let settings = st.db(move |conn| db::get_authentik_settings(conn)).await?;
     let Some(settings) = settings else {
         return Ok(bad_request("Authentik isn't configured").into_response());
     };
@@ -116,12 +111,7 @@ pub(super) async fn oidc_callback(
         );
     };
 
-    let pool = st.pool.clone();
-    let settings = tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
-        let conn = pool.get()?;
-        db::get_authentik_settings(&conn)
-    })
-    .await??;
+    let settings = st.db(move |conn| db::get_authentik_settings(conn)).await?;
     let Some(settings) = settings else {
         return Ok(bad_request("Authentik isn't configured").into_response());
     };
@@ -137,14 +127,12 @@ pub(super) async fn oidc_callback(
 
     let token = auth::new_session_token();
     let token_hash = auth::hash_token(&token);
-    let pool = st.pool.clone();
-    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-        let conn = pool.get()?;
+    st.db(move |conn| {
         let now = now_secs();
-        db::prune_expired_sessions(&conn, now)?;
-        db::create_session(&conn, &token_hash, now, now + SESSION_TTL_SECS)
+        db::prune_expired_sessions(conn, now)?;
+        db::create_session(conn, &token_hash, now, now + SESSION_TTL_SECS)
     })
-    .await??;
+    .await?;
 
     st.log_event(
         LogLevel::Info,
@@ -172,12 +160,7 @@ pub(super) struct AuthentikSettingsPayload {
 pub(super) async fn get_authentik_settings(
     State(st): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
-    let pool = st.pool.clone();
-    let settings = tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
-        let conn = pool.get()?;
-        db::get_authentik_settings(&conn)
-    })
-    .await??;
+    let settings = st.db(move |conn| db::get_authentik_settings(conn)).await?;
     Ok(Json(match settings {
         Some(s) => json!({
             "issuer_url": s.issuer_url,
@@ -195,19 +178,17 @@ pub(super) async fn put_authentik_settings(
     State(st): State<AppState>,
     Json(p): Json<AuthentikSettingsPayload>,
 ) -> Result<impl IntoResponse, AppError> {
-    let pool = st.pool.clone();
-    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-        let conn = pool.get()?;
+    st.db(move |conn| {
         let issuer_url = p.issuer_url.trim().trim_end_matches('/').to_string();
         let client_id = p.client_id.trim().to_string();
-        let existing_secret = db::get_authentik_settings(&conn)?.map(|s| s.client_secret);
+        let existing_secret = db::get_authentik_settings(conn)?.map(|s| s.client_secret);
         let client_secret = match p.client_secret.as_deref().map(str::trim) {
             Some(s) if !s.is_empty() => s.to_string(),
             _ => existing_secret.unwrap_or_default(),
         };
-        db::set_authentik_settings(&conn, &issuer_url, &client_id, &client_secret)
+        db::set_authentik_settings(conn, &issuer_url, &client_id, &client_secret)
     })
-    .await??;
+    .await?;
     st.log_event(LogLevel::Info, "Authentik settings updated");
     Ok(Json(json!({ "ok": true })))
 }
@@ -215,12 +196,8 @@ pub(super) async fn put_authentik_settings(
 pub(super) async fn delete_authentik_settings_handler(
     State(st): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
-    let pool = st.pool.clone();
-    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-        let conn = pool.get()?;
-        db::delete_authentik_settings(&conn)
-    })
-    .await??;
+    st.db(move |conn| db::delete_authentik_settings(conn))
+        .await?;
     st.log_event(LogLevel::Info, "Authentik settings removed");
     Ok(Json(json!({ "ok": true })))
 }

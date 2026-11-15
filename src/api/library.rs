@@ -7,12 +7,7 @@ use super::*;
 pub(super) async fn library_stats(
     State(st): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
-    let pool = st.pool.clone();
-    let stats = tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
-        let conn = pool.get()?;
-        db::library_stats(&conn)
-    })
-    .await??;
+    let stats = st.db(move |conn| db::library_stats(conn)).await?;
     Ok(Json(json!({ "libraries": stats })))
 }
 
@@ -33,12 +28,9 @@ pub(super) async fn library_missing(
     State(st): State<AppState>,
     Query(p): Query<MissingParams>,
 ) -> Result<impl IntoResponse, AppError> {
-    let pool = st.pool.clone();
-    let items = tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
-        let conn = pool.get()?;
-        db::missing_items(&conn, &p.library, p.limit.clamp(1, 2000))
-    })
-    .await??;
+    let items = st
+        .db(move |conn| db::missing_items(conn, &p.library, p.limit.clamp(1, 2000)))
+        .await?;
     Ok(Json(json!({ "items": items })))
 }
 
@@ -132,12 +124,9 @@ pub(super) async fn library_episodes(
     State(st): State<AppState>,
     Query(p): Query<EpisodesParams>,
 ) -> Result<impl IntoResponse, AppError> {
-    let pool = st.pool.clone();
-    let episodes = tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
-        let conn = pool.get()?;
-        db::episodes_in_show(&conn, &p.show, 2000)
-    })
-    .await??;
+    let episodes = st
+        .db(move |conn| db::episodes_in_show(conn, &p.show, 2000))
+        .await?;
     Ok(Json(json!({ "episodes": episodes })))
 }
 
