@@ -128,6 +128,9 @@ pub fn still_args(
 }
 
 /// Render the frame to `job.out_path`.
+/// Longer than one frame lasts in any video worth taking a frame from.
+pub const FRAME_SLACK_MS: i64 = 1000;
+
 pub async fn run_still(
     tools: Tools<'_>,
     job: JobSpec<'_>,
@@ -139,12 +142,15 @@ pub async fn run_still(
     job.prepare_dirs()?;
     let width = req.clamped_width();
     let caption = caption_for_width(req.caption.as_ref(), width);
-    // A window one millisecond long: the subtitle lines on screen at that
-    // moment come out starting at 0, which is where the single frame is.
+    // The subtitle lines on screen at that moment come out starting at 0, which is
+    // where the single frame is. But the frame ffmpeg gives is the first one at or
+    // after the time asked for, and that is not at 0 unless the time falls exactly
+    // on a frame: it is up to one frame later. So the window is longer than a
+    // frame can be, or a line would end before the picture it belongs to.
     let window = CaptionWindow {
         cues,
         start_ms: req.t_ms,
-        end_ms: req.t_ms + 1,
+        end_ms: req.t_ms + FRAME_SLACK_MS,
         offset_ms: req.subtitle_offset_ms,
     };
     let written = write_caption_files(job.tmp_dir, job.id, caption.as_ref(), &window)?;

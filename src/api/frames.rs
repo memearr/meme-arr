@@ -178,7 +178,7 @@ pub(super) async fn still_export(
         Err(msg) => return Ok(bad_request(msg)),
     };
     // The indexed subtitle lines around that moment, unless the editor sent its own.
-    let moment = (req.t_ms, req.t_ms + 1);
+    let moment = (req.t_ms, req.t_ms + export::FRAME_SLACK_MS);
     let cues = source_cues_for(
         &st,
         m.id,
