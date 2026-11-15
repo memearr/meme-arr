@@ -8,7 +8,7 @@ const FRAME_FORMATS = [
 const FRAME_WIDTHS = [480, 720, 960, 1280, 1920];
 
 /** Take the frame the player is on, with the caption chosen above, as a picture. */
-export function FrameSaver({ format, onFormat, width, onWidth, captionMode, playhead, srcFps, state, onSave }) {
+export function FrameSaver({ format, onFormat, width, onWidth, captionMode, playhead, srcFps, state, onSave, onClose }) {
   const caption =
     captionMode === "source"
       ? "with the subtitle that is on screen"
@@ -43,9 +43,19 @@ export function FrameSaver({ format, onFormat, width, onWidth, captionMode, play
         </button>
       </div>
       <p className="hint tiny">The picture is made {caption}. Move the playhead to pick the frame.</p>
-      {state?.error && <p className="error">{state.error}</p>}
+      {state?.error && (
+        <p className="error">
+          {state.error}{" "}
+          <button type="button" className="link-btn" onClick={onClose}>
+            Dismiss
+          </button>
+        </p>
+      )}
       {state?.download_path && (
         <div className="still-out">
+          <button type="button" className="still-close" onClick={onClose} aria-label="Close the saved frame" title="Close">
+            ✕ Close
+          </button>
           <img src={state.download_path} alt={`Frame at ${fmtTime(state.at)}`} />
           <a className="download" href={state.download_path} download={state.filename}>
             ⬇ Download {state.filename}
