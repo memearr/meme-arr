@@ -80,24 +80,22 @@ pub(super) async fn put_bazarr_settings(
             ));
         }
     }
-    let pool = st.pool.clone();
-    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-        let conn = pool.get()?;
+    st.db(move |conn| {
         if let Some(url) = p.url {
             let url = url.trim().trim_end_matches('/').to_string();
-            db::set_setting(&conn, "bazarr_url", &url)?;
+            db::set_setting(conn, "bazarr_url", &url)?;
         }
         if let Some(key) = p.api_key {
             if !key.trim().is_empty() {
-                db::set_setting(&conn, "bazarr_api_key", key.trim())?;
+                db::set_setting(conn, "bazarr_api_key", key.trim())?;
             }
         }
-        if db::get_setting(&conn, "bazarr_hook_token")?.is_none() {
-            db::set_setting(&conn, "bazarr_hook_token", &auth::new_session_token())?;
+        if db::get_setting(conn, "bazarr_hook_token")?.is_none() {
+            db::set_setting(conn, "bazarr_hook_token", &auth::new_session_token())?;
         }
         Ok(())
     })
-    .await??;
+    .await?;
     st.reload_settings()?;
 
     let check = check_saved(&st).await;
@@ -115,20 +113,18 @@ pub(super) async fn test_bazarr_settings(State(st): State<AppState>) -> Json<ser
 pub(super) async fn delete_bazarr_settings(
     State(st): State<AppState>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let pool = st.pool.clone();
-    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-        let conn = pool.get()?;
+    st.db(move |conn| {
         for key in [
             "bazarr_url",
             "bazarr_api_key",
             "bazarr_hook_token",
             "bazarr_languages",
         ] {
-            db::delete_setting(&conn, key)?;
+            db::delete_setting(conn, key)?;
         }
         Ok(())
     })
-    .await??;
+    .await?;
     st.reload_settings()?;
     Ok(Json(settings_json(&st.settings())))
 }
@@ -137,12 +133,8 @@ pub(super) async fn delete_bazarr_settings(
 pub(super) async fn rotate_bazarr_hook(
     State(st): State<AppState>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let pool = st.pool.clone();
-    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-        let conn = pool.get()?;
-        db::set_setting(&conn, "bazarr_hook_token", &auth::new_session_token())
-    })
-    .await??;
+    st.db(move |conn| db::set_setting(conn, "bazarr_hook_token", &auth::new_session_token()))
+        .await?;
     st.reload_settings()?;
     Ok(Json(settings_json(&st.settings())))
 }

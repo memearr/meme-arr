@@ -139,6 +139,23 @@ impl AppState {
         self.started_at.elapsed().as_secs()
     }
 
+    /// Run database work on a blocking-pool thread, off the async runtime.
+    ///
+    /// `work` gets a pooled connection; whatever it returns is handed back, and
+    /// a failure to get a connection (or a panic in `work`) comes back as an error.
+    pub async fn db<T, F>(&self, work: F) -> Result<T>
+    where
+        F: FnOnce(&mut rusqlite::Connection) -> Result<T> + Send + 'static,
+        T: Send + 'static,
+    {
+        let pool = self.pool.clone();
+        tokio::task::spawn_blocking(move || {
+            let mut conn = pool.get()?;
+            work(&mut conn)
+        })
+        .await?
+    }
+
     /// Snapshot the current settings.
     pub fn settings(&self) -> AppSettings {
         self.settings.read_locked().clone()
