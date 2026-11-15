@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { api } from "./api.js";
-import { FrameSaver } from "./Editor.jsx";
+import { FrameSaver } from "./FrameSaver.jsx";
 
 const noop = () => {};
 const NTSC = { num: 24000, den: 1001 };
