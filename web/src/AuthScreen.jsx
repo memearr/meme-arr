@@ -1,3 +1,4 @@
+import { BrandMark } from "./BrandMark.jsx";
 import { api } from "./api.js";
 import { useState } from "react";
 import { withBase } from "./base.js";
@@ -30,7 +31,7 @@ export function AuthScreen({ mode, onDone, authentikAvailable, plexLoginAvailabl
     <div className="shell auth-shell">
       <form className="panel auth-panel" onSubmit={submit}>
         <div className="brand">
-          <span className="logo">🎬</span>
+          <BrandMark />
           <span className="brand-name">
             meme<span className="arr">-arr</span>
           </span>

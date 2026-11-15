@@ -1,3 +1,4 @@
+import { BrandMark } from "./BrandMark.jsx";
 import { api } from "./api.js";
 import { applyTheme, nextTheme, storedTheme } from "./theme.js";
 import { updateFailureHelp } from "./update.js";
@@ -19,7 +20,7 @@ export function Sidebar({ view, setView, index, sequenceCount, health, onLogout 
   return (
     <aside className="sidebar">
       <div className="brand">
-        <span className="logo">🎬</span>
+        <BrandMark />
         <span className="brand-name">
           meme<span className="arr">-arr</span>
         </span>

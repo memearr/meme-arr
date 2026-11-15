@@ -127,7 +127,10 @@ button.small {
   font-weight: 700;
 }
 .brand .logo {
-  font-size: 22px;
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  flex-shrink: 0;
 }
 .brand .arr {
   color: var(--accent);
