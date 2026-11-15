@@ -137,6 +137,9 @@ and WebM only; GIF and WebP can't carry audio). Finished files also land in your
   carries whatever caption is selected: the subtitle that is on screen at that moment
   (with your edits, sync shift, font and size), or your meme text, or nothing. The picture
   appears below the button to preview and download, and carries no tags from the source.
+  **✕ Close** puts the bar back as it was.
+
+  ![The Save this frame bar after a picture was made](images/frame-saver.png)
 - **Exports are clean.** Nothing from the original file is copied into a meme: not its
   release name or other tags, comments, chapters, creation dates, track names or
   subtitle tracks. The one thing a file may carry is the movie or show/episode it came
