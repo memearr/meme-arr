@@ -1127,6 +1127,21 @@ async fn a_single_frame_comes_out_as_png_jpg_and_gif_with_its_caption() {
             std::fs::read(&bare).unwrap(),
             "{ext}: caption drawn"
         );
+        // The player can stop anywhere, not only on a frame (this source is 10 fps, so
+        // 1.05 s is half way between two): the caption must still be on the picture.
+        let between = render(
+            format,
+            1050,
+            Some(Caption::source(None)),
+            format!("between.{ext}"),
+        )
+        .await;
+        let between_bare = render(format, 1050, None, format!("between-bare.{ext}")).await;
+        assert_ne!(
+            std::fs::read(&between).unwrap(),
+            std::fs::read(&between_bare).unwrap(),
+            "{ext}: caption drawn between frames"
+        );
         // a moment with no line is just the frame (at another time, so only check it decodes)
         assert!(decodes_fully(&without), "{ext}");
         // nothing from the source rides along
