@@ -1,3 +1,8 @@
+# Text files are stored with LF endings in the repository and checked out with LF
+# everywhere, so a diff never shows a whole file changed because of its line
+# endings (two files used to be stored with CRLF).
+* text=auto eol=lf
+
 # Shell scripts run inside the Linux container; a CRLF checkout on Windows
 # would break the shebang (`/bin/sh^M: not found`).
 *.sh text eol=lf
@@ -5,3 +10,10 @@
 # Fonts are binary: never touch their line endings.
 *.ttf binary
 *.otf binary
+
+# Pictures are binary too, whatever their bytes look like.
+*.png binary
+*.jpg binary
+*.ico binary
+*.gif binary
+*.webp binary
