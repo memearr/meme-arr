@@ -240,6 +240,16 @@ async function main() {
   await page.waitForTimeout(300);
   await page.locator(".font-controls").locator("xpath=..").screenshot({ path: path.join(outDir, "editor-fonts.png") });
   console.log("  editor-fonts.png");
+  // Save this frame: the bar under the player once a picture has been made.
+  // (The mock Poster Block font is only blocks, so go back to the default look first.)
+  await page.selectOption(".font-controls select", { index: 0 });
+  await page.getByText("reset size").click();
+  await page.locator(".frame-save-btn").click();
+  await page.waitForSelector(".still-out img", { timeout: 60000 });
+  await page.waitForTimeout(500);
+  await page.locator(".frame-saver").screenshot({ path: path.join(outDir, "frame-saver.png") });
+  console.log("  frame-saver.png");
+  await page.locator(".still-close").click(); // back to the plain bar, as a user would
 
   // sequence: three clips from different shows
   for (const q of ['"zero gravity"', '"small fire"', '"tide for you"']) {
