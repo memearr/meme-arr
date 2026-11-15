@@ -70,10 +70,12 @@ logic that lives outside React components is tested directly: display formatters
 timecode and frame maths (`timecode.js`), subtitle-line editing (`cueEdit.js`), the sequence as a set
 (`sequenceModel.js`), caption sizing (`captionPreview.js`), the Bazarr and clipboard helpers, and
 `api.js`'s error handling. Components are checked with `renderToStaticMarkup` (the `*Views` and
-`bazarr` / `connection` tests): what a screen contains for given props, with no DOM, so effects,
-playback, dragging and layout still aren't covered. The convention is to pull non-trivial logic out of
-the component into a plain module and test it there; verify behaviour and layout by using the feature
-in a browser before calling it done.
+`bazarr` / `connection` tests): what a screen contains for given props. `interactive.test.jsx` runs the
+timeline, the transport bar and the Bazarr apply button in jsdom (with Testing Library) and clicks and
+drags them; jsdom has no layout, so it stubs where the timeline track is. Real video playback, the
+`Editor`'s effects as a whole and visual layout still aren't covered. The convention is to pull
+non-trivial logic out of the component into a plain module and test it there; verify behaviour and layout
+by using the feature in a browser before calling it done.
 
 **Things the Rust tests start for real:** a stand-in Bazarr (an axum server in `bazarr.rs`'s tests), and
 an HTTPS server with a freshly generated self-signed certificate (`tls.rs`; the `rcgen` dev-dependency

@@ -319,12 +319,9 @@ pub(super) async fn subtitle_diagnose(
 /// The subtitle downloads this app has asked for, newest first, each with
 /// whether it has become searchable subtitles yet.
 pub(super) async fn subtitle_requests(State(st): State<AppState>) -> Result<Response, AppError> {
-    let pool = st.pool.clone();
-    let list = tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
-        let conn = pool.get()?;
-        db::list_subtitle_requests(&conn, 500)
-    })
-    .await??;
+    let list = st
+        .db(move |conn| db::list_subtitle_requests(conn, 500))
+        .await?;
     Ok(Json(json!({ "requests": list })).into_response())
 }
 
@@ -332,12 +329,9 @@ pub(super) async fn subtitle_request_delete(
     State(st): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Response, AppError> {
-    let pool = st.pool.clone();
-    let removed = tokio::task::spawn_blocking(move || -> anyhow::Result<bool> {
-        let conn = pool.get()?;
-        db::delete_subtitle_request(&conn, id)
-    })
-    .await??;
+    let removed = st
+        .db(move |conn| db::delete_subtitle_request(conn, id))
+        .await?;
     if removed {
         Ok(Json(json!({ "removed": true })).into_response())
     } else {
@@ -361,12 +355,9 @@ pub(super) async fn subtitle_requests_clear(
     if !p.finished {
         return Ok(bad_request("pass finished=true to clear finished requests"));
     }
-    let pool = st.pool.clone();
-    let n = tokio::task::spawn_blocking(move || -> anyhow::Result<usize> {
-        let conn = pool.get()?;
-        db::clear_finished_subtitle_requests(&conn)
-    })
-    .await??;
+    let n = st
+        .db(move |conn| db::clear_finished_subtitle_requests(conn))
+        .await?;
     Ok(Json(json!({ "removed": n })).into_response())
 }
 
@@ -381,16 +372,15 @@ pub(super) async fn subtitles_in_window(
     Path(rating_key): Path<String>,
     Query(w): Query<WindowParams>,
 ) -> Result<Response, AppError> {
-    let pool = st.pool.clone();
-    let cues = tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
-        let conn = pool.get()?;
-        let m = match db::get_media(&conn, &rating_key)? {
-            Some(m) => m,
-            None => return Ok(None),
-        };
-        Ok(Some(db::cues_in_window(&conn, m.id, w.start, w.end)?))
-    })
-    .await??;
+    let cues = st
+        .db(move |conn| {
+            let m = match db::get_media(conn, &rating_key)? {
+                Some(m) => m,
+                None => return Ok(None),
+            };
+            Ok(Some(db::cues_in_window(conn, m.id, w.start, w.end)?))
+        })
+        .await?;
     match cues {
         Some(cues) => Ok(Json(json!({ "cues": cues })).into_response()),
         None => Ok(not_found("media not indexed")),

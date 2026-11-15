@@ -80,24 +80,22 @@ pub(super) async fn put_bazarr_settings(
             ));
         }
     }
-    let pool = st.pool.clone();
-    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-        let conn = pool.get()?;
+    st.db(move |conn| {
         if let Some(url) = p.url {
             let url = url.trim().trim_end_matches('/').to_string();
-            db::set_setting(&conn, "bazarr_url", &url)?;
+            db::set_setting(conn, "bazarr_url", &url)?;
         }
         if let Some(key) = p.api_key {
             if !key.trim().is_empty() {
-                db::set_setting(&conn, "bazarr_api_key", key.trim())?;
+                db::set_setting(conn, "bazarr_api_key", key.trim())?;
             }
         }
-        if db::get_setting(&conn, "bazarr_hook_token")?.is_none() {
-            db::set_setting(&conn, "bazarr_hook_token", &auth::new_session_token())?;
+        if db::get_setting(conn, "bazarr_hook_token")?.is_none() {
+            db::set_setting(conn, "bazarr_hook_token", &auth::new_session_token())?;
         }
         Ok(())
     })
-    .await??;
+    .await?;
     st.reload_settings()?;
 
     let check = check_saved(&st).await;
@@ -115,20 +113,18 @@ pub(super) async fn test_bazarr_settings(State(st): State<AppState>) -> Json<ser
 pub(super) async fn delete_bazarr_settings(
     State(st): State<AppState>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let pool = st.pool.clone();
-    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-        let conn = pool.get()?;
+    st.db(move |conn| {
         for key in [
             "bazarr_url",
             "bazarr_api_key",
             "bazarr_hook_token",
             "bazarr_languages",
         ] {
-            db::delete_setting(&conn, key)?;
+            db::delete_setting(conn, key)?;
         }
         Ok(())
     })
-    .await??;
+    .await?;
     st.reload_settings()?;
     Ok(Json(settings_json(&st.settings())))
 }
@@ -137,12 +133,8 @@ pub(super) async fn delete_bazarr_settings(
 pub(super) async fn rotate_bazarr_hook(
     State(st): State<AppState>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let pool = st.pool.clone();
-    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-        let conn = pool.get()?;
-        db::set_setting(&conn, "bazarr_hook_token", &auth::new_session_token())
-    })
-    .await??;
+    st.db(move |conn| db::set_setting(conn, "bazarr_hook_token", &auth::new_session_token()))
+        .await?;
     st.reload_settings()?;
     Ok(Json(settings_json(&st.settings())))
 }
@@ -427,6 +419,54 @@ mod tests {
         assert!(!same_secret("abc123", "abc124"));
         assert!(!same_secret("abc123", "abc12"));
         assert!(!same_secret("", "x"));
+    }
+
+    async fn hook(st: &AppState, token: &str) -> (StatusCode, serde_json::Value) {
+        let resp = bazarr_hook(State(st.clone()), Path(token.to_string())).await;
+        let status = resp.status();
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        (
+            status,
+            serde_json::from_slice(&body).unwrap_or(serde_json::Value::Null),
+        )
+    }
+
+    fn state_with_token(token: Option<&str>) -> AppState {
+        let st = crate::state::test_state();
+        st.settings.write().unwrap().bazarr_hook_token = token.map(String::from);
+        st
+    }
+
+    #[tokio::test]
+    async fn the_webhook_answers_a_wrong_token_as_if_the_path_did_not_exist() {
+        let st = state_with_token(Some("right-token"));
+        for guess in ["wrong-token", "right-toke", "right-token-", ""] {
+            let (status, _) = hook(&st, guess).await;
+            assert_eq!(status, StatusCode::NOT_FOUND, "guess {guess:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn the_webhook_is_closed_until_a_token_has_been_made() {
+        // No token yet, or an empty one: nothing opens it, not even an empty guess.
+        for token in [None, Some("")] {
+            let st = state_with_token(token);
+            assert_eq!(hook(&st, "").await.0, StatusCode::NOT_FOUND);
+            assert_eq!(hook(&st, "anything").await.0, StatusCode::NOT_FOUND);
+        }
+    }
+
+    #[tokio::test]
+    async fn the_right_token_is_accepted_and_a_scan_is_queued() {
+        let st = state_with_token(Some("right-token"));
+        let (status, body) = hook(&st, "right-token").await;
+        assert_eq!(status, StatusCode::ACCEPTED);
+        assert_eq!(body["ok"], true);
+        // The scan itself waits (so a batch of downloads is one scan) and is
+        // started in the background; what is checked here is that it was queued.
+        assert!(SCAN_PENDING.load(Ordering::SeqCst));
+        // A second call while one is queued is still accepted.
+        assert_eq!(hook(&st, "right-token").await.0, StatusCode::ACCEPTED);
     }
 
     #[test]

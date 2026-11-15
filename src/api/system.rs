@@ -209,12 +209,7 @@ pub(super) async fn index_status(
     State(st): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
     let status = st.index.locked().clone();
-    let pool = st.pool.clone();
-    let stats = tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
-        let conn = pool.get()?;
-        db::stats(&conn)
-    })
-    .await??;
+    let stats = st.db(move |conn| db::stats(conn)).await?;
     Ok(Json(json!({ "status": status, "stats": stats })))
 }
 
@@ -368,12 +363,8 @@ pub(super) async fn restore_backup(
         Ok(f) => f,
         Err(e) => return Ok(bad_request(format!("{e:#}"))),
     };
-    let pool = st.pool.clone();
-    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-        let mut conn = pool.get()?;
-        crate::backup::restore(&mut conn, &file)
-    })
-    .await??;
+    st.db(move |conn| crate::backup::restore(conn, &file))
+        .await?;
     st.reload_settings()?;
     st.log_event(LogLevel::Warn, "Settings restored from a backup file");
     let _ = tasks::start(&st, Task::CheckHealth);
@@ -497,12 +488,8 @@ pub(super) async fn update_task(
     if let Err(msg) = tasks::validate_interval(task, body.interval_secs) {
         return Ok(bad_request(msg));
     }
-    let pool = st.pool.clone();
-    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-        let conn = pool.get()?;
-        db::set_task_schedule(&conn, task.id(), body.enabled, body.interval_secs)
-    })
-    .await??;
+    st.db(move |conn| db::set_task_schedule(conn, task.id(), body.enabled, body.interval_secs))
+        .await?;
     Ok(Json(json!({ "ok": true })).into_response())
 }
 

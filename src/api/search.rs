@@ -231,12 +231,7 @@ pub(super) async fn media(
     State(st): State<AppState>,
     Path(rating_key): Path<String>,
 ) -> Result<Response, AppError> {
-    let pool = st.pool.clone();
-    let m = tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
-        let conn = pool.get()?;
-        db::get_media(&conn, &rating_key)
-    })
-    .await??;
+    let m = st.db(move |conn| db::get_media(conn, &rating_key)).await?;
     match m {
         Some(m) => Ok(Json(m).into_response()),
         None => Ok(not_found("media not indexed")),

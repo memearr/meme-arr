@@ -219,12 +219,7 @@ pub(super) async fn plex_callback(
 pub(super) async fn get_plex_login_settings(
     State(st): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
-    let pool = st.pool.clone();
-    let linked = tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
-        let conn = pool.get()?;
-        db::get_plex_login_account(&conn)
-    })
-    .await??;
+    let linked = st.db(move |conn| db::get_plex_login_account(conn)).await?;
     Ok(Json(match linked {
         Some((_, username)) => json!({ "linked": true, "username": username }),
         None => json!({ "linked": false, "username": null }),
@@ -234,12 +229,8 @@ pub(super) async fn get_plex_login_settings(
 pub(super) async fn delete_plex_login_settings(
     State(st): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
-    let pool = st.pool.clone();
-    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-        let conn = pool.get()?;
-        db::delete_plex_login_account(&conn)
-    })
-    .await??;
+    st.db(move |conn| db::delete_plex_login_account(conn))
+        .await?;
     st.log_event(LogLevel::Info, "Plex login unlinked");
     Ok(Json(json!({ "ok": true })))
 }

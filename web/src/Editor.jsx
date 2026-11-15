@@ -714,6 +714,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
             srcFps={srcFps}
             state={still}
             onSave={saveFrame}
+            onClose={() => setStill(null)}
           />
         </div>
 

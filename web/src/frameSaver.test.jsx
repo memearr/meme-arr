@@ -55,6 +55,17 @@ describe("FrameSaver", () => {
     expect(html).toContain('src="/api/download/frame.png"');
     expect(html).toContain("Download frame.png");
     expect(html).toContain('download="frame.png"');
+    expect(html).toContain("Close the saved frame");
+  });
+
+  it("offers no Close or Dismiss when there is nothing to close", () => {
+    const html = view();
+    expect(html).not.toContain("Close the saved frame");
+    expect(html).not.toContain("Dismiss");
+  });
+
+  it("lets an error be dismissed", () => {
+    expect(view({ state: { error: "ffmpeg failed" } })).toContain("Dismiss");
   });
 });
 

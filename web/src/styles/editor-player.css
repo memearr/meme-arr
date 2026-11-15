@@ -360,7 +360,22 @@ fieldset label.disabled {
   margin: 6px 0 0;
 }
 .still-out {
+  position: relative;
   margin-top: 10px;
+}
+.still-close {
+  display: block;
+  margin: 0 0 8px auto;
+  padding: 3px 10px;
+  font-size: 12px;
+}
+.link-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
 }
 .still-out img {
   display: block;

@@ -349,20 +349,22 @@ mod tests {
         let mut conn = pool.get().unwrap();
         let id = upsert_media(
             &conn,
-            "123",
-            "episode",
-            "Pilot",
-            Some("The Lantern Cove"),
-            Some(1),
-            Some(1),
-            Some(2008),
-            "/media/bb/s01e01.mkv",
-            None,
-            2_820_000,
-            "direct",
-            Some("TV Shows"),
-            111,
-            222,
+            &MediaUpsert {
+                rating_key: "123",
+                kind: "episode",
+                title: "Pilot",
+                show: Some("The Lantern Cove"),
+                season: Some(1),
+                episode: Some(1),
+                year: Some(2008),
+                file_path: "/media/bb/s01e01.mkv",
+                part_key: None,
+                duration_ms: 2_820_000,
+                access_mode: "direct",
+                library: Some("TV Shows"),
+                file_mtime: 111,
+                file_size: 222,
+            },
         )
         .unwrap();
         let cues = vec![

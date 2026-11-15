@@ -119,12 +119,9 @@ pub(super) async fn has_valid_api_key(st: &AppState, presented: Option<String>) 
 pub(super) async fn api_key_status(
     State(st): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
-    let pool = st.pool.clone();
-    let enabled = tokio::task::spawn_blocking(move || -> anyhow::Result<bool> {
-        let conn = pool.get()?;
-        Ok(db::get_setting(&conn, "api_key_hash")?.is_some())
-    })
-    .await??;
+    let enabled = st
+        .db(move |conn| Ok(db::get_setting(conn, "api_key_hash")?.is_some()))
+        .await?;
     Ok(Json(json!({ "enabled": enabled })))
 }
 
@@ -135,12 +132,8 @@ pub(super) async fn api_key_generate(
 ) -> Result<impl IntoResponse, AppError> {
     let key = auth::new_api_key();
     let hash = auth::hash_token(&key);
-    let pool = st.pool.clone();
-    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-        let conn = pool.get()?;
-        db::set_setting(&conn, "api_key_hash", &hash)
-    })
-    .await??;
+    st.db(move |conn| db::set_setting(conn, "api_key_hash", &hash))
+        .await?;
     st.log_event(LogLevel::Info, "API key generated");
     Ok(Json(json!({ "api_key": key })))
 }
@@ -148,12 +141,8 @@ pub(super) async fn api_key_generate(
 pub(super) async fn api_key_revoke(
     State(st): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
-    let pool = st.pool.clone();
-    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-        let conn = pool.get()?;
-        db::delete_setting(&conn, "api_key_hash")
-    })
-    .await??;
+    st.db(move |conn| db::delete_setting(conn, "api_key_hash"))
+        .await?;
     st.log_event(LogLevel::Info, "API key revoked");
     Ok(Json(json!({ "ok": true })))
 }
@@ -293,12 +282,9 @@ pub(super) struct TrustedProxiesBody {
 pub(super) async fn get_trusted_proxies(
     State(st): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
-    let pool = st.pool.clone();
-    let v = tokio::task::spawn_blocking(move || -> anyhow::Result<Option<String>> {
-        let conn = pool.get()?;
-        db::get_setting(&conn, "trusted_proxies")
-    })
-    .await??;
+    let v = st
+        .db(move |conn| db::get_setting(conn, "trusted_proxies"))
+        .await?;
     Ok(Json(json!({ "trusted_proxies": v.unwrap_or_default() })))
 }
 
@@ -310,16 +296,14 @@ pub(super) async fn put_trusted_proxies(
         return Ok(bad_request(msg));
     }
     let value = body.trusted_proxies.trim().to_string();
-    let pool = st.pool.clone();
-    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-        let conn = pool.get()?;
+    st.db(move |conn| {
         if value.is_empty() {
-            db::delete_setting(&conn, "trusted_proxies")
+            db::delete_setting(conn, "trusted_proxies")
         } else {
-            db::set_setting(&conn, "trusted_proxies", &value)
+            db::set_setting(conn, "trusted_proxies", &value)
         }
     })
-    .await??;
+    .await?;
     st.reload_settings()?;
     st.log_event(LogLevel::Info, "Trusted proxies updated");
     Ok(Json(json!({ "ok": true })).into_response())

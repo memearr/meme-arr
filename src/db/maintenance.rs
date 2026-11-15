@@ -169,20 +169,22 @@ mod tests {
 
         upsert_media(
             &conn,
-            "a",
-            "movie",
-            "Paper Moon Heist",
-            None,
-            None,
-            None,
-            None,
-            "/m/heist.mkv",
-            None,
-            0,
-            "direct",
-            Some("Movies"),
-            1,
-            1,
+            &MediaUpsert {
+                rating_key: "a",
+                kind: "movie",
+                title: "Paper Moon Heist",
+                show: None,
+                season: None,
+                episode: None,
+                year: None,
+                file_path: "/m/heist.mkv",
+                part_key: None,
+                duration_ms: 0,
+                access_mode: "direct",
+                library: Some("Movies"),
+                file_mtime: 1,
+                file_size: 1,
+            },
         )
         .unwrap();
         let mut conn2 = pool.get().unwrap();
@@ -224,8 +226,23 @@ mod tests {
         let pool = open_pool(&db_path).unwrap();
         let conn = pool.get().unwrap();
         upsert_media(
-            &conn, "a", "movie", "A", None, None, None, None, "/a.mkv", None, 0, "direct", None, 1,
-            1,
+            &conn,
+            &MediaUpsert {
+                rating_key: "a",
+                kind: "movie",
+                title: "A",
+                show: None,
+                season: None,
+                episode: None,
+                year: None,
+                file_path: "/a.mkv",
+                part_key: None,
+                duration_ms: 0,
+                access_mode: "direct",
+                library: None,
+                file_mtime: 1,
+                file_size: 1,
+            },
         )
         .unwrap();
         // Should succeed whether or not there's anything meaningful to reclaim yet.
@@ -241,8 +258,23 @@ mod tests {
 
         // Create and then delete a bunch of cues to leave some free space behind.
         let media_id = upsert_media(
-            &conn, "a", "movie", "A", None, None, None, None, "/a.mkv", None, 0, "direct", None, 1,
-            1,
+            &conn,
+            &MediaUpsert {
+                rating_key: "a",
+                kind: "movie",
+                title: "A",
+                show: None,
+                season: None,
+                episode: None,
+                year: None,
+                file_path: "/a.mkv",
+                part_key: None,
+                duration_ms: 0,
+                access_mode: "direct",
+                library: None,
+                file_mtime: 1,
+                file_size: 1,
+            },
         )
         .unwrap();
         let cues: Vec<Cue> = (0..500)

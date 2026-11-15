@@ -260,20 +260,22 @@ pub(super) fn add_media(
 ) -> i64 {
     upsert_media(
         conn,
-        key,
-        kind,
-        title,
-        show,
-        show.map(|_| 1),
-        show.map(|_| 2),
-        Some(2020),
-        &format!("/m/{key}.mkv"),
-        None,
-        1000,
-        access,
-        Some(library),
-        1,
-        1,
+        &MediaUpsert {
+            rating_key: key,
+            kind,
+            title,
+            show,
+            season: show.map(|_| 1),
+            episode: show.map(|_| 2),
+            year: Some(2020),
+            file_path: &format!("/m/{key}.mkv"),
+            part_key: None,
+            duration_ms: 1000,
+            access_mode: access,
+            library: Some(library),
+            file_mtime: 1,
+            file_size: 1,
+        },
     )
     .unwrap()
 }

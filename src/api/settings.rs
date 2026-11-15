@@ -29,12 +29,7 @@ pub(super) async fn get_settings(
     State(st): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
     let s = st.settings();
-    let pool = st.pool.clone();
-    let mappings = tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
-        let conn = pool.get()?;
-        db::list_mappings(&conn)
-    })
-    .await??;
+    let mappings = st.db(move |conn| db::list_mappings(conn)).await?;
     Ok(Json(json!({
         "media_server": s.server.as_str(),
         "jellyfin_url": s.jellyfin_url,
@@ -51,42 +46,40 @@ pub(super) async fn put_settings(
     State(st): State<AppState>,
     Json(p): Json<SettingsPayload>,
 ) -> Result<Response, AppError> {
-    let pool = st.pool.clone();
-    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-        let mut conn = pool.get()?;
+    st.db(move |conn| {
         if let Some(kind) = p.media_server {
             // Normalise through the enum so only known values are stored.
             let kind = ServerKind::parse(Some(&kind));
-            db::set_setting(&conn, "media_server", kind.as_str())?;
+            db::set_setting(conn, "media_server", kind.as_str())?;
         }
         if let Some(url) = p.jellyfin_url {
             let url = url.trim().trim_end_matches('/').to_string();
-            db::set_setting(&conn, "jellyfin_url", &url)?;
+            db::set_setting(conn, "jellyfin_url", &url)?;
         }
         if let Some(key) = p.jellyfin_api_key {
             if !key.trim().is_empty() {
-                db::set_setting(&conn, "jellyfin_api_key", key.trim())?;
+                db::set_setting(conn, "jellyfin_api_key", key.trim())?;
             }
         }
         if let Some(url) = p.plex_url {
             let url = url.trim().trim_end_matches('/').to_string();
-            db::set_setting(&conn, "plex_url", &url)?;
+            db::set_setting(conn, "plex_url", &url)?;
         }
         // Update the token only if a non-empty one was supplied.
         if let Some(token) = p.plex_token {
             if !token.trim().is_empty() {
-                db::set_setting(&conn, "plex_token", token.trim())?;
+                db::set_setting(conn, "plex_token", token.trim())?;
             }
         }
         if let Some(on) = p.save_fetched_subtitles {
-            db::set_setting(&conn, "save_fetched_subtitles", if on { "1" } else { "0" })?;
+            db::set_setting(conn, "save_fetched_subtitles", if on { "1" } else { "0" })?;
         }
         if let Some(mappings) = p.mappings {
-            db::replace_mappings(&mut conn, &mappings)?;
+            db::replace_mappings(conn, &mappings)?;
         }
         Ok(())
     })
-    .await??;
+    .await?;
 
     st.reload_settings()?;
     // Re-check health against the new settings, so a fixed mapping or Plex
@@ -101,9 +94,7 @@ pub(super) async fn put_settings(
 pub(super) async fn delete_settings(
     State(st): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
-    let pool = st.pool.clone();
-    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-        let mut conn = pool.get()?;
+    st.db(move |conn| {
         for key in [
             "media_server",
             "jellyfin_url",
@@ -112,12 +103,12 @@ pub(super) async fn delete_settings(
             "plex_token",
             "save_fetched_subtitles",
         ] {
-            db::delete_setting(&conn, key)?;
+            db::delete_setting(conn, key)?;
         }
-        db::replace_mappings(&mut conn, &[])?;
+        db::replace_mappings(conn, &[])?;
         Ok(())
     })
-    .await??;
+    .await?;
     st.reload_settings()?;
     let _ = tasks::start(&st, Task::CheckHealth);
     Ok(Json(json!({ "ok": true })))
