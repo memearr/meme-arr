@@ -151,20 +151,22 @@ pub(super) async fn index_one(
         let mut conn = pool.get()?;
         let media_id = db::upsert_media(
             &conn,
-            &item.rating_key,
-            &item.kind,
-            &item.title,
-            item.show.as_deref(),
-            item.season,
-            item.episode,
-            item.year,
-            &file_path,
-            item.part_key.as_deref(),
-            duration_ms,
-            &access_str,
-            Some(item.library.as_str()),
-            mtime,
-            size,
+            &db::MediaUpsert {
+                rating_key: &item.rating_key,
+                kind: &item.kind,
+                title: &item.title,
+                show: item.show.as_deref(),
+                season: item.season,
+                episode: item.episode,
+                year: item.year,
+                file_path: &file_path,
+                part_key: item.part_key.as_deref(),
+                duration_ms,
+                access_mode: &access_str,
+                library: Some(item.library.as_str()),
+                file_mtime: mtime,
+                file_size: size,
+            },
         )?;
         db::insert_cues(&mut conn, media_id, &cues)?;
         db::set_indexer_version(&conn, &item.rating_key, INDEXER_VERSION)?;

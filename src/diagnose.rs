@@ -662,20 +662,22 @@ mod tests {
         let conn = pool.get().unwrap();
         crate::db::upsert_media(
             &conn,
-            "9",
-            "movie",
-            "Movie",
-            None,
-            None,
-            None,
-            Some(2021),
-            "/srv/movies/Movie (2021).mkv",
-            None,
-            1000,
-            "direct",
-            Some("Movies"),
-            1,
-            1,
+            &crate::db::MediaUpsert {
+                rating_key: "9",
+                kind: "movie",
+                title: "Movie",
+                show: None,
+                season: None,
+                episode: None,
+                year: Some(2021),
+                file_path: "/srv/movies/Movie (2021).mkv",
+                part_key: None,
+                duration_ms: 1000,
+                access_mode: "direct",
+                library: Some("Movies"),
+                file_mtime: 1,
+                file_size: 1,
+            },
         )
         .unwrap();
         let rules = [PathRewrite {
