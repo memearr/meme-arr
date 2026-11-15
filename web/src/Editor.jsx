@@ -989,6 +989,17 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
               </span>
             </div>
           </div>
+          <FrameSaver
+            format={stillFormat}
+            onFormat={setStillFormat}
+            width={stillWidth}
+            onWidth={setStillWidth}
+            captionMode={captionMode}
+            playhead={playhead}
+            srcFps={srcFps}
+            state={still}
+            onSave={saveFrame}
+          />
         </div>
 
         <div className="editor-main">
@@ -1376,19 +1387,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
                 Back without saving
               </button>
             </div>
-          ) : (
-            <FrameSaver
-              format={stillFormat}
-              onFormat={setStillFormat}
-              width={stillWidth}
-              onWidth={setStillWidth}
-              captionMode={captionMode}
-              playhead={playhead}
-              srcFps={srcFps}
-              state={still}
-              onSave={saveFrame}
-            />
-          )}
+          ) : null}
           {!sequenceEdit && (
             <div className="export-row">
               <input
@@ -1431,9 +1430,9 @@ export function FrameSaver({ format, onFormat, width, onWidth, captionMode, play
       : "with no caption (choose one above to add it)";
   const frameNo = srcFps ? ` · f${Math.round((playhead * srcFps.num) / (1000 * srcFps.den))}` : "";
   return (
-    <fieldset className="frame-saver">
-      <legend>Save this frame</legend>
+    <div className="frame-saver">
       <div className="frame-saver-row">
+        <span className="frame-saver-title">Save this frame</span>
         <div className="radio-row" role="radiogroup" aria-label="Picture format">
           {FRAME_FORMATS.map(([id, label, hint]) => (
             <label key={id} title={hint}>
@@ -1452,7 +1451,7 @@ export function FrameSaver({ format, onFormat, width, onWidth, captionMode, play
             ))}
           </select>
         </label>
-        <button type="button" className="secondary" onClick={onSave} disabled={state?.busy}>
+        <button type="button" className="frame-save-btn" onClick={onSave} disabled={state?.busy}>
           {state?.busy ? "Saving…" : `📷 Save frame at ${fmtTime(playhead)}${frameNo}`}
         </button>
       </div>
@@ -1466,7 +1465,7 @@ export function FrameSaver({ format, onFormat, width, onWidth, captionMode, play
           </a>
         </div>
       )}
-    </fieldset>
+    </div>
   );
 }
 

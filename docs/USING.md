@@ -131,7 +131,8 @@ and WebM only; GIF and WebP can't carry audio). Finished files also land in your
   typeface and **Text size** scales the text (50% to 300%; 100% is normal). Your choice is
   remembered for next time, and each clip in a sequence keeps its own. Add fonts under
   [Settings](#settings).
-- **Save this frame.** Park the playhead on a frame (step with `,` and `.`) and **Save frame**
+- **Save this frame.** The bar right under the player: park the playhead on a frame (step with
+  `,` and `.`), pick PNG, JPG or GIF and a width, and **Save frame**
   makes a still picture of it as a **PNG**, **JPG** or **GIF**, 480 to 1920 px wide. It
   carries whatever caption is selected: the subtitle that is on screen at that moment
   (with your edits, sync shift, font and size), or your meme text, or nothing. The picture

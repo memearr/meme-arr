@@ -1305,12 +1305,26 @@ fieldset label.disabled {
 .export {
   white-space: nowrap;
 }
-/* Save this frame: format, width and the button on one line that wraps on a phone. */
+/* Save this frame: a bar under the player; format, width and the button wrap on a phone. */
+.frame-saver {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
 .frame-saver-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 16px;
+}
+.frame-saver-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--accent);
 }
 .frame-saver-row .radio-row {
   display: flex;
@@ -1320,6 +1334,13 @@ fieldset label.disabled {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+}
+.frame-save-btn {
+  margin-left: auto;
+  white-space: nowrap;
+}
+.frame-saver .hint {
+  margin: 6px 0 0;
 }
 .still-out {
   margin-top: 10px;
