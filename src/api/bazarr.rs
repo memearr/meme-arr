@@ -429,6 +429,54 @@ mod tests {
         assert!(!same_secret("", "x"));
     }
 
+    async fn hook(st: &AppState, token: &str) -> (StatusCode, serde_json::Value) {
+        let resp = bazarr_hook(State(st.clone()), Path(token.to_string())).await;
+        let status = resp.status();
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        (
+            status,
+            serde_json::from_slice(&body).unwrap_or(serde_json::Value::Null),
+        )
+    }
+
+    fn state_with_token(token: Option<&str>) -> AppState {
+        let st = crate::state::test_state();
+        st.settings.write().unwrap().bazarr_hook_token = token.map(String::from);
+        st
+    }
+
+    #[tokio::test]
+    async fn the_webhook_answers_a_wrong_token_as_if_the_path_did_not_exist() {
+        let st = state_with_token(Some("right-token"));
+        for guess in ["wrong-token", "right-toke", "right-token-", ""] {
+            let (status, _) = hook(&st, guess).await;
+            assert_eq!(status, StatusCode::NOT_FOUND, "guess {guess:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn the_webhook_is_closed_until_a_token_has_been_made() {
+        // No token yet, or an empty one: nothing opens it, not even an empty guess.
+        for token in [None, Some("")] {
+            let st = state_with_token(token);
+            assert_eq!(hook(&st, "").await.0, StatusCode::NOT_FOUND);
+            assert_eq!(hook(&st, "anything").await.0, StatusCode::NOT_FOUND);
+        }
+    }
+
+    #[tokio::test]
+    async fn the_right_token_is_accepted_and_a_scan_is_queued() {
+        let st = state_with_token(Some("right-token"));
+        let (status, body) = hook(&st, "right-token").await;
+        assert_eq!(status, StatusCode::ACCEPTED);
+        assert_eq!(body["ok"], true);
+        // The scan itself waits (so a batch of downloads is one scan) and is
+        // started in the background; what is checked here is that it was queued.
+        assert!(SCAN_PENDING.load(Ordering::SeqCst));
+        // A second call while one is queued is still accepted.
+        assert_eq!(hook(&st, "right-token").await.0, StatusCode::ACCEPTED);
+    }
+
     #[test]
     fn the_api_key_is_never_in_the_settings_json() {
         let s = crate::state::AppSettings {
