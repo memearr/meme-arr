@@ -21,12 +21,12 @@ jobs:
       - run: python3 -m unittest discover -s scripts -v
 
   backend:
-    # Pinned to 24.04 on purpose: the pipeline tests run the distro's ffmpeg, and
-    # ubuntu-latest (26.04) now ships ffmpeg 8.0.1, which prints "Error parsing
-    # Opus packet header" when re-muxing our WebM sequence output. 24.04's 6.1 is
-    # what these tests were written against. (A BtbN static 9.0 build was tried
-    # and hung intermittently, so don't swap in a downloaded binary.)
-    runs-on: ubuntu-24.04
+    # The pipeline tests run the same ffmpeg the image ships (ghcr.io/memearr/ffmpeg,
+    # built from docker/ffmpeg/Dockerfile on debian:trixie), not a distro package:
+    # ubuntu-24.04's ffmpeg is 6.1 and ubuntu-latest's is 8.0.1, which prints "Error
+    # parsing Opus packet header" on our WebM sequence output. That build needs
+    # trixie's glibc (2.41), so this runs on ubuntu-latest, whose glibc is newer.
+    runs-on: ubuntu-latest
     # If an ffmpeg-backed test ever hangs, fail in minutes, not hours.
     timeout-minutes: 20
     steps:
@@ -38,12 +38,24 @@ jobs:
       # The pipeline tests run the real ffmpeg; they skip themselves silently
       # without it, so install it and then fail loudly if it is missing.
       # (gifsicle is optional: the export path skips GIF optimisation without it.)
-      - name: Install ffmpeg and gifsicle
+      - name: Install gifsicle and the fonts ffmpeg's text filters use
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg gifsicle
+          sudo apt-get install -y --no-install-recommends gifsicle fontconfig fonts-dejavu-core
+      - name: Get the image's ffmpeg
+        run: |
+          version=$(sed -n 's/^ARG FFMPEG_VERSION=//p' docker/ffmpeg/Dockerfile)
+          # The image and the Dockerfile that uses it must name the same version.
+          test "$version" = "$(sed -n 's/^ARG FFMPEG_VERSION=//p' Dockerfile | head -1)"
+          cid=$(docker create "ghcr.io/${{ github.repository_owner }}/ffmpeg:$version" /nonexistent)
+          sudo docker cp "$cid:/opt/ffmpeg" /opt/ffmpeg
+          docker rm "$cid"
+          echo /opt/ffmpeg/bin >> "$GITHUB_PATH"
       - name: Require ffmpeg
-        run: ffmpeg -version | head -1 && ffprobe -version | head -1
+        run: |
+          ffmpeg -version | head -1 | grep -F "ffmpeg version 9."
+          ffprobe -version | head -1
+          ! ldd /opt/ffmpeg/bin/ffmpeg | grep "not found"
       - name: Format
         run: cargo fmt --all --check
       - name: Clippy

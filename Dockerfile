@@ -1,7 +1,13 @@
 # syntax=docker/dockerfile:1
 
+# The ffmpeg that ships in the image: built once from docker/ffmpeg/Dockerfile and
+# published by .github/workflows/ffmpeg-image.yml. Keep this equal to the
+# FFMPEG_VERSION there (CI checks it).
+ARG FFMPEG_VERSION=9.0.2
+FROM ghcr.io/memearr/ffmpeg:${FFMPEG_VERSION} AS ffmpeg
+
 # ---- 1. Build the SPA ----------------------------------------------------
-FROM node:25-bookworm-slim AS web
+FROM node:26-trixie-slim AS web
 WORKDIR /web
 COPY web/package.json web/package-lock.json* ./
 RUN npm install
@@ -9,7 +15,7 @@ COPY web/ ./
 RUN npm run build
 
 # ---- 2. Build the Rust binary -------------------------------------------
-FROM rust:1-bookworm AS build
+FROM rust:1-trixie AS build
 WORKDIR /src
 # Cache dependency compilation.
 COPY Cargo.toml Cargo.lock* ./
@@ -20,15 +26,20 @@ COPY src ./src
 RUN touch src/main.rs && cargo build --release
 
 # ---- 3. Runtime ----------------------------------------------------------
-FROM debian:bookworm-slim AS runtime
+FROM debian:trixie-slim AS runtime
+# ffmpeg is copied in below, not installed: it brings its own codec libraries and
+# only needs glibc from here. fontconfig and a font are what drawtext/libass use.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        ffmpeg \
         gifsicle \
+        fontconfig \
         fonts-dejavu-core \
         ca-certificates \
         wget \
     && rm -rf /var/lib/apt/lists/*
+
+COPY --from=ffmpeg /opt/ffmpeg /opt/ffmpeg
+ENV PATH=/opt/ffmpeg/bin:$PATH
 
 WORKDIR /app
 COPY --from=build /src/target/release/meme-arr /app/meme-arr
@@ -58,7 +69,7 @@ ENV BIND_ADDR=0.0.0.0:8080 \
 EXPOSE 8080
 VOLUME ["/data", "/output"]
 
-# Needs `wget` in this image (installed above): bookworm-slim has neither wget nor
+# Needs `wget` in this image (installed above): the slim base has neither wget nor
 # curl, so this check used to fail on every container (reported as unhealthy).
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
     CMD ["/bin/sh", "-c", "wget -qO- http://localhost:8080/healthz || wget -qO- --no-check-certificate https://localhost:8080/healthz || exit 1"]

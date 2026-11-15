@@ -4,12 +4,14 @@
 
 `ghcr.io/memearr/meme-arr` — multi-stage build (`Dockerfile`):
 
-1. `node:24-bookworm-slim` builds the SPA (`web/` → `dist/`).
-2. `rust:1-bookworm` builds the release binary (dependency compilation
+1. `node:26-trixie-slim` builds the SPA (`web/` → `dist/`).
+2. `rust:1-trixie` builds the release binary (dependency compilation
    cached as a separate layer — a dummy `src/main.rs` is built first so
    `Cargo.toml`/`Cargo.lock` changes alone don't force a full rebuild).
-3. `debian:bookworm-slim` runtime — installs `ffmpeg`, `fonts-dejavu-core`,
-   `ca-certificates`, copies the binary + built SPA, bundles DejaVu as the
+3. `debian:trixie-slim` runtime — installs `gifsicle`, `fontconfig`, `fonts-dejavu-core`
+   and `ca-certificates`, copies in ffmpeg 9 from `ghcr.io/memearr/ffmpeg:<version>`
+   (built once from `docker/ffmpeg/Dockerfile`, with its codec libraries beside it, so
+   a normal image build never compiles ffmpeg), copies the binary + built SPA, bundles DejaVu as the
    default caption font (drop an `Impact.ttf` into `/app/fonts` to override
    — preferred when present).
 
