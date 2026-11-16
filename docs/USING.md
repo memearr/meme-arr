@@ -145,6 +145,13 @@ and WebM only; GIF and WebP can't carry audio). Finished files also land in your
   for two seconds: set **On at** and **Off at** by typing, or with **= playhead**. Drag a layer on the player
   to place it; **Size**, **Turn**, **Opacity** and **Colour** change how it looks. Captions are drawn over
   the layers. Layers are in the exported clip only, not in a sequence or a saved frame.
+- **Move over time.** A layer, or the styled caption text, can travel across the picture: tick
+  **Move over time** to put a first keyframe where it is now, move the playhead, and drag it on the
+  player to where it should be at that moment, which makes the next keyframe. It travels in a straight
+  line from one keyframe to the next and stays at the last one. Click a keyframe's time to go to it,
+  **remove** it, or **Keyframe at the playhead** to add one without moving it. Keep the keyframes
+  close together on a fast-moving subject (a keyframe every half second or so) to make text follow it.
+  **Save this frame** puts the text where its path has it at the frame you save.
 - **Save this frame.** The bar right under the player: park the playhead on a frame (step with
   `,` and `.`), pick PNG, JPG or GIF and a width, and **Save frame**
   makes a still picture of it as a **PNG**, **JPG** or **GIF**, 480 to 1920 px wide. It

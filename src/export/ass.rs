@@ -97,6 +97,11 @@ pub struct TextLook {
     pub anim: TextAnim,
     #[serde(default)]
     pub reveal: TextReveal,
+    /// Where the text is over the clip, as keyframes (see [`Keyframe`]). When there are
+    /// any, they replace `x` and `y`, and a sliding entrance becomes a fade (the
+    /// text is already moving).
+    #[serde(default)]
+    pub path: Vec<Keyframe>,
 }
 
 /// The values a preset (or a look) settles on.
@@ -288,6 +293,14 @@ fn ass_text(s: &str) -> String {
 /// Where a line is anchored: the `\an` number and the position in script units.
 fn anchor(look: &TextLook) -> (u8, f32, f32) {
     let (w, h) = (PLAY_RES.0 as f32, PLAY_RES.1 as f32);
+    if let Some(first) = sorted_path(&look.path).first() {
+        let col = match look.align {
+            TextAlign::Left => 0,
+            TextAlign::Center => 1,
+            TextAlign::Right => 2,
+        };
+        return (4 + col as u8, first.x * w, first.y * h);
+    }
     let col = match look.align {
         TextAlign::Left => 0,
         TextAlign::Center => 1,
@@ -373,6 +386,7 @@ pub fn build_ass(
     let size = scaled_size(r.size, scale_pct);
     let big = ((size as f32) * EMPHASIS).round() as u32;
     let (an, ax, ay) = anchor(look);
+    let path = sorted_path(&look.path);
     let mut out = String::new();
     let mut events = 0;
 
@@ -386,40 +400,19 @@ pub fn build_ass(
         if lines.is_empty() {
             continue;
         }
-        // On screen from here, in the window's own time.
+        // On screen from here: `from` and `until` are media times, `win_start` is where
+        // the clip begins (so event times are `t - win_start`).
         let from = cs.max(win_start);
         let until = ce.min(win_end);
         // Animations belong to a line that starts inside the window; one already
         // under way when the clip begins is simply there.
         let starts_here = cs >= win_start;
-        let mut tags = format!("\\an{an}");
-        let (px, py) = (ax, ay);
-        match look.anim {
-            TextAnim::SlideUp if starts_here => {
-                tags.push_str(&format!(
-                    "\\move({px:.1},{:.1},{px:.1},{py:.1},0,{ENTRANCE_MS})",
-                    py + SLIDE_DISTANCE
-                ));
-            }
-            TextAnim::SlideLeft if starts_here => {
-                tags.push_str(&format!(
-                    "\\move({:.1},{py:.1},{px:.1},{py:.1},0,{ENTRANCE_MS})",
-                    px + SLIDE_DISTANCE * 3.0
-                ));
-            }
-            _ => tags.push_str(&format!("\\pos({px:.1},{py:.1})")),
-        }
         let reveal = look.reveal == TextReveal::Word;
-        // Whole-line entrances (word reveal animates each word instead).
-        if !reveal && starts_here {
-            match look.anim {
-                TextAnim::Fade => tags.push_str(&format!("\\fad({ENTRANCE_MS},0)")),
-                TextAnim::Pop => tags.push_str(&format!(
-                    "\\fscx70\\fscy70\\t(0,{ENTRANCE_MS},\\fscx100\\fscy100)"
-                )),
-                _ => {}
-            }
-        }
+        // While the text follows a path it is already moving, so a slide becomes a fade.
+        let anim = match look.anim {
+            TextAnim::SlideUp | TextAnim::SlideLeft if !path.is_empty() => TextAnim::Fade,
+            a => a,
+        };
 
         let total_chars: usize = lines
             .iter()
@@ -428,56 +421,119 @@ pub fn build_ass(
             .sum::<usize>()
             .max(1);
         let dur = (ce - cs).max(1) as f32;
-        let mut seen = 0usize;
-        let mut body = String::new();
-        let mut cur_big = false;
-        for (li, line) in lines.iter().enumerate() {
-            if li > 0 {
-                body.push_str("\\N");
-            }
-            for (wi, w) in line.iter().enumerate() {
-                let mut block = String::new();
-                if w.emphasis != cur_big {
-                    block.push_str(&format!("\\fs{}", if w.emphasis { big } else { size }));
-                    cur_big = w.emphasis;
-                }
-                if reveal {
-                    // When this word is said, in the event's own time.
-                    let said = cs as f32 + dur * REVEAL_SPAN * (seen as f32 / total_chars as f32);
-                    let rel = said.round() as i64 - from;
-                    if rel > 0 {
-                        block.push_str("\\alpha&HFF&");
-                        let end = rel + ENTRANCE_MS;
-                        match look.anim {
-                            TextAnim::Pop => block.push_str(&format!(
-                                "\\fscx60\\fscy60\\t({rel},{end},\\alpha&H00&\\fscx100\\fscy100)"
-                            )),
-                            TextAnim::Fade => {
-                                block.push_str(&format!("\\t({rel},{end},\\alpha&H00&)"))
-                            }
-                            _ => block.push_str(&format!("\\t({rel},{},\\alpha&H00&)", rel + 1)),
-                        }
-                    } else {
-                        // Already said when the line comes on: plainly there.
-                        block.push_str("\\alpha&H00&\\fscx100\\fscy100");
+
+        // The line is one event, or -- when its text follows a path -- one per stretch
+        // between keyframes, each moving in a straight line to the next keyframe.
+        let mut cuts = vec![from];
+        cuts.extend(
+            path.iter()
+                .map(|k| k.t_ms + win_start)
+                .filter(|t| *t > from && *t < until),
+        );
+        cuts.push(until);
+
+        for (si, span) in cuts.windows(2).enumerate() {
+            let (seg_from, seg_until) = (span[0], span[1]);
+            let first = si == 0;
+            let mut tags = format!("\\an{an}");
+            if path.is_empty() {
+                let (px, py) = (ax, ay);
+                match anim {
+                    TextAnim::SlideUp if starts_here => {
+                        tags.push_str(&format!(
+                            "\\move({px:.1},{:.1},{px:.1},{py:.1},0,{ENTRANCE_MS})",
+                            py + SLIDE_DISTANCE
+                        ));
                     }
+                    TextAnim::SlideLeft if starts_here => {
+                        tags.push_str(&format!(
+                            "\\move({:.1},{py:.1},{px:.1},{py:.1},0,{ENTRANCE_MS})",
+                            px + SLIDE_DISTANCE * 3.0
+                        ));
+                    }
+                    _ => tags.push_str(&format!("\\pos({px:.1},{py:.1})")),
                 }
-                if !block.is_empty() {
-                    body.push_str(&format!("{{{block}}}"));
+            } else {
+                let at = |t: i64| {
+                    let (x, y) = position_at(&path, t - win_start, (0.5, 0.5));
+                    (x * PLAY_RES.0 as f32, y * PLAY_RES.1 as f32)
+                };
+                let ((x1, y1), (x2, y2)) = (at(seg_from), at(seg_until));
+                if (x1, y1) == (x2, y2) {
+                    tags.push_str(&format!("\\pos({x1:.1},{y1:.1})"));
+                } else {
+                    tags.push_str(&format!(
+                        "\\move({x1:.1},{y1:.1},{x2:.1},{y2:.1},0,{})",
+                        seg_until - seg_from
+                    ));
                 }
-                body.push_str(&ass_text(&w.text));
-                if wi + 1 < line.len() {
-                    body.push(' ');
-                }
-                seen += w.text.chars().count();
             }
+            // Whole-line entrances (word reveal animates each word instead), on the
+            // first stretch only.
+            if !reveal && starts_here && first {
+                match anim {
+                    TextAnim::Fade => tags.push_str(&format!("\\fad({ENTRANCE_MS},0)")),
+                    TextAnim::Pop => tags.push_str(&format!(
+                        "\\fscx70\\fscy70\\t(0,{ENTRANCE_MS},\\fscx100\\fscy100)"
+                    )),
+                    _ => {}
+                }
+            }
+
+            let mut seen = 0usize;
+            let mut body = String::new();
+            let mut cur_big = false;
+            for (li, line) in lines.iter().enumerate() {
+                if li > 0 {
+                    body.push_str("\\N");
+                }
+                for (wi, w) in line.iter().enumerate() {
+                    let mut block = String::new();
+                    // a later stretch is a new event, so the size is set afresh in it
+                    if w.emphasis != cur_big {
+                        block.push_str(&format!("\\fs{}", if w.emphasis { big } else { size }));
+                        cur_big = w.emphasis;
+                    }
+                    if reveal {
+                        // When this word is said, in this event's own time.
+                        let said =
+                            cs as f32 + dur * REVEAL_SPAN * (seen as f32 / total_chars as f32);
+                        let rel = said.round() as i64 - seg_from;
+                        if rel > 0 {
+                            block.push_str("\\alpha&HFF&");
+                            let end = rel + ENTRANCE_MS;
+                            match anim {
+                                TextAnim::Pop => block.push_str(&format!(
+                                    "\\fscx60\\fscy60\\t({rel},{end},\\alpha&H00&\\fscx100\\fscy100)"
+                                )),
+                                TextAnim::Fade => {
+                                    block.push_str(&format!("\\t({rel},{end},\\alpha&H00&)"))
+                                }
+                                _ => block
+                                    .push_str(&format!("\\t({rel},{},\\alpha&H00&)", rel + 1)),
+                            }
+                        } else {
+                            // Already said when this stretch begins: plainly there.
+                            block.push_str("\\alpha&H00&\\fscx100\\fscy100");
+                        }
+                    }
+                    if !block.is_empty() {
+                        body.push_str(&format!("{{{block}}}"));
+                    }
+                    body.push_str(&ass_text(&w.text));
+                    if wi + 1 < line.len() {
+                        body.push(' ');
+                    }
+                    seen += w.text.chars().count();
+                }
+            }
+            out.push_str(&format!(
+                "Dialogue: 0,{},{},Default,,0,0,0,,{{{tags}}}{body}\n",
+                ass_time(seg_from - win_start),
+                ass_time(seg_until - win_start),
+            ));
+            events += 1;
         }
-        out.push_str(&format!(
-            "Dialogue: 0,{},{},Default,,0,0,0,,{{{tags}}}{body}\n",
-            ass_time(from - win_start),
-            ass_time(until - win_start),
-        ));
-        events += 1;
     }
 
     if events == 0 {

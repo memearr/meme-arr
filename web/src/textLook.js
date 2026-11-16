@@ -34,6 +34,8 @@ export const REVEAL_SPAN = 0.8;
 /** How much larger a `*starred*` word is drawn (ass.rs: EMPHASIS). */
 export const EMPHASIS = 1.5;
 
+import { pathForRequest, positionAt } from "./pathModel.js";
+
 const HEX = /^#?[0-9a-fA-F]{6}$/;
 
 /** A look that is just a preset, ready to be changed. */
@@ -56,11 +58,13 @@ export function resolveLook(look) {
 }
 
 /** What goes into a request: only the fields that are set, or null for the plain look. */
-export function lookForRequest(look) {
+export function lookForRequest(look, clipMs = Infinity) {
   if (!look) return null;
   const out = { preset: look.preset || "classic", align: look.align || "center", anim: look.anim || "none", reveal: look.reveal || "none" };
   for (const k of ["color", "outline_color"]) if (HEX.test(look[k] || "")) out[k] = look[k];
   for (const k of ["outline", "x", "y"]) if (Number.isFinite(look[k])) out[k] = look[k];
+  const path = pathForRequest(look.path, Number.isFinite(clipMs) ? clipMs : Number.MAX_SAFE_INTEGER);
+  if (path.length) out.path = path;
   return out;
 }
 
@@ -158,4 +162,18 @@ export function lookStyle(look, k) {
     style.padding = `${k * 2}px ${k * 4}px`;
   }
   return style;
+}
+
+/** Where the look's text is `relMs` into the clip: on its path, or where it was put (null if neither). */
+export function lookPlace(look, relMs) {
+  const fixed = Number.isFinite(look?.x) && Number.isFinite(look?.y) ? { x: look.x, y: look.y } : null;
+  return look?.path?.length ? positionAt(look.path, relMs, fixed) : fixed;
+}
+
+/** The look for a single frame: no path, the text where it is `relMs` into the clip. */
+export function freezeLook(look, relMs) {
+  if (!look) return look;
+  const at = lookPlace(look, relMs);
+  const { path, ...rest } = look;
+  return at ? { ...rest, x: at.x, y: at.y } : rest;
 }

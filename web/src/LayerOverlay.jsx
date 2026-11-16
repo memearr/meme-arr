@@ -23,7 +23,7 @@ export function LayerOverlay({ layers, relMs, pictureBox, selectedId, onSelect, 
   function move(e) {
     if (!drag.current || !box.current) return;
     const place = pointToPlace(box.current.getBoundingClientRect(), e.clientX, e.clientY);
-    if (place) onMove?.(drag.current, place);
+    if (place) onMove?.(drag.current, place, relMs);
   }
   function up(e) {
     drag.current = null;
@@ -39,7 +39,7 @@ export function LayerOverlay({ layers, relMs, pictureBox, selectedId, onSelect, 
       {visible.map((l) => {
         const common = {
           className: `layer-item${l.id === selectedId ? " selected" : ""}`,
-          style: layerStyle(l),
+          style: layerStyle(l, relMs),
           onPointerDown: (e) => down(e, l),
           onPointerMove: move,
           onPointerUp: up,

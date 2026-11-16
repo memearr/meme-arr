@@ -385,12 +385,17 @@ Request (`ExportRequest`):
   first 80% of the line, by character count); `*word*` in a line makes that word 1.5× bigger. A caption
   with a look is drawn from an ASS script instead of an SRT. In a single saved frame the entrance and
   reveal are left out (there is nothing to animate from). `GET /api/preview` takes the same object as
-  `look_json`.
+  `look_json`. `look.path` (and a layer's `path`, below) is a list of keyframes
+  `{"t_ms": 0, "x": 0.2, "y": 0.5}`: times from the start of the clip, places as fractions of the picture.
+  The text (or layer) moves in a straight line between keyframes and stays at the first before it and the
+  last after it; with a path, `x` and `y` are ignored and a sliding entrance becomes a fade. At most 100
+  keyframes, each inside the clip and the picture (`400` otherwise).
 - `layers` (default none, at most 12): pictures laid over the clip, each
   `{"kind":"shape","shape":"arrow|ring|box|dot","color":"#RRGGBB"}` or
   `{"kind":"media","asset":"<id from GET /api/overlays>"}` plus `start_ms` and `end_ms` (from the start of the
   clip; `end_ms` null is the end), `x` and `y` (the centre, fractions of the picture), `size` (its width as a
-  fraction of the picture's, 0.01 to 2), `rotation` (clockwise degrees) and `opacity` (0 to 1). They are laid
+  fraction of the picture's, 0.01 to 2), `rotation` (clockwise degrees), `opacity` (0 to 1) and optionally a
+  `path` of keyframes (see `look.path`) that replaces `x` and `y`. They are laid
   over in order and the captions go on top. A GIF, WebP or clip (`motion`) loops while it is on. `400` for a
   layer that cannot be used (bad number, unknown shape, starts outside the clip) or an upload that is gone.
   Layers apply to this single export, not to a sequence or a `/api/still`.

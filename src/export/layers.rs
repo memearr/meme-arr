@@ -56,6 +56,10 @@ pub struct Layer {
     /// 0 invisible .. 1 solid.
     #[serde(default = "one")]
     pub opacity: f32,
+    /// Where the centre is over the clip, as keyframes (see [`Keyframe`]). When there are
+    /// any, they replace `x` and `y`.
+    #[serde(default)]
+    pub path: Vec<Keyframe>,
 }
 
 fn half() -> f32 {
@@ -92,6 +96,9 @@ pub fn validate_layers(layers: &[Layer], clip_ms: i64) -> Option<String> {
         }
         if l.end_ms.is_some_and(|e| e <= l.start_ms) {
             return Some(format!("layer {n}: it must end after it starts"));
+        }
+        if let Some(why) = validate_path(&l.path, clip_ms) {
+            return Some(format!("layer {n}: {why}"));
         }
         match &l.kind {
             LayerKind::Shape { shape, color } => {
@@ -233,12 +240,20 @@ pub fn plan_layers(
             prep.push_str(&format!(",colorchannelmixer=aa={opacity:.3}"));
         }
         graph.push_str(&format!(";[{n}:v]{prep}[l{n}]"));
+        // where its centre is: fixed, or following the path over the clip
+        let path = sorted_path(&l.path);
+        let (x_at, y_at) = if path.is_empty() {
+            (
+                format!("{:.4}", l.x.clamp(0.0, 1.0)),
+                format!("{:.4}", l.y.clamp(0.0, 1.0)),
+            )
+        } else {
+            (path_expr(&path, Axis::X), path_expr(&path, Axis::Y))
+        };
         graph.push_str(&format!(
-            ";[b{}][l{n}]overlay=x='main_w*{:.4}-overlay_w/2':y='main_h*{:.4}-overlay_h/2':\
+            ";[b{}][l{n}]overlay=x='main_w*({x_at})-overlay_w/2':y='main_h*({y_at})-overlay_h/2':\
              enable='between(t,{},{})':shortest=1[b{n}]",
             n - 1,
-            l.x.clamp(0.0, 1.0),
-            l.y.clamp(0.0, 1.0),
             secs(start),
             secs(end),
         ));

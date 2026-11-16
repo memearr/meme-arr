@@ -191,9 +191,9 @@ describe("layers over the player", () => {
     fireEvent.pointerDown(el, { pointerId: 1, clientX: 210, clientY: 120 });
     expect(onSelect).toHaveBeenCalledWith("a");
     fireEvent.pointerMove(el, { pointerId: 1, clientX: 110, clientY: 70 });
-    expect(onMove).toHaveBeenLastCalledWith("a", { x: 0.25, y: 0.25 });
+    expect(onMove).toHaveBeenLastCalledWith("a", { x: 0.25, y: 0.25 }, 1500);
     fireEvent.pointerMove(el, { pointerId: 1, clientX: 9999, clientY: -50 });
-    expect(onMove).toHaveBeenLastCalledWith("a", { x: 1, y: 0 });
+    expect(onMove).toHaveBeenLastCalledWith("a", { x: 1, y: 0 }, 1500);
     // after the pointer is released it no longer drags
     fireEvent.pointerUp(el, { pointerId: 1 });
     onMove.mockClear();

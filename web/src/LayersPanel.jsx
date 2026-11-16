@@ -11,6 +11,8 @@ import {
   newShapeLayer,
   secondsText,
 } from "./layersModel.js";
+import { PathControls } from "./PathControls.jsx";
+import { layerPlace } from "./layersModel.js";
 
 /** One number slider with its value. */
 function Slider({ label, value, min, max, step, show, onChange }) {
@@ -27,7 +29,7 @@ function Slider({ label, value, min, max, step, show, onChange }) {
  * length. `clipMs` is the clip's length and `relMs` the playhead in clip time (so a new layer
  * comes on where you are).
  */
-export function LayersPanel({ layers, setLayers, selectedId, setSelectedId, overlays, shapes, reloadOverlays, clipMs, relMs }) {
+export function LayersPanel({ layers, setLayers, selectedId, setSelectedId, overlays, shapes, reloadOverlays, clipMs, relMs, onSeek }) {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const full = layers.length >= MAX_LAYERS;
@@ -176,6 +178,15 @@ export function LayersPanel({ layers, setLayers, selectedId, setSelectedId, over
               <input type="color" value={selected.color || "#ff4500"} onChange={(e) => change(selected.id, { color: e.target.value })} />
             </label>
           )}
+          <PathControls
+            path={selected.path}
+            onChange={(path) => change(selected.id, { path })}
+            onSeek={onSeek}
+            place={layerPlace(selected, relMs)}
+            relMs={relMs}
+            clipMs={clipMs}
+            what="the layer"
+          />
           <p className="hint tiny">Drag it on the player to move it.</p>
         </div>
       )}
