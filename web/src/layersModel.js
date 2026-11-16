@@ -8,6 +8,7 @@
 // width as a fraction of the picture's width.
 
 import { withBase } from "./base.js";
+import { pathForRequest, positionAt, setKeyframe, tidyPath } from "./pathModel.js";
 
 export const MAX_LAYERS = 12;
 export const MIN_SIZE = 0.02;
@@ -56,6 +57,7 @@ export function adjustLayer(layer, changes, clipMs) {
   next.size = clamp(Number(next.size), MIN_SIZE, MAX_SIZE);
   next.opacity = clamp(Number(next.opacity), 0, 1);
   next.rotation = Number.isFinite(Number(next.rotation)) ? Number(next.rotation) : 0;
+  if (next.path) next.path = tidyPath(next.path, clipMs);
   next.start_ms = clamp(Math.round(next.start_ms), 0, Math.max(0, clipMs - 100));
   if (next.end_ms != null) next.end_ms = clamp(Math.round(next.end_ms), next.start_ms + 100, Math.max(clipMs, next.start_ms + 100));
   return next;
@@ -76,6 +78,8 @@ export function layersForRequest(layers, clipMs) {
         rotation: l.rotation,
         opacity: l.opacity,
       };
+      const path = pathForRequest(l.path, clipMs);
+      if (path.length) out.path = path;
       if (l.kind === "shape") {
         out.shape = l.shape;
         if (/^#[0-9a-fA-F]{6}$/.test(l.color || "")) out.color = l.color;
@@ -105,12 +109,29 @@ export function isVideoAsset(asset) {
   return /\.(mp4|webm)$/i.test(asset || "");
 }
 
-/** CSS placing the layer over a picture: centred on its spot, its width a share of the picture's. */
-export function layerStyle(layer) {
+/** Where the layer's centre is `relMs` into the clip: on its path, or where it was put. */
+export function layerPlace(layer, relMs) {
+  return positionAt(layer.path, relMs, { x: layer.x, y: layer.y });
+}
+
+/**
+ * The layer with its centre moved to `place` at `relMs`: a keyframe at that moment when it
+ * follows a path, otherwise its fixed place.
+ */
+export function moveLayerTo(layer, place, relMs, clipMs) {
+  if (layer.path && layer.path.length) {
+    return { ...layer, path: setKeyframe(layer.path, relMs, place.x, place.y, clipMs) };
+  }
+  return { ...layer, x: place.x, y: place.y };
+}
+
+/** CSS placing the layer over a picture: centred on its spot (at `relMs`), its width a share of the picture's. */
+export function layerStyle(layer, relMs = 0) {
+  const at = layerPlace(layer, relMs);
   return {
     position: "absolute",
-    left: `${layer.x * 100}%`,
-    top: `${layer.y * 100}%`,
+    left: `${at.x * 100}%`,
+    top: `${at.y * 100}%`,
     width: `${layer.size * 100}%`,
     height: "auto",
     transform: `translate(-50%, -50%) rotate(${layer.rotation}deg)`,

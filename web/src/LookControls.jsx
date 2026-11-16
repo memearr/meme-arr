@@ -1,13 +1,15 @@
-import { ALIGNS, ANIMS, PRESETS, newLook, resolveLook } from "./textLook.js";
+import { PathControls } from "./PathControls.jsx";
+import { ALIGNS, ANIMS, PRESETS, lookPlace, newLook, resolveLook } from "./textLook.js";
 
 /**
  * How burned subtitles look: a preset, the colour, where they sit in the picture, whether
  * the words appear one by one as they are said, and how a line comes in. `look` is null
  * for the plain subtitle look.
  */
-export function LookControls({ look, setLook }) {
+export function LookControls({ look, setLook, relMs = 0, clipMs = 0, onSeek }) {
   const patch = (changes) => setLook((l) => ({ ...(l || newLook()), ...changes }));
-  const placed = look && Number.isFinite(look.x) && Number.isFinite(look.y);
+  const following = !!look?.path?.length;
+  const placed = look && !following && Number.isFinite(look.x) && Number.isFinite(look.y);
   const resolved = look ? resolveLook(look) : null;
   return (
     <div className="look-controls">
@@ -51,16 +53,18 @@ export function LookControls({ look, setLook }) {
               ))}
             </select>
           </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={!!placed}
-              onChange={(e) =>
-                patch(e.target.checked ? { x: look.x ?? 0.5, y: look.y ?? 0.8 } : { x: undefined, y: undefined })
-              }
-            />
-            Place the text myself
-          </label>
+          {!following && (
+            <label>
+              <input
+                type="checkbox"
+                checked={!!placed}
+                onChange={(e) =>
+                  patch(e.target.checked ? { x: look.x ?? 0.5, y: look.y ?? 0.8 } : { x: undefined, y: undefined })
+                }
+              />
+              Place the text myself
+            </label>
+          )}
           {placed && (
             <>
               <label>
@@ -85,6 +89,15 @@ export function LookControls({ look, setLook }) {
               </label>
             </>
           )}
+          <PathControls
+            path={look.path}
+            onChange={(path) => patch({ path })}
+            onSeek={onSeek}
+            place={lookPlace(look, relMs) ?? { x: 0.5, y: 0.8 }}
+            relMs={relMs}
+            clipMs={clipMs}
+            what="the text"
+          />
           <label>
             Comes in
             <select value={look.anim || "none"} onChange={(e) => patch({ anim: e.target.value })}>

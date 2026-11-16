@@ -251,3 +251,62 @@ async fn words_come_in_one_by_one_and_a_still_shows_them_all() {
         "revealed {late} vs whole {full}"
     );
 }
+
+#[tokio::test]
+async fn text_follows_its_keyframes_across_the_picture() {
+    if !ffmpeg_available() {
+        eprintln!("skipping text look test: ffmpeg not found on PATH");
+        return;
+    }
+    use meme_arr::export::Keyframe;
+    let tmp = tempfile::tempdir().unwrap();
+    let sample = flat_sample(tmp.path());
+    let plain = render(tmp.path(), &sample, "plain", Caption::None, &[]).await;
+    let moving = render(
+        tmp.path(),
+        &sample,
+        "moving",
+        look_caption(TextLook {
+            preset: Some("block".into()),
+            path: vec![
+                Keyframe {
+                    t_ms: 0,
+                    x: 0.2,
+                    y: 0.3,
+                },
+                Keyframe {
+                    t_ms: 3000,
+                    x: 0.8,
+                    y: 0.7,
+                },
+            ],
+            ..Default::default()
+        }),
+        &[Cue {
+            start_ms: 0,
+            end_ms: 4000,
+            text: "GO".into(),
+        }],
+    )
+    .await;
+    // where the text is at each moment: its mean column and row
+    let at = |t: f64| {
+        let (n, x, y) = difference(&gray_frame(&plain, t), &gray_frame(&moving, t));
+        assert!(n > 100, "the text should be there at {t} s ({n} pixels)");
+        (x, y)
+    };
+    for (t, fx, fy) in [
+        (0.1, 0.2, 0.3),
+        (1.5, 0.5, 0.5),
+        (3.0, 0.8, 0.7),
+        (3.8, 0.8, 0.7),
+    ] {
+        let (x, y) = at(t);
+        assert!(
+            (x - fx * W as f64).abs() < 16.0 && (y - fy * H as f64).abs() < 16.0,
+            "at {t} s the text is at ({x:.0}, {y:.0}), wanted about ({:.0}, {:.0})",
+            fx * W as f64,
+            fy * H as f64
+        );
+    }
+}

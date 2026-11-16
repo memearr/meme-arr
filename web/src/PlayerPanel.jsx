@@ -1,5 +1,7 @@
 import { fmtTime } from "./format.js";
+import { useRef } from "react";
 import { LayerOverlay } from "./LayerOverlay.jsx";
+import { pointToPlace } from "./layersModel.js";
 
 const SPEEDS = [0.25, 0.5, 1];
 
@@ -27,6 +29,7 @@ export function PlayerPanel({
   selectedLayer,
   setSelectedLayer,
   moveLayer,
+  moveText,
   top,
   bottom,
   playhead,
@@ -41,6 +44,8 @@ export function PlayerPanel({
   volume,
   setVolume,
 }) {
+  const capLayerRef = useRef(null);
+  const textDrag = useRef(false);
   return (
       <div className="player">
         <div className="preview">
@@ -76,14 +81,34 @@ export function PlayerPanel({
                 }
               />
               {capStyle && (
-                <div className="cap-layer" style={capStyle.layer}>
+                <div className="cap-layer" style={capStyle.layer} ref={capLayerRef}>
                   {captionMode === "source" && !lookView && overlayText && (
                     <div className="cap-overlay cap-bottom" style={capStyle.bottom}>
                       {overlayText}
                     </div>
                   )}
                   {captionMode === "source" && lookView && (
-                    <div className="cap-look" style={lookView.style}>
+                    <div
+                      className="cap-look draggable"
+                      style={lookView.style}
+                      onPointerDown={(e) => {
+                        e.preventDefault();
+                        textDrag.current = true;
+                        e.currentTarget.setPointerCapture?.(e.pointerId);
+                      }}
+                      onPointerMove={(e) => {
+                        if (!textDrag.current || !capLayerRef.current) return;
+                        const place = pointToPlace(capLayerRef.current.getBoundingClientRect(), e.clientX, e.clientY);
+                        if (place) moveText?.(place, relMs);
+                      }}
+                      onPointerUp={(e) => {
+                        textDrag.current = false;
+                        e.currentTarget.releasePointerCapture?.(e.pointerId);
+                      }}
+                      onPointerCancel={() => {
+                        textDrag.current = false;
+                      }}
+                    >
                       {lookView.lines.map((words, li) => (
                         <div key={li}>
                           {words.map((w, wi) => (

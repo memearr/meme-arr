@@ -58,6 +58,7 @@ fn shape(name: &str, color: Option<&str>) -> Layer {
         size: 0.4,
         rotation: 0.0,
         opacity: 1.0,
+        path: vec![],
     }
 }
 
@@ -503,4 +504,137 @@ async fn captions_are_drawn_on_top_of_the_layers() {
         greens > 300,
         "the text is drawn over the shape ({greens} pixels)"
     );
+}
+
+#[tokio::test]
+async fn a_layer_moves_along_its_keyframes_and_holds_at_the_last() {
+    if !ffmpeg_available() {
+        eprintln!("skipping layers test: ffmpeg not found on PATH");
+        return;
+    }
+    let tmp = tempfile::tempdir().unwrap();
+    let src = sample(tmp.path(), false);
+    let dot = Layer {
+        start_ms: 0,
+        end_ms: None,
+        size: 0.2,
+        path: vec![
+            export::Keyframe {
+                t_ms: 0,
+                x: 0.2,
+                y: 0.5,
+            },
+            export::Keyframe {
+                t_ms: 2000,
+                x: 0.8,
+                y: 0.5,
+            },
+            export::Keyframe {
+                t_ms: 3000,
+                x: 0.8,
+                y: 0.2,
+            },
+        ],
+        ..shape("dot", None)
+    };
+    let out = render(
+        tmp.path(),
+        &src,
+        "moving",
+        request(Format::Mp4, vec![dot], false),
+        &[],
+        &no_media,
+    )
+    .await;
+    let at = |t: f64| orange(&rgb_frame(&out, t));
+    // straight line from 20% to 80% across over two seconds, then held there
+    for (t, want_x) in [
+        (0.0, 0.2),
+        (0.5, 0.35),
+        (1.0, 0.5),
+        (1.5, 0.65),
+        (2.0, 0.8),
+        (3.5, 0.8),
+    ] {
+        let (n, x, _) = at(t);
+        assert!(n > 500, "the dot should be there at {t} s ({n} pixels)");
+        assert!(
+            (x - want_x * W as f64).abs() < 9.0,
+            "at {t} s the dot is at column {x}, wanted about {}",
+            want_x * W as f64
+        );
+    }
+    // then up from half way to 20% of the height between 2 s and 3 s
+    let (_, _, y_mid) = at(2.5);
+    let (_, _, y_end) = at(3.5);
+    assert!((y_mid - 0.35 * H as f64).abs() < 9.0, "row {y_mid}");
+    assert!((y_end - 0.2 * H as f64).abs() < 9.0, "row {y_end}");
+}
+
+#[tokio::test]
+async fn a_path_with_the_most_keyframes_still_renders() {
+    if !ffmpeg_available() {
+        eprintln!("skipping layers test: ffmpeg not found on PATH");
+        return;
+    }
+    let tmp = tempfile::tempdir().unwrap();
+    let src = sample(tmp.path(), false);
+    // a wiggle with the largest number of keyframes a path may have
+    let path: Vec<_> = (0..export::MAX_PATH_POINTS as i64)
+        .map(|i| export::Keyframe {
+            t_ms: i * 4000 / (export::MAX_PATH_POINTS as i64 - 1),
+            x: 0.1 + 0.8 * (i as f32 / (export::MAX_PATH_POINTS as f32 - 1.0)),
+            y: if i % 2 == 0 { 0.4 } else { 0.6 },
+        })
+        .collect();
+    let dot = Layer {
+        start_ms: 0,
+        end_ms: None,
+        path,
+        ..shape("dot", None)
+    };
+    let out = render(
+        tmp.path(),
+        &src,
+        "wiggle",
+        request(Format::Mp4, vec![dot], false),
+        &[],
+        &no_media,
+    )
+    .await;
+    let (n, x, _) = orange(&rgb_frame(&out, 2.0));
+    assert!(n > 500);
+    assert!(
+        (x - 0.5 * W as f64).abs() < 12.0,
+        "half way along at half time, got {x}"
+    );
+}
+
+#[tokio::test]
+async fn a_bad_path_is_refused_before_an_export_starts() {
+    let bad = |kf: export::Keyframe| Layer {
+        path: vec![kf],
+        ..shape("dot", None)
+    };
+    for (kf, why) in [
+        (
+            export::Keyframe {
+                t_ms: 9000,
+                x: 0.5,
+                y: 0.5,
+            },
+            "within the clip",
+        ),
+        (
+            export::Keyframe {
+                t_ms: 0,
+                x: 2.0,
+                y: 0.5,
+            },
+            "inside the picture",
+        ),
+    ] {
+        let got = export::validate_layers(&[bad(kf)], 4000).unwrap();
+        assert!(got.starts_with("layer 1:") && got.contains(why), "{got}");
+    }
 }

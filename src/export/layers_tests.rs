@@ -14,6 +14,7 @@ fn shape(shape: &str) -> Layer {
         size: 0.2,
         rotation: 0.0,
         opacity: 1.0,
+        path: vec![],
     }
 }
 
@@ -133,7 +134,7 @@ fn the_graph_sizes_the_clip_then_lays_each_layer_over_it_in_order() {
     );
     assert!(
         g.contains(
-            "[b0][l1]overlay=x='main_w*0.2500-overlay_w/2':y='main_h*0.7500-overlay_h/2':\
+            "[b0][l1]overlay=x='main_w*(0.2500)-overlay_w/2':y='main_h*(0.7500)-overlay_h/2':\
              enable='between(t,0.500,2.500)':shortest=1[b1]"
         ),
         "{g}"
@@ -233,7 +234,7 @@ fn times_and_places_are_kept_inside_the_clip_and_the_picture() {
     let g = plan_layers(&[l], &[still("/t/a.png")], 480, 15, 2000, "").graph;
     assert!(g.contains("enable='between(t,1.500,2.000)'"), "{g}");
     assert!(
-        g.contains("main_w*1.0000") && g.contains("main_h*0.0000"),
+        g.contains("main_w*(1.0000)") && g.contains("main_h*(0.0000)"),
         "{g}"
     );
 }

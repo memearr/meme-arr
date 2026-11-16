@@ -216,6 +216,13 @@ pub(super) async fn export_start(
     if let Some(msg) = export::validate_layers(&req.layers, req.end_ms - req.start_ms) {
         return Ok(bad_request(msg));
     }
+    if let Some(msg) = req
+        .caption
+        .as_ref()
+        .and_then(|c| c.problem(req.end_ms - req.start_ms))
+    {
+        return Ok(bad_request(msg));
+    }
     // An uploaded picture a layer names must still be there.
     let overlays = st.config.overlays();
     for (i, l) in req.layers.iter().enumerate() {

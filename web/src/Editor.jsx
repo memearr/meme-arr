@@ -14,11 +14,12 @@ import { ExportBar } from "./ExportBar.jsx";
 import { FrameSaver } from "./FrameSaver.jsx";
 import { PlayerPanel } from "./PlayerPanel.jsx";
 import { LayersPanel } from "./LayersPanel.jsx";
-import { layersForRequest } from "./layersModel.js";
+import { layersForRequest, moveLayerTo } from "./layersModel.js";
 import { JobResult } from "./JobResult.jsx";
 import { browserStorage, loadVolume, saveVolume, typingInto } from "./editorStorage.js";
 import { captionMetrics, containedRect } from "./captionPreview.js";
-import { cueAt, lookForRequest, lookStyle, resolveLook, wordsAt } from "./textLook.js";
+import { cueAt, freezeLook, lookForRequest, lookPlace, lookStyle, resolveLook, wordsAt } from "./textLook.js";
+import { setKeyframe } from "./pathModel.js";
 import { effective, newCue, overlaps, retimeCue, shiftCues, sortCues, splitCue, textAt } from "./cueEdit.js";
 import { useBazarrConfigured } from "./bazarr.js";
 import { loadFontChoice, saveFontChoice, usableFont } from "./fonts.js";
@@ -506,7 +507,8 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cuesReload]);
 
-  function buildCaption() {
+  // `frozenAt` (ms into the clip) makes a caption for a single frame: its text where its path has it then.
+  function buildCaption({ frozenAt } = {}) {
     return captionMode === "none"
       ? { mode: "none" }
       : captionMode === "source"
@@ -515,7 +517,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
           cues: editedCues,
           font: font || null,
           font_scale: fontScale,
-          look: lookForRequest(look),
+          look: lookForRequest(frozenAt != null ? freezeLook(look, frozenAt) : look, clipLength),
         }
       : {
           mode: "meme",
@@ -607,7 +609,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
         t_ms: at,
         format: stillFormat,
         width: stillWidth,
-        caption: buildCaption(),
+        caption: buildCaption({ frozenAt: Math.max(0, at - start) }),
         subtitle_offset_ms: captionMode === "source" ? subtitleOffsetMs : 0,
         filename: filename || null,
       });
@@ -652,11 +654,13 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   // The styled caption over the picture: where it sits, its colours, and (with word-by-word
   // reveal) which of its words are up at the playhead.
   const lookCue = captionMode === "source" && look ? cueAt(displayCues, playhead, subtitleOffsetMs) : null;
+  const relNow = Math.max(0, Math.round(playhead - start));
+  const textSpot = look ? lookPlace(look, relNow) : null;
   const lookView =
     lookCue && metrics && pictureBox
       ? {
           style: {
-            ...lookStyle(look, pictureBox.height / 288),
+            ...lookStyle(textSpot ? { ...look, x: textSpot.x, y: textSpot.y } : look, pictureBox.height / 288),
             fontSize: metrics.fontSize,
             lineHeight: 1.2,
           },
@@ -739,8 +743,17 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
             relMs={Math.max(0, Math.round(playhead - start))}
             selectedLayer={selectedLayer}
             setSelectedLayer={setSelectedLayer}
-            moveLayer={(id, place) =>
-              setLayers((ls) => ls.map((l) => (l.id === id ? { ...l, x: place.x, y: place.y } : l)))
+            moveLayer={(id, place, rel) =>
+              setLayers((ls) => ls.map((l) => (l.id === id ? moveLayerTo(l, place, rel ?? relNow, clipLength) : l)))
+            }
+            moveText={(place, rel) =>
+              setLook((l) =>
+                !l
+                  ? l
+                  : l.path?.length
+                  ? { ...l, path: setKeyframe(l.path, rel ?? relNow, place.x, place.y, clipLength) }
+                  : { ...l, x: place.x, y: place.y }
+              )
             }
             top={top}
             bottom={bottom}
@@ -847,6 +860,9 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
               setFontScale={setFontScale}
               look={look}
               setLook={setLook}
+              relMs={Math.max(0, Math.round(playhead - start))}
+              clipMs={clipLength}
+              onSeek={(ms) => seekTo(start + ms)}
               top={top}
               setTop={setTop}
               bottom={bottom}
@@ -865,6 +881,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
                 setLayers={setLayers}
                 selectedId={selectedLayer}
                 setSelectedId={setSelectedLayer}
+                onSeek={(ms) => seekTo(start + ms)}
                 overlays={overlayList.overlays}
                 shapes={overlayList.shapes}
                 reloadOverlays={reloadOverlays}

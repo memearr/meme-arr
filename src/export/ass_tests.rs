@@ -263,6 +263,158 @@ fn a_line_that_began_before_the_clip_does_not_animate_in() {
     assert!(e.contains("\\pos(") && !e.contains("\\move("));
 }
 
+fn kf(t_ms: i64, x: f32, y: f32) -> Keyframe {
+    Keyframe { t_ms, x, y }
+}
+
+fn pathed(path: Vec<Keyframe>) -> TextLook {
+    TextLook {
+        path,
+        ..Default::default()
+    }
+}
+
+#[test]
+fn text_follows_its_keyframes_in_straight_lines_and_holds_at_the_last() {
+    let look = pathed(vec![kf(0, 0.2, 0.5), kf(2000, 0.8, 0.5)]);
+    let ass = build_ass(&[cue(0, 4000, "hi")], (0, 4000), 0, &look, None, 100).unwrap();
+    let e = events(&ass);
+    assert_eq!(e.len(), 2, "one event for each stretch between keyframes");
+    // 0.2 of 512 is 102.4, 0.8 of 512 is 409.6, and half the height is 144
+    assert!(e[0].starts_with("Dialogue: 0,0:00:00.00,0:00:02.00,"));
+    assert!(
+        e[0].contains("{\\an5\\move(102.4,144.0,409.6,144.0,0,2000)}hi"),
+        "{}",
+        e[0]
+    );
+    assert!(e[1].starts_with("Dialogue: 0,0:00:02.00,0:00:04.00,"));
+    assert!(e[1].contains("{\\an5\\pos(409.6,144.0)}hi"), "{}", e[1]);
+}
+
+#[test]
+fn a_line_that_ends_between_keyframes_stops_part_way_along_the_line() {
+    // the path goes from the left edge to the right over 4 s; the line is on for 1 s of it
+    let look = pathed(vec![kf(0, 0.0, 0.5), kf(4000, 1.0, 0.5)]);
+    let ass = build_ass(&[cue(1000, 2000, "hi")], (0, 4000), 0, &look, None, 100).unwrap();
+    let e = events(&ass);
+    assert_eq!(e.len(), 1);
+    // a quarter and then half way across: 128 and 256
+    assert!(
+        e[0].contains("\\move(128.0,144.0,256.0,144.0,0,1000)"),
+        "{}",
+        e[0]
+    );
+}
+
+#[test]
+fn keyframe_times_are_the_clips_own_not_the_media_s() {
+    // the clip starts 10 s into the film; the keyframe at 2 s of the clip is at 12 s of it
+    let look = pathed(vec![kf(0, 0.0, 0.5), kf(2000, 1.0, 0.5)]);
+    let ass = build_ass(
+        &[cue(10_000, 14_000, "hi")],
+        (10_000, 14_000),
+        0,
+        &look,
+        None,
+        100,
+    )
+    .unwrap();
+    let e = events(&ass);
+    assert_eq!(e.len(), 2);
+    assert!(
+        e[0].contains("0:00:00.00,0:00:02.00")
+            && e[0].contains("\\move(0.0,144.0,512.0,144.0,0,2000)")
+    );
+    assert!(e[1].contains("0:00:02.00,0:00:04.00") && e[1].contains("\\pos(512.0,144.0)"));
+}
+
+#[test]
+fn several_lines_each_follow_the_same_path() {
+    let look = pathed(vec![kf(0, 0.0, 0.5), kf(3000, 1.0, 0.5)]);
+    let cues = [cue(0, 1000, "a"), cue(1500, 2500, "b")];
+    let ass = build_ass(&cues, (0, 3000), 0, &look, None, 100).unwrap();
+    let e = events(&ass);
+    assert_eq!(
+        e.len(),
+        2,
+        "keyframes outside a line's own time do not split it"
+    );
+    assert!(
+        e[0].contains("\\move(0.0,144.0,170.7,144.0,0,1000)"),
+        "{}",
+        e[0]
+    );
+    assert!(
+        e[1].contains("\\move(256.0,144.0,426.7,144.0,0,1000)"),
+        "{}",
+        e[1]
+    );
+}
+
+#[test]
+fn a_path_places_the_text_even_without_x_and_y_and_keeps_the_alignment() {
+    let left = TextLook {
+        align: TextAlign::Left,
+        path: vec![kf(0, 0.5, 0.25)],
+        ..Default::default()
+    };
+    let ass = build_ass(&[cue(0, 1000, "hi")], (0, 1000), 0, &left, None, 100).unwrap();
+    // a single keyframe is a place to stay; centred on it vertically, left-aligned
+    assert!(events(&ass)[0].contains("{\\an4\\pos(256.0,72.0)}hi"));
+}
+
+#[test]
+fn words_that_appear_in_a_later_stretch_are_timed_from_that_stretch() {
+    let mut look = pathed(vec![kf(0, 0.0, 0.5), kf(2000, 1.0, 0.5)]);
+    look.reveal = TextReveal::Word;
+    let ass = build_ass(
+        &[cue(0, 4000, "aaaa bbbb cccc dddd")],
+        (0, 4000),
+        0,
+        &look,
+        None,
+        100,
+    )
+    .unwrap();
+    let e = events(&ass);
+    assert_eq!(e.len(), 2);
+    // said at 0, 800, 1600 and 2400 ms. In the first stretch (0 to 2 s) the last is still
+    // hidden when the stretch ends; in the second, three are already up, the last at 400.
+    assert_eq!(reveal_times(e[0]), vec![800, 1600, 2400]);
+    assert_eq!(
+        reveal_times(e[1]),
+        vec![400],
+        "2400 - 2000, from the second stretch's start"
+    );
+    assert!(e[1].contains("}aaaa") && e[1].matches("\\alpha&H00&\\fscx100\\fscy100").count() == 3);
+}
+
+#[test]
+fn a_slide_becomes_a_fade_while_the_text_is_moving() {
+    let mut look = pathed(vec![kf(0, 0.1, 0.5), kf(2000, 0.9, 0.5)]);
+    look.anim = TextAnim::SlideUp;
+    let ass = build_ass(&[cue(500, 3500, "hi")], (0, 4000), 0, &look, None, 100).unwrap();
+    let e = events(&ass);
+    assert!(e[0].contains("\\fad(180,0)"), "{}", e[0]);
+    // the only \move is the path's, none is a 180 ms slide
+    assert!(e.iter().all(|l| !l.contains(",0,180)")), "{e:?}");
+    // the fade is on the first stretch only
+    assert!(e.iter().skip(1).all(|l| !l.contains("\\fad(")));
+}
+
+#[test]
+fn a_path_with_no_usable_keyframes_leaves_the_text_where_it_was_placed() {
+    let look = TextLook {
+        x: Some(0.25),
+        y: Some(0.5),
+        path: vec![kf(0, f32::NAN, 0.5)],
+        ..Default::default()
+    };
+    let ass = build_ass(&[cue(0, 1000, "hi")], (0, 1000), 0, &look, None, 100).unwrap();
+    assert_eq!(events(&ass).len(), 1);
+    assert!(events(&ass)[0].contains("{\\an5\\pos(128.0,144.0)}hi"));
+}
+
 #[test]
 fn times_are_written_in_centiseconds() {
     assert_eq!(ass_time(0), "0:00:00.00");
