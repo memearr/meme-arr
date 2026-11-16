@@ -64,3 +64,20 @@ export function removeKeyframe(path, index) {
 export function pathForRequest(path, clipMs) {
   return tidyPath((path || []).filter((k) => k.t_ms <= clipMs), clipMs).map((k) => ({ t_ms: k.t_ms, x: k.x, y: k.y }));
 }
+
+/** The most keyframes a tracked path may have, leaving room for the ones kept from before `fromMs`. */
+export function trackLimit(path, fromMs) {
+  const kept = (path || []).filter((k) => k.t_ms < fromMs - SAME_INSTANT_MS).length;
+  return Math.max(2, MAX_PATH_POINTS - kept);
+}
+
+/**
+ * The path with the keyframes a tracker found taking over from where it started: those
+ * before it are kept, the rest are replaced.
+ */
+export function mergeTracked(path, tracked, clipMs) {
+  if (!tracked || tracked.length === 0) return path || [];
+  const from = tracked[0].t_ms;
+  const kept = (path || []).filter((k) => k.t_ms < from - SAME_INSTANT_MS);
+  return tidyPath([...kept, ...tracked], clipMs);
+}

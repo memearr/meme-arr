@@ -29,7 +29,7 @@ function Slider({ label, value, min, max, step, show, onChange }) {
  * length. `clipMs` is the clip's length and `relMs` the playhead in clip time (so a new layer
  * comes on where you are).
  */
-export function LayersPanel({ layers, setLayers, selectedId, setSelectedId, overlays, shapes, reloadOverlays, clipMs, relMs, onSeek }) {
+export function LayersPanel({ layers, setLayers, selectedId, setSelectedId, overlays, shapes, reloadOverlays, clipMs, relMs, onSeek, onTrack }) {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const full = layers.length >= MAX_LAYERS;
@@ -182,6 +182,7 @@ export function LayersPanel({ layers, setLayers, selectedId, setSelectedId, over
             path={selected.path}
             onChange={(path) => change(selected.id, { path })}
             onSeek={onSeek}
+            onTrack={onTrack}
             place={layerPlace(selected, relMs)}
             relMs={relMs}
             clipMs={clipMs}

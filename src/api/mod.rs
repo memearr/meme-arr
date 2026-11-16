@@ -41,6 +41,7 @@ mod settings;
 mod source;
 mod subtitle_api;
 mod system;
+mod track;
 use self::authentik::*;
 use self::bazarr::*;
 use self::clips::*;
@@ -56,6 +57,7 @@ use self::settings::*;
 use self::source::*;
 use self::subtitle_api::*;
 use self::system::*;
+use self::track::*;
 
 /// The libraries a request is limited to: every `library=<name>` in the query
 /// string (the parameter may repeat). Empty means all libraries. Blank values
@@ -189,6 +191,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/filmstrip/{rating_key}", get(filmstrip))
         .route("/api/export", post(export_start))
         .route("/api/still", post(still_export))
+        .route("/api/track", post(track_spot))
         .route("/api/sequence/export", post(sequence_export_start))
         .route("/api/jobs/{id}", get(job_status))
         .route("/api/download/{filename}", get(download))

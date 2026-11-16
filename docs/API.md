@@ -485,6 +485,36 @@ anything that is not a plain file name in the overlay folder.
 A built-in shape (`arrow`, `ring`, `box`, `dot`) as the transparent PNG an export overlays; orange by default.
 `404` for an unknown shape, `400` for a colour that is not `#RRGGBB`.
 
+### `POST /api/track`
+Follows a spot of the picture through a clip and answers with a path (keyframes) a layer or the caption
+text can take (see `look.path` under `POST /api/export`). The clip is decoded at low resolution and the
+patch of picture round the spot is searched for in each following frame (normalised cross-correlation, to a
+fraction of a pixel, the template slowly updated while it matches well). It runs for a few seconds and
+answers with the result.
+
+```json
+{ "rating_key": "12345", "start_ms": 62500, "end_ms": 67500, "t_ms": 500,
+  "x": 0.42, "y": 0.55, "size": 0.12, "max_points": 100 }
+```
+
+- `start_ms`, `end_ms`: the clip, in the media's own time (at most 60 s).
+- `t_ms`: the moment to start from, in milliseconds from the start of the clip (default 0); the spot is
+  followed forward from there to the end of the clip.
+- `x`, `y`: where the spot is at that moment, fractions of the picture (0 to 1).
+- `size`: about how wide the spot is, as a fraction of the picture's width (default 0.12).
+- `max_points`: the most keyframes the answer may have (default and most 100); the path is thinned to the
+  few keyframes that describe the same movement.
+
+```json
+{ "path": [ { "t_ms": 500, "x": 0.42, "y": 0.55 }, { "t_ms": 1250, "x": 0.5, "y": 0.52 } ],
+  "tracked_ms": 3200, "lost": false }
+```
+
+`tracked_ms` is how far from `t_ms` it got; `lost` is true when the spot was lost (a poor match for three
+frames in a row) before the clip ended, in which case `path` is what was followed up to then. `400` for a
+spot with nothing in it to hold on to (flat colour), a clip over 60 s, or a start or place outside the
+clip or picture; `404` if the media isn't indexed. At most two run at once.
+
 ### `GET /api/jobs/:id`
 ```json
 { "id": "...", "status": "done", "format": "gif", "filename": "my-meme.gif",
