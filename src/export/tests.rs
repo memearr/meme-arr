@@ -599,6 +599,7 @@ fn a_chosen_font_is_named_by_family_and_its_folder_is_searched() {
         cues: None,
         font: Some("MemeTestSans.ttf".into()),
         font_scale: 100,
+        look: None,
     };
     assert_eq!(
         subtitle_style(&cap, TEST_FONT),
@@ -632,6 +633,7 @@ fn text_size_scales_subtitles_and_meme_text() {
         cues: None,
         font: None,
         font_scale: 150,
+        look: None,
     };
     assert!(
         subtitle_style(&big, "x.ttf").starts_with("FontSize=24,"),
@@ -642,6 +644,7 @@ fn text_size_scales_subtitles_and_meme_text() {
         cues: None,
         font: None,
         font_scale: 50,
+        look: None,
     };
     assert!(subtitle_style(&small, "x.ttf").starts_with("FontSize=8,"));
 
@@ -676,6 +679,7 @@ fn text_size_is_kept_within_limits() {
         cues: None,
         font: None,
         font_scale: s,
+        look: None,
     };
     assert_eq!(wild(0).font_scale_pct(), MIN_FONT_SCALE);
     assert_eq!(wild(100_000).font_scale_pct(), MAX_FONT_SCALE);

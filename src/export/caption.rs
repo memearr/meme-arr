@@ -99,13 +99,16 @@ impl WrittenCaptions {
     }
 }
 
-/// Write whatever caption files a caption mode needs (SRT for source subs,
-/// text files for meme top/bottom lines) to `tmp_dir`, named from `id`.
+/// Write whatever caption files a caption mode needs (SRT for source subs, or an
+/// ASS script when they have a [`TextLook`]; text files for meme top/bottom lines)
+/// to `tmp_dir`, named from `id`. `font_path` is the chosen caption font (the
+/// script names its family).
 pub fn write_caption_files(
     tmp_dir: &Path,
     id: &str,
     caption: Option<&Caption>,
     window: &CaptionWindow,
+    font_path: &str,
 ) -> Result<WrittenCaptions> {
     let mut written = WrittenCaptions {
         srt: None,
@@ -126,13 +129,40 @@ pub fn write_caption_files(
             // editor) replaces the indexed cues entirely; either way the
             // offset still applies uniformly below.
             let effective: &[Cue] = override_cues.as_deref().unwrap_or(window.cues);
-            let srt =
-                subtitles::trimmed_srt(effective, window.start_ms, window.end_ms, window.offset_ms);
+            // With a look the lines go into an ASS script (colour, place, reveal);
+            // without one they are the plain SRT the `subtitles` filter reads.
+            let (script, ext) = match caption.and_then(Caption::look) {
+                Some(look) => {
+                    let family = caption
+                        .and_then(Caption::font_id)
+                        .and_then(|_| crate::fonts::family_of(Path::new(font_path)));
+                    let script = build_ass(
+                        effective,
+                        (window.start_ms, window.end_ms),
+                        window.offset_ms,
+                        look,
+                        family.as_deref(),
+                        caption.map_or(100, Caption::font_scale_pct),
+                    )
+                    .unwrap_or_default();
+                    (script, "ass")
+                }
+                None => (
+                    subtitles::trimmed_srt(
+                        effective,
+                        window.start_ms,
+                        window.end_ms,
+                        window.offset_ms,
+                    ),
+                    "srt",
+                ),
+            };
+            let srt = script;
             // No line falls inside the window: there is nothing to burn. An empty
             // SRT would make ffmpeg's subtitles filter fail ("Unable to open ...
             // Invalid data found"), so no file is written and no filter is built.
             if !srt.trim().is_empty() {
-                let path = tmp_dir.join(format!("{id}.srt"));
+                let path = tmp_dir.join(format!("{id}.{ext}"));
                 std::fs::write(&path, srt)?;
                 written.srt = Some(path.to_string_lossy().to_string());
                 written.files.srt = Some(path);

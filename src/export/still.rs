@@ -66,7 +66,8 @@ impl StillRequest {
 /// is sized in pixels, so a wider picture needs bigger text to look the same as
 /// in a 480-pixel clip. Subtitles scale with the picture by themselves.
 pub fn caption_for_width(caption: Option<&Caption>, width: u32) -> Option<Caption> {
-    let mut c = caption.cloned();
+    // A single frame has no "before" to animate from, so no entrance or reveal.
+    let mut c = caption.map(Caption::without_motion);
     if let Some(Caption::Meme { font_size, .. }) = c.as_mut() {
         *font_size =
             ((*font_size as f32 * width as f32 / MEME_BASE_WIDTH as f32).round() as u32).max(6);
@@ -153,7 +154,7 @@ pub async fn run_still(
         end_ms: req.t_ms + FRAME_SLACK_MS,
         offset_ms: req.subtitle_offset_ms,
     };
-    let written = write_caption_files(job.tmp_dir, job.id, caption.as_ref(), &window)?;
+    let written = write_caption_files(job.tmp_dir, job.id, caption.as_ref(), &window, font_path)?;
     let style = CaptionStyle::new(caption.as_ref(), font_path, height_hint_for(width));
     let vf = still_filter(req.format, width, &written.spec(style));
     let args = still_args(

@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use tracing::warn;
 
+mod ass;
 mod caption;
 mod filters;
 mod request;
@@ -19,6 +20,7 @@ mod still;
 #[cfg(test)]
 mod tests;
 
+pub use self::ass::*;
 pub use self::caption::*;
 pub use self::filters::*;
 pub use self::request::*;

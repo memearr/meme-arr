@@ -131,6 +131,13 @@ and WebM only; GIF and WebP can't carry audio). Finished files also land in your
   typeface and **Text size** scales the text (50% to 300%; 100% is normal). Your choice is
   remembered for next time, and each clip in a sequence keeps its own. Add fonts under
   [Settings](#settings).
+- **Look.** With burned subtitles selected, **Look** turns the plain subtitle into a styled
+  caption: pick a preset (Block, Neon, Horror, Soft, Box), change its **Colour**, **Align** it,
+  **Place the text myself** anywhere in the picture with the **Across** and **Down** sliders,
+  choose how a line **Comes in** (fade, pop, rise, slide), and tick **Words appear as they are
+  said** to show the line word by word. Put `*stars*` round a word in the line editor to make
+  that word bigger. The player shows the colour, place and words appearing; the entrance
+  animation shows in the exported file. **Save this frame** keeps the look but not the motion.
 - **Save this frame.** The bar right under the player: park the playhead on a frame (step with
   `,` and `.`), pick PNG, JPG or GIF and a width, and **Save frame**
   makes a still picture of it as a **PNG**, **JPG** or **GIF**, 480 to 1920 px wide. It

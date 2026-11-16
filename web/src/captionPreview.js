@@ -27,7 +27,7 @@ export function containedRect(boxW, boxH, naturalW, naturalH) {
  * `mode` is "source" or "meme"; `scalePct` the text size slider; `memeSize` the
  * meme text's base size in output pixels; `outWidth` the export width.
  */
-export function captionMetrics({ mode, width, height, scalePct = 100, memeSize = 36, outWidth = 480 }) {
+export function captionMetrics({ mode, width, height, scalePct = 100, memeSize = 36, outWidth = 480, baseSize = SRT_DEFAULT_SIZE }) {
   if (!(width > 0 && height > 0)) return null;
   const pct = Math.max(1, scalePct) / 100;
   if (mode === "meme") {
@@ -40,7 +40,7 @@ export function captionMetrics({ mode, width, height, scalePct = 100, memeSize =
   }
   const k = height / SRT_RES_Y;
   return {
-    fontSize: (Math.max(6, SRT_DEFAULT_SIZE * pct) * k) / LINE_TO_EM,
+    fontSize: (Math.max(6, baseSize * pct) * k) / LINE_TO_EM,
     outline: SRT_OUTLINE * k,
     margin: SRT_MARGIN_V * k,
   };

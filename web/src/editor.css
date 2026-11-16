@@ -89,6 +89,21 @@
   white-space: pre-line;
   pointer-events: none;
 }
+/* A styled caption (colour, place, words appearing): its position and colours come inline. */
+.cap-look {
+  pointer-events: none;
+}
+.look-controls {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+.look-controls label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 .tp-volume {
   display: inline-flex;
   align-items: center;

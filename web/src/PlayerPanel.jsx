@@ -19,6 +19,7 @@ export function PlayerPanel({
   capStyle,
   captionMode,
   overlayText,
+  lookView,
   top,
   bottom,
   playhead,
@@ -69,9 +70,29 @@ export function PlayerPanel({
               />
               {capStyle && (
                 <div className="cap-layer" style={capStyle.layer}>
-                  {captionMode === "source" && overlayText && (
+                  {captionMode === "source" && !lookView && overlayText && (
                     <div className="cap-overlay cap-bottom" style={capStyle.bottom}>
                       {overlayText}
+                    </div>
+                  )}
+                  {captionMode === "source" && lookView && (
+                    <div className="cap-look" style={lookView.style}>
+                      {lookView.lines.map((words, li) => (
+                        <div key={li}>
+                          {words.map((w, wi) => (
+                            <span
+                              key={wi}
+                              style={{
+                                visibility: w.shown ? "visible" : "hidden",
+                                fontSize: w.emphasis ? `${lookView.emphasis}em` : undefined,
+                              }}
+                            >
+                              {w.text}
+                              {wi + 1 < words.length ? " " : ""}
+                            </span>
+                          ))}
+                        </div>
+                      ))}
                     </div>
                   )}
                   {captionMode === "meme" && top && (
