@@ -529,6 +529,20 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
         };
   }
 
+  // Follow the spot of the picture at `place`, `relMs` into the clip, to the end of it.
+  function trackSpot({ place, relMs, size, maxPoints }) {
+    return api.track({
+      rating_key: item.rating_key,
+      start_ms: start,
+      end_ms: end,
+      t_ms: relMs,
+      x: place.x,
+      y: place.y,
+      size,
+      max_points: maxPoints,
+    });
+  }
+
   // Put what is on screen back into the clip it came from.
   function handleSaveToSequence(andNext) {
     sequenceEdit?.onSave(
@@ -863,6 +877,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
               relMs={Math.max(0, Math.round(playhead - start))}
               clipMs={clipLength}
               onSeek={(ms) => seekTo(start + ms)}
+              onTrack={trackSpot}
               top={top}
               setTop={setTop}
               bottom={bottom}
@@ -882,6 +897,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
                 selectedId={selectedLayer}
                 setSelectedId={setSelectedLayer}
                 onSeek={(ms) => seekTo(start + ms)}
+                onTrack={trackSpot}
                 overlays={overlayList.overlays}
                 shapes={overlayList.shapes}
                 reloadOverlays={reloadOverlays}

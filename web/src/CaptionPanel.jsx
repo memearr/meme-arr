@@ -29,6 +29,7 @@ export function CaptionPanel({
   relMs = 0,
   clipMs = 0,
   onSeek,
+  onTrack,
   top,
   setTop,
   bottom,
@@ -96,7 +97,7 @@ export function CaptionPanel({
         </div>
       )}
       {captionMode === "source" && (
-        <LookControls look={look} setLook={setLook} relMs={relMs} clipMs={clipMs} onSeek={onSeek} />
+        <LookControls look={look} setLook={setLook} relMs={relMs} clipMs={clipMs} onSeek={onSeek} onTrack={onTrack} />
       )}
       {captionMode === "source" && (
         <div className="sync-control">

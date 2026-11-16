@@ -41,6 +41,7 @@ pub mod subtitles;
 pub mod sync;
 pub mod tasks;
 pub mod tls;
+pub mod tracker;
 pub mod version;
 
 use anyhow::{Context, Result};

@@ -6,7 +6,7 @@ import { ALIGNS, ANIMS, PRESETS, lookPlace, newLook, resolveLook } from "./textL
  * the words appear one by one as they are said, and how a line comes in. `look` is null
  * for the plain subtitle look.
  */
-export function LookControls({ look, setLook, relMs = 0, clipMs = 0, onSeek }) {
+export function LookControls({ look, setLook, relMs = 0, clipMs = 0, onSeek, onTrack }) {
   const patch = (changes) => setLook((l) => ({ ...(l || newLook()), ...changes }));
   const following = !!look?.path?.length;
   const placed = look && !following && Number.isFinite(look.x) && Number.isFinite(look.y);
@@ -93,6 +93,7 @@ export function LookControls({ look, setLook, relMs = 0, clipMs = 0, onSeek }) {
             path={look.path}
             onChange={(path) => patch({ path })}
             onSeek={onSeek}
+            onTrack={onTrack}
             place={lookPlace(look, relMs) ?? { x: 0.5, y: 0.8 }}
             relMs={relMs}
             clipMs={clipMs}

@@ -230,6 +230,13 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload || {}),
     }),
+  /** Follow the spot at (x, y), `t_ms` into the clip, to the end of it: `{path, tracked_ms, lost}`. */
+  track: (body) =>
+    json(`/api/track`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
   overlays: () => json(`/api/overlays`),
   uploadOverlay: (file) =>
     json(`/api/overlays?name=${encodeURIComponent(file.name)}`, {
