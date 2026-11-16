@@ -66,12 +66,21 @@ pub(super) fn caption_filters(spec: &CaptionSpec) -> Vec<String> {
                     .parent()
                     .map(|p| p.to_string_lossy().to_string())
                     .unwrap_or_default();
-                parts.push(format!(
-                    "subtitles='{}':fontsdir='{}':force_style='{}'",
-                    escape_filter_path(srt),
-                    escape_filter_path(&fonts_dir),
-                    subtitle_style(c, font_path),
-                ));
+                if c.look().is_some() {
+                    // An ASS script carries its own style (see `build_ass`).
+                    parts.push(format!(
+                        "ass='{}':fontsdir='{}'",
+                        escape_filter_path(srt),
+                        escape_filter_path(&fonts_dir),
+                    ));
+                } else {
+                    parts.push(format!(
+                        "subtitles='{}':fontsdir='{}':force_style='{}'",
+                        escape_filter_path(srt),
+                        escape_filter_path(&fonts_dir),
+                        subtitle_style(c, font_path),
+                    ));
+                }
             }
         }
         Some(c @ Caption::Meme { font_size, .. }) => {

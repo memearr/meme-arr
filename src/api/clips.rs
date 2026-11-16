@@ -35,6 +35,10 @@ pub(super) struct PreviewParams {
     /// when present. Query-string-friendly stand-in for a GET request body.
     #[serde(default)]
     cues_json: Option<String>,
+    /// JSON-encoded `export::TextLook` for burned subtitles (colour, place,
+    /// word-by-word reveal); absent is the plain subtitle look.
+    #[serde(default)]
+    look_json: Option<String>,
 }
 
 pub(super) fn preview_width() -> u32 {
@@ -71,6 +75,13 @@ impl PreviewParams {
                 cues: override_cues,
                 font: self.font.clone(),
                 font_scale: self.font_scale,
+                look: match &self.look_json {
+                    Some(s) if !s.is_empty() => Some(
+                        serde_json::from_str(s)
+                            .map_err(|e| anyhow::anyhow!("invalid look_json: {e}"))?,
+                    ),
+                    _ => None,
+                },
             }),
             "meme" => Some(export::Caption::Meme {
                 top: self.top.clone(),
@@ -103,7 +114,7 @@ impl PreviewParams {
                 &self.font,
                 self.font_scale,
             ),
-            (self.offset_ms, &self.cues_json),
+            (self.offset_ms, &self.cues_json, &self.look_json),
         )
             .hash(&mut h);
         h.finish()

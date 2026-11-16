@@ -17,6 +17,7 @@ export function editorSeed(clip) {
     font: cap.font || undefined,
     fontScale: cap.font_scale || undefined,
     editedCues: mode === "source" && Array.isArray(cap.cues) ? cap.cues : null,
+    look: mode === "source" && cap.look ? cap.look : null,
     subtitleOffsetMs: clip.subtitle_offset_ms || 0,
   };
 }

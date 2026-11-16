@@ -49,6 +49,10 @@ pub enum Caption {
         /// Text size as a percentage of the normal size.
         #[serde(default = "default_font_scale")]
         font_scale: u32,
+        /// How the text looks (colour, place, word-by-word reveal, entrance).
+        /// `None` is the plain subtitle look, drawn from an SRT.
+        #[serde(default)]
+        look: Option<TextLook>,
     },
     /// Classic meme caption(s).
     Meme {
@@ -84,7 +88,27 @@ impl Caption {
             cues,
             font: None,
             font_scale: default_font_scale(),
+            look: None,
         }
+    }
+
+    /// The text look this caption asks for, if it burns subtitles in one.
+    pub fn look(&self) -> Option<&TextLook> {
+        match self {
+            Caption::Source { look, .. } => look.as_ref(),
+            _ => None,
+        }
+    }
+
+    /// The same caption with its entrance animation and word-by-word reveal
+    /// removed, for a single still frame (where there is no "before" to animate from).
+    pub fn without_motion(&self) -> Caption {
+        let mut c = self.clone();
+        if let Caption::Source { look: Some(l), .. } = &mut c {
+            l.anim = TextAnim::None;
+            l.reveal = TextReveal::None;
+        }
+        c
     }
 
     /// Meme text in the default font at normal size.

@@ -16,6 +16,7 @@ import { PlayerPanel } from "./PlayerPanel.jsx";
 import { JobResult } from "./JobResult.jsx";
 import { browserStorage, loadVolume, saveVolume, typingInto } from "./editorStorage.js";
 import { captionMetrics, containedRect } from "./captionPreview.js";
+import { cueAt, lookForRequest, lookStyle, resolveLook, wordsAt } from "./textLook.js";
 import { effective, newCue, overlaps, retimeCue, shiftCues, sortCues, splitCue, textAt } from "./cueEdit.js";
 import { useBazarrConfigured } from "./bazarr.js";
 import { loadFontChoice, saveFontChoice, usableFont } from "./fonts.js";
@@ -58,6 +59,8 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
     () => seed?.fontScale ?? loadFontChoice(browserStorage()).scale
   );
   const [fontList, setFontList] = useState({ fonts: [], default: null });
+  // How burned subtitles look (preset, colours, place, reveal, entrance); null is the plain look.
+  const [look, setLook] = useState(seed?.look ?? null);
   const [top, setTop] = useState(seed ? seed.top : "");
   const [bottom, setBottom] = useState(seed ? seed.bottom : item.line || "");
   const [subtitleOffsetMs, setSubtitleOffsetMs] = useState(seed?.subtitleOffsetMs ?? 0); // sync correction, ms
@@ -490,7 +493,13 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
     return captionMode === "none"
       ? { mode: "none" }
       : captionMode === "source"
-      ? { mode: "source", cues: editedCues, font: font || null, font_scale: fontScale }
+      ? {
+          mode: "source",
+          cues: editedCues,
+          font: font || null,
+          font_scale: fontScale,
+          look: lookForRequest(look),
+        }
       : {
           mode: "meme",
           top: top || null,
@@ -603,6 +612,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
           width: pictureBox.width,
           height: pictureBox.height,
           scalePct: fontScale,
+          baseSize: captionMode === "source" && look ? resolveLook(look).size : undefined,
           memeSize: 36,
           outWidth: width,
         })
@@ -621,6 +631,21 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
         top: { top: metrics.margin },
       }
     : null;
+  // The styled caption over the picture: where it sits, its colours, and (with word-by-word
+  // reveal) which of its words are up at the playhead.
+  const lookCue = captionMode === "source" && look ? cueAt(displayCues, playhead, subtitleOffsetMs) : null;
+  const lookView =
+    lookCue && metrics && pictureBox
+      ? {
+          style: {
+            ...lookStyle(look, pictureBox.height / 288),
+            fontSize: metrics.fontSize,
+            lineHeight: 1.2,
+          },
+          lines: wordsAt(lookCue, playhead, look.reveal),
+          emphasis: 1.5,
+        }
+      : null;
   const timelineCues =
     captionMode === "source"
       ? [
@@ -690,6 +715,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
             capStyle={capStyle}
             captionMode={captionMode}
             overlayText={overlayText}
+            lookView={lookView}
             top={top}
             bottom={bottom}
             playhead={playhead}
@@ -793,6 +819,8 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
               fontList={fontList}
               fontScale={fontScale}
               setFontScale={setFontScale}
+              look={look}
+              setLook={setLook}
               top={top}
               setTop={setTop}
               bottom={bottom}

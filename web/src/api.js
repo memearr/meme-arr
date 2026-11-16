@@ -253,7 +253,7 @@ export const api = {
   },
   previewUrl: (
     ratingKey,
-    { start, end, width, fps, captionMode, top, bottom, fontSize, font, fontScale, offsetMs, editedCues }
+    { start, end, width, fps, captionMode, top, bottom, fontSize, font, fontScale, offsetMs, editedCues, look }
   ) => {
     const params = new URLSearchParams({ start, end, width });
     if (fps != null) params.set("fps", fps);
@@ -265,6 +265,7 @@ export const api = {
     if (fontScale && fontScale !== 100) params.set("font_scale", fontScale);
     if (offsetMs) params.set("offset_ms", offsetMs);
     if (editedCues) params.set("cues_json", JSON.stringify(editedCues));
+    if (look) params.set("look_json", JSON.stringify(look));
     return `/api/preview/${encodeURIComponent(ratingKey)}?${params.toString()}`;
   },
 };

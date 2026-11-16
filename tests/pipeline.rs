@@ -901,6 +901,7 @@ async fn a_chosen_font_and_size_are_used_for_both_kinds_of_caption() {
                 cues: None,
                 font: Some("MemeTestSans.ttf".into()),
                 font_scale: 160,
+                look: None,
             },
         ),
         (

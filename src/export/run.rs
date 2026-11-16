@@ -45,7 +45,7 @@ pub fn prepare_captions(
     style: CaptionStyle,
     window: &CaptionWindow,
 ) -> Result<(String, WrittenCaptions)> {
-    let written = write_caption_files(tmp_dir, id, style.caption, window)?;
+    let written = write_caption_files(tmp_dir, id, style.caption, window, style.font_path)?;
     let core = core_chain(width, fps, &written.spec(style));
     Ok((core, written))
 }
@@ -165,7 +165,8 @@ pub(super) async fn render_sequence_clip(
         end_ms: clip.end_ms,
         offset_ms: clip.subtitle_offset_ms,
     };
-    let caption_files = write_caption_files(tmp_dir, id, clip.caption.as_ref(), &window)?;
+    let caption_files =
+        write_caption_files(tmp_dir, id, clip.caption.as_ref(), &window, font_path)?;
     let style = CaptionStyle::new(clip.caption.as_ref(), font_path, height);
     let core = clip_core_chain(width, height, fps, &caption_files.spec(style));
     let out_path = tmp_dir.join(format!("{id}.part.{}", part_ext(audio)));

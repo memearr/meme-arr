@@ -1,4 +1,5 @@
 import { SCALE_DEFAULT, SCALE_MAX, SCALE_MIN, SCALE_STEP, fontOptions } from "./fonts.js";
+import { LookControls } from "./LookControls.jsx";
 
 function Nudge({ label, onNudge }) {
   const steps = [-500, -100, 100, 500];
@@ -23,6 +24,8 @@ export function CaptionPanel({
   fontList,
   fontScale,
   setFontScale,
+  look,
+  setLook,
   top,
   setTop,
   bottom,
@@ -89,6 +92,7 @@ export function CaptionPanel({
           <input placeholder="Bottom text" value={bottom} onChange={(e) => setBottom(e.target.value)} />
         </div>
       )}
+      {captionMode === "source" && <LookControls look={look} setLook={setLook} />}
       {captionMode === "source" && (
         <div className="sync-control">
           <div className="sync-value">

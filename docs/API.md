@@ -377,6 +377,15 @@ Request (`ExportRequest`):
   `"font"` (a file name from `GET /api/fonts`; absent or `null` is the default font) and
   `"font_scale"` (text size in percent, default 100, kept between 25 and 400). An unknown
   font is a `400`. When no subtitle line falls inside the clip, nothing is burned in.
+  `"source"` also takes `"look"` (default `null`: the plain subtitle look):
+  `{"preset":"classic|block|neon|horror|soft|box","color":"#RRGGBB","outline_color":"#RRGGBB","outline":0-8,
+  "x":0-1,"y":0-1,"align":"left|center|right","anim":"none|fade|pop|slide_up|slide_left","reveal":"none|word"}`.
+  Every field is optional. `x` and `y` centre the text on that spot (fractions of the picture;
+  without `y` it rests on the bottom); `reveal: "word"` shows each word as it is said (spread over the
+  first 80% of the line, by character count); `*word*` in a line makes that word 1.5× bigger. A caption
+  with a look is drawn from an ASS script instead of an SRT. In a single saved frame the entrance and
+  reveal are left out (there is nothing to animate from). `GET /api/preview` takes the same object as
+  `look_json`.
 - `quality` drives libwebp's `-q:v` and x264/VP9 CRF for webp/mp4/webm, and
   (as of the gifsicle integration) a `gifsicle --lossy=N` post-process pass
   for GIF — ffmpeg's own palette pipeline for GIF has no quality lever of its
