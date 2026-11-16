@@ -386,6 +386,14 @@ Request (`ExportRequest`):
   with a look is drawn from an ASS script instead of an SRT. In a single saved frame the entrance and
   reveal are left out (there is nothing to animate from). `GET /api/preview` takes the same object as
   `look_json`.
+- `layers` (default none, at most 12): pictures laid over the clip, each
+  `{"kind":"shape","shape":"arrow|ring|box|dot","color":"#RRGGBB"}` or
+  `{"kind":"media","asset":"<id from GET /api/overlays>"}` plus `start_ms` and `end_ms` (from the start of the
+  clip; `end_ms` null is the end), `x` and `y` (the centre, fractions of the picture), `size` (its width as a
+  fraction of the picture's, 0.01 to 2), `rotation` (clockwise degrees) and `opacity` (0 to 1). They are laid
+  over in order and the captions go on top. A GIF, WebP or clip (`motion`) loops while it is on. `400` for a
+  layer that cannot be used (bad number, unknown shape, starts outside the clip) or an upload that is gone.
+  Layers apply to this single export, not to a sequence or a `/api/still`.
 - `quality` drives libwebp's `-q:v` and x264/VP9 CRF for webp/mp4/webm, and
   (as of the gifsicle integration) a `gifsicle --lossy=N` post-process pass
   for GIF — ffmpeg's own palette pipeline for GIF has no quality lever of its
@@ -455,6 +463,22 @@ the limit of 50 uploaded fonts is reached; `413` over 16 MB.
 
 ### `DELETE /api/fonts/:id`
 Deletes an uploaded font: `204`; `404` if there is none; `400` for a built-in font.
+
+### Layers: `GET /api/overlays`, `POST /api/overlays?name=`, `DELETE /api/overlays/:id`
+Pictures and clips an export can lay over a clip (see `layers` under `POST /api/export`).
+`GET` lists the uploaded ones (`{"overlays": [{"id","name","kind","bytes"}], "shapes": [{"id","label"}],
+"max_bytes", "max_overlays"}`; `kind` is `"still"` for PNG/JPEG and `"motion"` for GIF/WebP/MP4/WebM). `POST`
+keeps an upload (the body is the file's bytes): `201 {"overlay": {...}}`; `400` if it is empty or not one of
+those formats (decided from the file's first bytes, not its name); `409` over 100 overlays; `413` over 25 MB.
+`DELETE`: `204`, or `404`.
+
+### `GET /api/overlays/:id/file`
+The stored file itself, with its own content type (the editor previews with it). `404` for an unknown id or
+anything that is not a plain file name in the overlay folder.
+
+### `GET /api/sprites/:shape?color=%23RRGGBB`
+A built-in shape (`arrow`, `ring`, `box`, `dot`) as the transparent PNG an export overlays; orange by default.
+`404` for an unknown shape, `400` for a colour that is not `#RRGGBB`.
 
 ### `GET /api/jobs/:id`
 ```json

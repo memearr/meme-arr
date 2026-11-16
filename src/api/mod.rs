@@ -33,6 +33,7 @@ mod fonts;
 mod frames;
 mod jobs;
 mod library;
+mod overlays;
 mod plex_login;
 mod search;
 mod session;
@@ -47,6 +48,7 @@ use self::fonts::*;
 use self::frames::*;
 use self::jobs::*;
 use self::library::*;
+use self::overlays::*;
 use self::plex_login::*;
 use self::search::*;
 use self::session::*;
@@ -119,6 +121,17 @@ pub fn router(state: AppState) -> Router {
                 .layer(DefaultBodyLimit::max(crate::fonts::MAX_FONT_BYTES + 4096)),
         )
         .route("/api/fonts/{id}", delete(delete_font))
+        .route(
+            "/api/overlays",
+            get(list_overlays)
+                .post(upload_overlay)
+                .layer(DefaultBodyLimit::max(
+                    crate::overlays::MAX_OVERLAY_BYTES + 4096,
+                )),
+        )
+        .route("/api/overlays/{id}", delete(delete_overlay))
+        .route("/api/overlays/{id}/file", get(overlay_file))
+        .route("/api/sprites/{shape}", get(shape_sprite))
         .route(
             "/api/settings/bazarr",
             get(get_bazarr_settings)

@@ -13,6 +13,8 @@ import { ExportSettings } from "./ExportSettings.jsx";
 import { ExportBar } from "./ExportBar.jsx";
 import { FrameSaver } from "./FrameSaver.jsx";
 import { PlayerPanel } from "./PlayerPanel.jsx";
+import { LayersPanel } from "./LayersPanel.jsx";
+import { layersForRequest } from "./layersModel.js";
 import { JobResult } from "./JobResult.jsx";
 import { browserStorage, loadVolume, saveVolume, typingInto } from "./editorStorage.js";
 import { captionMetrics, containedRect } from "./captionPreview.js";
@@ -61,6 +63,11 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   const [fontList, setFontList] = useState({ fonts: [], default: null });
   // How burned subtitles look (preset, colours, place, reveal, entrance); null is the plain look.
   const [look, setLook] = useState(seed?.look ?? null);
+  // Shapes, stickers and clips laid over the clip (times are from the clip's start), and the
+  // uploaded pictures there are to choose from.
+  const [layers, setLayers] = useState([]);
+  const [selectedLayer, setSelectedLayer] = useState(null);
+  const [overlayList, setOverlayList] = useState({ overlays: [], shapes: [] });
   const [top, setTop] = useState(seed ? seed.top : "");
   const [bottom, setBottom] = useState(seed ? seed.bottom : item.line || "");
   const [subtitleOffsetMs, setSubtitleOffsetMs] = useState(seed?.subtitleOffsetMs ?? 0); // sync correction, ms
@@ -178,6 +185,16 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   function resetCues() {
     setEditedCues(null);
   }
+
+  function reloadOverlays() {
+    return api
+      .overlays()
+      .then((d) => setOverlayList(d))
+      .catch(() => {});
+  }
+  useEffect(() => {
+    reloadOverlays();
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -563,6 +580,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
         audio,
         credit_source: creditSource,
         filename: filename || null,
+        layers: layersForRequest(layers, clipLength),
       });
       pushJob(started);
       pollRef.current = setInterval(async () => {
@@ -716,6 +734,14 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
             captionMode={captionMode}
             overlayText={overlayText}
             lookView={lookView}
+            pictureBox={pictureBox}
+            layers={sequenceEdit ? [] : layers}
+            relMs={Math.max(0, Math.round(playhead - start))}
+            selectedLayer={selectedLayer}
+            setSelectedLayer={setSelectedLayer}
+            moveLayer={(id, place) =>
+              setLayers((ls) => ls.map((l) => (l.id === id ? { ...l, x: place.x, y: place.y } : l)))
+            }
             top={top}
             bottom={bottom}
             playhead={playhead}
@@ -832,6 +858,20 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
               applyNote={applyNote}
               applyToSubtitleFile={applyToSubtitleFile}
             />
+
+            {!sequenceEdit && (
+              <LayersPanel
+                layers={layers}
+                setLayers={setLayers}
+                selectedId={selectedLayer}
+                setSelectedId={setSelectedLayer}
+                overlays={overlayList.overlays}
+                shapes={overlayList.shapes}
+                reloadOverlays={reloadOverlays}
+                clipMs={clipLength}
+                relMs={Math.max(0, Math.round(playhead - start))}
+              />
+            )}
 
             {!sequenceEdit && (
               <ExportSettings

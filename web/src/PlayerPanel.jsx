@@ -1,4 +1,5 @@
 import { fmtTime } from "./format.js";
+import { LayerOverlay } from "./LayerOverlay.jsx";
 
 const SPEEDS = [0.25, 0.5, 1];
 
@@ -20,6 +21,12 @@ export function PlayerPanel({
   captionMode,
   overlayText,
   lookView,
+  pictureBox,
+  layers,
+  relMs,
+  selectedLayer,
+  setSelectedLayer,
+  moveLayer,
   top,
   bottom,
   playhead,
@@ -107,6 +114,14 @@ export function PlayerPanel({
                   )}
                 </div>
               )}
+              <LayerOverlay
+                layers={layers}
+                relMs={relMs}
+                pictureBox={pictureBox}
+                selectedId={selectedLayer}
+                onSelect={setSelectedLayer}
+                onMove={moveLayer}
+              />
               <span className="player-chip mono">
                 {fmtTime(playhead)}
                 {srcFps ? ` · f${Math.round((playhead * srcFps.num) / (1000 * srcFps.den))}` : ""}

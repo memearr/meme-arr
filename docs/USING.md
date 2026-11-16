@@ -138,6 +138,13 @@ and WebM only; GIF and WebP can't carry audio). Finished files also land in your
   said** to show the line word by word. Put `*stars*` round a word in the line editor to make
   that word bigger. The player shows the colour, place and words appearing; the entrance
   animation shows in the exported file. **Save this frame** keeps the look but not the motion.
+- **Layers.** The **Layers** box lays shapes, pictures and other clips over the clip for part of its
+  length. **+ Arrow** (the chunky upvote arrow, turn it with **Turn**), **+ Ring**, **+ Box** and **+ Dot**
+  are drawn for you; **Upload…** keeps a PNG, JPEG, GIF, WebP, MP4 or WebM of your own (up to 25 MB)
+  to use again later (a moving one loops while it is on). A new layer comes on at the playhead and stays on
+  for two seconds: set **On at** and **Off at** by typing, or with **= playhead**. Drag a layer on the player
+  to place it; **Size**, **Turn**, **Opacity** and **Colour** change how it looks. Captions are drawn over
+  the layers. Layers are in the exported clip only, not in a sequence or a saved frame.
 - **Save this frame.** The bar right under the player: park the playhead on a frame (step with
   `,` and `.`), pick PNG, JPG or GIF and a width, and **Save frame**
   makes a still picture of it as a **PNG**, **JPG** or **GIF**, 480 to 1920 px wide. It

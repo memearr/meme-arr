@@ -174,6 +174,9 @@ pub struct ExportRequest {
     /// everything from the source file is stripped either way.
     #[serde(default = "default_true")]
     pub credit_source: bool,
+    /// Pictures laid over the clip: shapes, stickers, other clips (see [`Layer`]).
+    #[serde(default)]
+    pub layers: Vec<Layer>,
 }
 
 pub(super) fn default_true() -> bool {
