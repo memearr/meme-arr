@@ -113,10 +113,16 @@ fn no_media(_: &str) -> Option<LayerSource> {
 }
 
 /// One frame as `W * H * 3` RGB bytes.
+///
+/// The file is resampled to the exports' 10 fps and sought *after* decoding, not before:
+/// an optimised GIF (gifsicle merges identical neighbouring frames into one frame with a
+/// long delay) has no frame starting at 1.5 s when the picture was the same from 1.0 s, and
+/// seeking before the input would skip the frame that is on screen then for the one after it.
 fn rgb_frame(file: &Path, at_s: f64) -> Vec<u8> {
     let out = Command::new("ffmpeg")
-        .args(["-v", "error", "-ss", &format!("{at_s}"), "-i"])
+        .args(["-v", "error", "-i"])
         .arg(file)
+        .args(["-vf", "fps=10", "-ss", &format!("{at_s}")])
         .args(["-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"])
         .output()
         .expect("spawn ffmpeg");
