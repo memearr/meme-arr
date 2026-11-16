@@ -98,7 +98,7 @@ vars on an already-configured deployment does nothing.
 | Variable | Default | Purpose |
 |---|---|---|
 | `BIND_ADDR` | `0.0.0.0:8080` | |
-| `DATA_DIR` | `/data` | SQLite DB, compact-index file, temp/preview-cache dir |
+| `DATA_DIR` | `/data` | SQLite DB, compact-index file, temp/preview-cache dir, uploaded fonts (`fonts/`) and overlay pictures/clips (`overlays/`) |
 | `OUTPUT_DIR` | `/output` | finished exports land here |
 | `WEB_DIR` | `/app/web` | built SPA static files |
 | `FONTS_DIR` | `/app/fonts` | caption fonts |

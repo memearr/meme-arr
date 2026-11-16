@@ -141,6 +141,7 @@ async fn extract_parse_and_export() {
         audio: false,
         filename: Some("whistles".into()),
         credit_source: true,
+        layers: vec![],
     };
     let out = tmp.path().join("whistles.gif");
     export::run_export(
@@ -185,6 +186,7 @@ async fn export_with_audio_produces_an_opus_track() {
         audio: true,
         filename: Some("with-audio".into()),
         credit_source: true,
+        layers: vec![],
     };
     let out = tmp.path().join("with-audio.mp4");
     export::run_export(
@@ -474,6 +476,7 @@ async fn exports_keep_nothing_from_the_source_but_the_credited_title() {
             audio,
             filename: None,
             credit_source: true,
+            layers: vec![],
         };
         let out = tmp.path().join(name);
         export::run_export(
@@ -527,6 +530,7 @@ async fn exports_keep_nothing_from_the_source_but_the_credited_title() {
         audio: false,
         filename: None,
         credit_source: false,
+        layers: vec![],
     };
     let out = tmp.path().join("plain.mp4");
     export::run_export(
@@ -685,6 +689,7 @@ async fn webm_export_with_audio_is_vp9_plus_opus_with_real_sound() {
         audio: true,
         filename: None,
         credit_source: true,
+        layers: vec![],
     };
     let out = tmp.path().join("clip.webm");
     export::run_export(
@@ -844,6 +849,7 @@ async fn burned_subtitles_over_a_window_with_no_lines_export_without_captions() 
             audio: false,
             filename: None,
             credit_source: true,
+            layers: vec![],
         };
         let out = tmp.path().join(name);
         export::run_export(
@@ -930,6 +936,7 @@ async fn a_chosen_font_and_size_are_used_for_both_kinds_of_caption() {
             audio: false,
             filename: None,
             credit_source: false,
+            layers: vec![],
         };
         let out = tmp.path().join(format!("{name}.mp4"));
         export::run_export(
@@ -964,6 +971,7 @@ async fn a_chosen_font_and_size_are_used_for_both_kinds_of_caption() {
         audio: false,
         filename: None,
         credit_source: false,
+        layers: vec![],
     };
     let out = tmp.path().join("plain.mp4");
     export::run_export(

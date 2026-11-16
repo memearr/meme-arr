@@ -213,6 +213,21 @@ pub(super) async fn export_start(
     if let Some(msg) = export::validate_audio_format(req.format, req.audio) {
         return Ok(bad_request(msg));
     }
+    if let Some(msg) = export::validate_layers(&req.layers, req.end_ms - req.start_ms) {
+        return Ok(bad_request(msg));
+    }
+    // An uploaded picture a layer names must still be there.
+    let overlays = st.config.overlays();
+    for (i, l) in req.layers.iter().enumerate() {
+        if let export::LayerKind::Media { asset } = &l.kind {
+            if overlays.path_of(asset).is_none() {
+                return Ok(bad_request(format!(
+                    "layer {}: the picture {asset:?} is not uploaded (see Settings -> Overlays)",
+                    i + 1
+                )));
+            }
+        }
+    }
 
     // Everything that can be refused is checked before a job exists.
     let (m, file) = match resolve_source(&st, &req.rating_key).await? {
@@ -257,7 +272,14 @@ pub(super) async fn export_start(
             out_path: &out_path,
             source_title: Some(&source_title),
         };
-        export::run_export(tools(&st2), job, &file, &req, &cues, &font_path).await
+        let overlays = st2.config.overlays();
+        let media = move |id: &str| {
+            overlays.path_of(id).map(|path| export::LayerSource {
+                path,
+                motion: !crate::overlays::Overlays::is_still(id),
+            })
+        };
+        export::run_export_with(tools(&st2), job, &file, &req, &cues, &font_path, &media).await
     });
     Ok(accepted(&st, &id))
 }
