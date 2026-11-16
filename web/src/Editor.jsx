@@ -13,10 +13,13 @@ import { ExportSettings } from "./ExportSettings.jsx";
 import { ExportBar } from "./ExportBar.jsx";
 import { FrameSaver } from "./FrameSaver.jsx";
 import { PlayerPanel } from "./PlayerPanel.jsx";
+import { LayersPanel } from "./LayersPanel.jsx";
+import { layersForRequest, moveLayerTo } from "./layersModel.js";
 import { JobResult } from "./JobResult.jsx";
 import { browserStorage, loadVolume, saveVolume, typingInto } from "./editorStorage.js";
 import { captionMetrics, containedRect } from "./captionPreview.js";
-import { cueAt, lookForRequest, lookStyle, resolveLook, wordsAt } from "./textLook.js";
+import { cueAt, freezeLook, lookForRequest, lookPlace, lookStyle, resolveLook, wordsAt } from "./textLook.js";
+import { setKeyframe } from "./pathModel.js";
 import { effective, newCue, overlaps, retimeCue, shiftCues, sortCues, splitCue, textAt } from "./cueEdit.js";
 import { useBazarrConfigured } from "./bazarr.js";
 import { loadFontChoice, saveFontChoice, usableFont } from "./fonts.js";
@@ -61,6 +64,11 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   const [fontList, setFontList] = useState({ fonts: [], default: null });
   // How burned subtitles look (preset, colours, place, reveal, entrance); null is the plain look.
   const [look, setLook] = useState(seed?.look ?? null);
+  // Shapes, stickers and clips laid over the clip (times are from the clip's start), and the
+  // uploaded pictures there are to choose from.
+  const [layers, setLayers] = useState([]);
+  const [selectedLayer, setSelectedLayer] = useState(null);
+  const [overlayList, setOverlayList] = useState({ overlays: [], shapes: [] });
   const [top, setTop] = useState(seed ? seed.top : "");
   const [bottom, setBottom] = useState(seed ? seed.bottom : item.line || "");
   const [subtitleOffsetMs, setSubtitleOffsetMs] = useState(seed?.subtitleOffsetMs ?? 0); // sync correction, ms
@@ -178,6 +186,16 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   function resetCues() {
     setEditedCues(null);
   }
+
+  function reloadOverlays() {
+    return api
+      .overlays()
+      .then((d) => setOverlayList(d))
+      .catch(() => {});
+  }
+  useEffect(() => {
+    reloadOverlays();
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -489,7 +507,8 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cuesReload]);
 
-  function buildCaption() {
+  // `frozenAt` (ms into the clip) makes a caption for a single frame: its text where its path has it then.
+  function buildCaption({ frozenAt } = {}) {
     return captionMode === "none"
       ? { mode: "none" }
       : captionMode === "source"
@@ -498,7 +517,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
           cues: editedCues,
           font: font || null,
           font_scale: fontScale,
-          look: lookForRequest(look),
+          look: lookForRequest(frozenAt != null ? freezeLook(look, frozenAt) : look, clipLength),
         }
       : {
           mode: "meme",
@@ -508,6 +527,20 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
           font: font || null,
           font_scale: fontScale,
         };
+  }
+
+  // Follow the spot of the picture at `place`, `relMs` into the clip, to the end of it.
+  function trackSpot({ place, relMs, size, maxPoints }) {
+    return api.track({
+      rating_key: item.rating_key,
+      start_ms: start,
+      end_ms: end,
+      t_ms: relMs,
+      x: place.x,
+      y: place.y,
+      size,
+      max_points: maxPoints,
+    });
   }
 
   // Put what is on screen back into the clip it came from.
@@ -563,6 +596,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
         audio,
         credit_source: creditSource,
         filename: filename || null,
+        layers: layersForRequest(layers, clipLength),
       });
       pushJob(started);
       pollRef.current = setInterval(async () => {
@@ -589,7 +623,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
         t_ms: at,
         format: stillFormat,
         width: stillWidth,
-        caption: buildCaption(),
+        caption: buildCaption({ frozenAt: Math.max(0, at - start) }),
         subtitle_offset_ms: captionMode === "source" ? subtitleOffsetMs : 0,
         filename: filename || null,
       });
@@ -634,11 +668,13 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   // The styled caption over the picture: where it sits, its colours, and (with word-by-word
   // reveal) which of its words are up at the playhead.
   const lookCue = captionMode === "source" && look ? cueAt(displayCues, playhead, subtitleOffsetMs) : null;
+  const relNow = Math.max(0, Math.round(playhead - start));
+  const textSpot = look ? lookPlace(look, relNow) : null;
   const lookView =
     lookCue && metrics && pictureBox
       ? {
           style: {
-            ...lookStyle(look, pictureBox.height / 288),
+            ...lookStyle(textSpot ? { ...look, x: textSpot.x, y: textSpot.y } : look, pictureBox.height / 288),
             fontSize: metrics.fontSize,
             lineHeight: 1.2,
           },
@@ -716,6 +752,23 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
             captionMode={captionMode}
             overlayText={overlayText}
             lookView={lookView}
+            pictureBox={pictureBox}
+            layers={sequenceEdit ? [] : layers}
+            relMs={Math.max(0, Math.round(playhead - start))}
+            selectedLayer={selectedLayer}
+            setSelectedLayer={setSelectedLayer}
+            moveLayer={(id, place, rel) =>
+              setLayers((ls) => ls.map((l) => (l.id === id ? moveLayerTo(l, place, rel ?? relNow, clipLength) : l)))
+            }
+            moveText={(place, rel) =>
+              setLook((l) =>
+                !l
+                  ? l
+                  : l.path?.length
+                  ? { ...l, path: setKeyframe(l.path, rel ?? relNow, place.x, place.y, clipLength) }
+                  : { ...l, x: place.x, y: place.y }
+              )
+            }
             top={top}
             bottom={bottom}
             playhead={playhead}
@@ -821,6 +874,10 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
               setFontScale={setFontScale}
               look={look}
               setLook={setLook}
+              relMs={Math.max(0, Math.round(playhead - start))}
+              clipMs={clipLength}
+              onSeek={(ms) => seekTo(start + ms)}
+              onTrack={trackSpot}
               top={top}
               setTop={setTop}
               bottom={bottom}
@@ -832,6 +889,22 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
               applyNote={applyNote}
               applyToSubtitleFile={applyToSubtitleFile}
             />
+
+            {!sequenceEdit && (
+              <LayersPanel
+                layers={layers}
+                setLayers={setLayers}
+                selectedId={selectedLayer}
+                setSelectedId={setSelectedLayer}
+                onSeek={(ms) => seekTo(start + ms)}
+                onTrack={trackSpot}
+                overlays={overlayList.overlays}
+                shapes={overlayList.shapes}
+                reloadOverlays={reloadOverlays}
+                clipMs={clipLength}
+                relMs={Math.max(0, Math.round(playhead - start))}
+              />
+            )}
 
             {!sequenceEdit && (
               <ExportSettings

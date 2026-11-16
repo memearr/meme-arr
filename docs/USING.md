@@ -138,6 +138,28 @@ and WebM only; GIF and WebP can't carry audio). Finished files also land in your
   said** to show the line word by word. Put `*stars*` round a word in the line editor to make
   that word bigger. The player shows the colour, place and words appearing; the entrance
   animation shows in the exported file. **Save this frame** keeps the look but not the motion.
+- **Layers.** The **Layers** box lays shapes, pictures and other clips over the clip for part of its
+  length. **+ Arrow** (the chunky upvote arrow, turn it with **Turn**), **+ Ring**, **+ Box** and **+ Dot**
+  are drawn for you; **Upload…** keeps a PNG, JPEG, GIF, WebP, MP4 or WebM of your own (up to 25 MB)
+  to use again later (a moving one loops while it is on). A new layer comes on at the playhead and stays on
+  for two seconds: set **On at** and **Off at** by typing, or with **= playhead**. Drag a layer on the player
+  to place it; **Size**, **Turn**, **Opacity** and **Colour** change how it looks. Captions are drawn over
+  the layers. Layers are in the exported clip only, not in a sequence or a saved frame.
+- **Move over time.** A layer, or the styled caption text, can travel across the picture: tick
+  **Move over time** to put a first keyframe where it is now, move the playhead, and drag it on the
+  player to where it should be at that moment, which makes the next keyframe. It travels in a straight
+  line from one keyframe to the next and stays at the last one. Click a keyframe's time to go to it,
+  **remove** it, or **Keyframe at the playhead** to add one without moving it. Keep the keyframes
+  close together on a fast-moving subject (a keyframe every half second or so) to make text follow it.
+  **Save this frame** puts the text where its path has it at the frame you save.
+- **Follow it automatically.** Under **Move over time**, put the layer or text on the thing that moves
+  (move the playhead to where it is, and drag the layer or text onto it), choose a **Spot size** (small
+  for a face or a hand, large for a whole person) and press **Follow it automatically**. The picture
+  under its centre is tracked from the playhead to the end of the clip and the result becomes the
+  keyframes (a few dozen at most). If it says it lost the spot, move the playhead to where it did, put
+  the layer back on the thing, and follow again from there. It works best on a spot with some detail
+  that stays in view; it can be thrown by a cut, the thing being hidden, or something very like it
+  nearby, so check the result by playing the clip and correct a keyframe by dragging.
 - **Save this frame.** The bar right under the player: park the playhead on a frame (step with
   `,` and `.`), pick PNG, JPG or GIF and a width, and **Save frame**
   makes a still picture of it as a **PNG**, **JPG** or **GIF**, 480 to 1920 px wide. It

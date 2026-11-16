@@ -33,6 +33,7 @@ mod fonts;
 mod frames;
 mod jobs;
 mod library;
+mod overlays;
 mod plex_login;
 mod search;
 mod session;
@@ -40,6 +41,7 @@ mod settings;
 mod source;
 mod subtitle_api;
 mod system;
+mod track;
 use self::authentik::*;
 use self::bazarr::*;
 use self::clips::*;
@@ -47,6 +49,7 @@ use self::fonts::*;
 use self::frames::*;
 use self::jobs::*;
 use self::library::*;
+use self::overlays::*;
 use self::plex_login::*;
 use self::search::*;
 use self::session::*;
@@ -54,6 +57,7 @@ use self::settings::*;
 use self::source::*;
 use self::subtitle_api::*;
 use self::system::*;
+use self::track::*;
 
 /// The libraries a request is limited to: every `library=<name>` in the query
 /// string (the parameter may repeat). Empty means all libraries. Blank values
@@ -120,6 +124,17 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/fonts/{id}", delete(delete_font))
         .route(
+            "/api/overlays",
+            get(list_overlays)
+                .post(upload_overlay)
+                .layer(DefaultBodyLimit::max(
+                    crate::overlays::MAX_OVERLAY_BYTES + 4096,
+                )),
+        )
+        .route("/api/overlays/{id}", delete(delete_overlay))
+        .route("/api/overlays/{id}/file", get(overlay_file))
+        .route("/api/sprites/{shape}", get(shape_sprite))
+        .route(
             "/api/settings/bazarr",
             get(get_bazarr_settings)
                 .put(put_bazarr_settings)
@@ -176,6 +191,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/filmstrip/{rating_key}", get(filmstrip))
         .route("/api/export", post(export_start))
         .route("/api/still", post(still_export))
+        .route("/api/track", post(track_spot))
         .route("/api/sequence/export", post(sequence_export_start))
         .route("/api/jobs/{id}", get(job_status))
         .route("/api/download/{filename}", get(download))
