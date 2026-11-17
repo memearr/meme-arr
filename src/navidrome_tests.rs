@@ -13,7 +13,7 @@ fn the_token_is_the_subsonic_documented_one() {
 fn every_request_carries_a_fresh_salt_and_never_the_password() {
     let (password, salt) = (
         format!("pw-{}", uuid::Uuid::new_v4().simple()),
-        "a1b2c3".to_string(),
+        uuid::Uuid::new_v4().simple().to_string(),
     );
     let c = Client::new("http://navi:4533/", " me ", &password);
     let q = c.auth(&salt);
