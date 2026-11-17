@@ -38,6 +38,10 @@ pub struct AppSettings {
     pub bazarr_api_key: Option<String>,
     pub bazarr_hook_token: Option<String>,
     pub bazarr_languages: Vec<String>,
+    /// Navidrome (music server): its address and the account to use.
+    pub navidrome_url: Option<String>,
+    pub navidrome_user: Option<String>,
+    pub navidrome_password: Option<String>,
     /// Reverse proxies whose forwarding headers are believed (Settings ->
     /// Trusted proxies); see `proxies` and `forwarded`.
     pub trusted_proxies: Vec<crate::proxies::Net>,
@@ -52,6 +56,16 @@ impl AppSettings {
             }
             _ => None,
         }
+    }
+
+    /// A Navidrome client, if its address, user and password are all set.
+    pub fn navidrome(&self) -> Option<crate::navidrome::Client> {
+        let set = |v: &Option<String>| v.as_deref().filter(|s| !s.is_empty()).map(str::to_owned);
+        Some(crate::navidrome::Client::new(
+            &set(&self.navidrome_url)?,
+            &set(&self.navidrome_user)?,
+            &set(&self.navidrome_password)?,
+        ))
     }
 
     /// Whether the *selected* media server has everything it needs.
@@ -99,6 +113,9 @@ impl AppSettings {
             bazarr_api_key: db::get_setting(conn, "bazarr_api_key")?,
             bazarr_hook_token: db::get_setting(conn, "bazarr_hook_token")?,
             bazarr_languages,
+            navidrome_url: db::get_setting(conn, "navidrome_url")?,
+            navidrome_user: db::get_setting(conn, "navidrome_user")?,
+            navidrome_password: db::get_setting(conn, "navidrome_password")?,
             trusted_proxies: db::get_setting(conn, "trusted_proxies")?
                 .map(|r| crate::proxies::parse_list(&r).unwrap_or_default())
                 .unwrap_or_default(),

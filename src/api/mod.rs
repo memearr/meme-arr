@@ -33,6 +33,7 @@ mod fonts;
 mod frames;
 mod jobs;
 mod library;
+mod navidrome;
 mod overlays;
 mod plex_login;
 mod search;
@@ -49,6 +50,7 @@ use self::fonts::*;
 use self::frames::*;
 use self::jobs::*;
 use self::library::*;
+use self::navidrome::*;
 use self::overlays::*;
 use self::plex_login::*;
 use self::search::*;
@@ -140,6 +142,18 @@ pub fn router(state: AppState) -> Router {
                 .put(put_bazarr_settings)
                 .delete(delete_bazarr_settings),
         )
+        .route(
+            "/api/settings/navidrome",
+            get(get_navidrome_settings)
+                .put(put_navidrome_settings)
+                .delete(delete_navidrome_settings),
+        )
+        .route(
+            "/api/settings/navidrome/test",
+            post(test_navidrome_settings),
+        )
+        .route("/api/music/search", get(music_search))
+        .route("/api/music/{id}/file", get(music_file))
         .route("/api/settings/bazarr/test", post(test_bazarr_settings))
         .route("/api/settings/bazarr/rotate-hook", post(rotate_bazarr_hook))
         .route("/api/hooks/bazarr/{token}", post(bazarr_hook))

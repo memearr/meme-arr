@@ -477,6 +477,25 @@ keeps an upload (the body is the file's bytes): `201 {"overlay": {...}}`; `400` 
 those formats (decided from the file's first bytes, not its name); `409` over 100 overlays; `413` over 25 MB.
 `DELETE`: `204`, or `404`.
 
+### Navidrome: `GET|PUT|DELETE /api/settings/navidrome`, `POST /api/settings/navidrome/test`
+The music server whose songs can go under a clip. `GET` answers `{"configured", "url", "user",
+"password_set"}`; the password is never sent back. `PUT {"url", "user", "password"}` saves what is present (a
+blank or missing password keeps the saved one; `400` for an address that isn't `http://` or `https://`) and tests
+it: the answer is the same object plus `"check": {"ok": true, "version"}` or `{"ok": false, "error"}`.
+`POST .../test` tests the saved account again. `DELETE` forgets it. Authentication to Navidrome is the Subsonic
+token scheme (a fresh salt per request), so the password is never in a URL.
+
+### `GET /api/music/search?q=&limit=`
+Songs in Navidrome matching `q` (`limit` 1-50, default 20): `{"tracks": [{"id","title","artist","album",
+"duration_s"}]}`; an empty `q` gives none. `409` when Navidrome isn't set up, `502` when it can't be reached or
+refuses the account.
+
+### `GET /api/music/:id/file`
+The song as a file, with `Range` support. The first request fetches the original file from Navidrome into
+`/data/music` (up to 200 MB; the cache is pruned oldest-first to about 1 GB); later ones are served from there.
+`404` for an id that is not letters, digits, `-` and `_`; `409` and `502` as above; `502` also when what
+Navidrome sent is not audio.
+
 ### `GET /api/overlays/:id/file`
 The stored file itself, with its own content type (the editor previews with it). `404` for an unknown id or
 anything that is not a plain file name in the overlay folder.

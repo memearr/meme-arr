@@ -75,6 +75,10 @@ your monitoring system.
   them. An upload is accepted only if its name is a plain `.ttf`/`.otf` file name (any folder in it
   is dropped), it is at most 16 MB, and it parses as a font; nothing is ever run, and fonts are not
   served back to the browser. They are read by ffmpeg when a caption uses them.
+- **Navidrome** (optional): its address, user name and password are kept with the other settings. The
+  password is stored as text in the database (it has to be, to sign requests), never sent back to the browser,
+  and never put in a URL: requests carry a one-time token made from it. Use an account that can only play music.
+  Songs you use are cached in `/data/music` (a cache you can delete) and are served only to a logged-in user.
 - **Overlays** you upload for layers are kept in `/data/overlays` (up to 100 files of 25 MB). Only
   the logged-in admin can upload, list or delete them. A file is accepted only if its first bytes say
   it is a PNG, JPEG, GIF, WebP, MP4 or WebM (its name is not trusted, and the stored name is made by

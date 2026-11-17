@@ -24,6 +24,8 @@ pub mod jellyfin;
 pub mod langs;
 pub mod logs;
 pub mod mediaserver;
+pub mod music;
+pub mod navidrome;
 pub mod oidc;
 pub mod overlays;
 pub mod paths;
