@@ -1,5 +1,6 @@
 import { SERVERS, serverPayload } from "./wizard.js";
 import { BazarrSettingsPanel } from "./BazarrSettingsPanel.jsx";
+import { NavidromeSettingsPanel } from "./NavidromeSettingsPanel.jsx";
 import { ConnectionPanel } from "./ConnectionPanel.jsx";
 import { FontsPanel } from "./FontsPanel.jsx";
 import CopyButton from "./CopyButton.jsx";
@@ -294,6 +295,7 @@ export function Settings({ onChange }) {
       {msg && <p className={msg.ok ? "test ok" : "error"}>{msg.text}</p>}
 
       <BazarrSettingsPanel />
+      <NavidromeSettingsPanel />
       <FontsPanel />
       <ChangePasswordPanel />
       <AuthentikSettingsPanel />

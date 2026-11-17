@@ -83,6 +83,16 @@ export const api = {
     }),
   deleteBazarrSettings: () => json(`/api/settings/bazarr`, { method: "DELETE" }),
   testBazarr: () => json(`/api/settings/bazarr/test`, { method: "POST" }),
+  getNavidromeSettings: () => json(`/api/settings/navidrome`),
+  putNavidromeSettings: (payload) =>
+    json(`/api/settings/navidrome`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  deleteNavidromeSettings: () => json(`/api/settings/navidrome`, { method: "DELETE" }),
+  testNavidrome: () => json(`/api/settings/navidrome/test`, { method: "POST" }),
+  musicSearch: (q, limit = 20) => json(`/api/music/search?q=${encodeURIComponent(q)}&limit=${limit}`),
   rotateBazarrHook: () => json(`/api/settings/bazarr/rotate-hook`, { method: "POST" }),
   itemBazarr: (id) => json(`/api/media/${encodeURIComponent(id)}/bazarr`),
   bazarrSearch: (id) => json(`/api/media/${encodeURIComponent(id)}/bazarr/search`, { method: "POST" }),

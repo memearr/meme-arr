@@ -221,6 +221,16 @@ impl Config {
         crate::overlays::Overlays::new(self.user_overlays_dir())
     }
 
+    /// Songs fetched from Navidrome.
+    pub fn music_dir(&self) -> PathBuf {
+        self.data_dir.join("music")
+    }
+
+    /// The cache of songs fetched from Navidrome.
+    pub fn music(&self) -> crate::music::Music {
+        crate::music::Music::new(self.music_dir())
+    }
+
     /// The built-in and uploaded caption fonts.
     pub fn fonts(&self) -> crate::fonts::Fonts {
         crate::fonts::Fonts::new(self.fonts_dir.clone(), self.user_fonts_dir())
