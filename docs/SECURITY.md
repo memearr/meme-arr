@@ -75,6 +75,11 @@ your monitoring system.
   them. An upload is accepted only if its name is a plain `.ttf`/`.otf` file name (any folder in it
   is dropped), it is at most 16 MB, and it parses as a font; nothing is ever run, and fonts are not
   served back to the browser. They are read by ffmpeg when a caption uses them.
+- **Overlays** you upload for layers are kept in `/data/overlays` (up to 100 files of 25 MB). Only
+  the logged-in admin can upload, list or delete them. A file is accepted only if its first bytes say
+  it is a PNG, JPEG, GIF, WebP, MP4 or WebM (its name is not trusted, and the stored name is made by
+  the app); it is served back only by its stored name, never a path, and ffmpeg only reads it when an
+  export uses it.
 - **Memes** are written to `/output`. They carry none of the source file's metadata. The only
   thing a file may carry is a title naming the movie or show/episode; you can switch that off
   per export.
