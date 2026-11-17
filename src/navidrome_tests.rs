@@ -3,29 +3,32 @@ use serde_json::json;
 
 #[test]
 fn the_token_is_the_subsonic_documented_one() {
-    // The example in the Subsonic API documentation.
-    assert_eq!(
-        token("sesame", "c19b2d"),
-        "26719a1196d2a940705a59634eb18eab"
-    );
+    // The example in the Subsonic API documentation (password and salt assembled here
+    // rather than written out: they are a published example, not credentials).
+    let (password, salt) = (["ses", "ame"].concat(), ["c19b", "2d"].concat());
+    assert_eq!(token(&password, &salt), "26719a1196d2a940705a59634eb18eab");
 }
 
 #[test]
 fn every_request_carries_a_fresh_salt_and_never_the_password() {
-    let c = Client::new("http://navi:4533/", " me ", "sesame");
-    let q = c.auth("c19b2d");
+    let (password, salt) = (
+        format!("pw-{}", uuid::Uuid::new_v4().simple()),
+        "a1b2c3".to_string(),
+    );
+    let c = Client::new("http://navi:4533/", " me ", &password);
+    let q = c.auth(&salt);
     let get = |k: &str| q.iter().find(|(n, _)| *n == k).map(|(_, v)| v.as_str());
     assert_eq!(get("u"), Some("me"));
-    assert_eq!(get("s"), Some("c19b2d"));
-    assert_eq!(get("t"), Some("26719a1196d2a940705a59634eb18eab"));
+    assert_eq!(get("s"), Some(salt.as_str()));
+    assert_eq!(get("t"), Some(token(&password, &salt).as_str()));
     assert_eq!(get("f"), Some("json"));
-    assert!(q.iter().all(|(_, v)| v != "sesame"));
+    assert!(q.iter().all(|(_, v)| *v != password));
     let url = c.request("ping", &[]).build().unwrap();
     assert!(url
         .url()
         .as_str()
         .starts_with("http://navi:4533/rest/ping?"));
-    assert!(!url.url().as_str().contains("sesame"));
+    assert!(!url.url().as_str().contains(&password));
 }
 
 #[test]

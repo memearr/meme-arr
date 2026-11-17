@@ -26,29 +26,36 @@ fn json_of(bytes: &[u8]) -> serde_json::Value {
 
 const SONG: &[u8] = b"fLaC-pretend-this-is-a-song";
 
-/// A stand-in Navidrome that knows one account (`me` / `sesame`) and one song.
-async fn fake_navidrome() -> String {
+/// A password made for one test (never a literal).
+fn secret() -> String {
+    format!("pw-{}", uuid::Uuid::new_v4().simple())
+}
+
+fn failed(code: u32, msg: &str) -> Json<serde_json::Value> {
+    Json(
+        json!({"subsonic-response": {"status": "failed", "error": {"code": code, "message": msg}}}),
+    )
+}
+
+fn allowed(q: &HashMap<String, String>, password: &str) -> bool {
+    q.get("u").map(String::as_str) == Some("me")
+        && q.get("p").is_none()
+        && match (q.get("t"), q.get("s")) {
+            (Some(t), Some(s)) => *t == crate::navidrome::token(password, s),
+            _ => false,
+        }
+}
+
+type Q = Query<HashMap<String, String>>;
+
+/// A stand-in Navidrome that knows one account (`me` and `password`) and one song.
+async fn fake_navidrome(password: &str) -> String {
     use axum::routing::get;
-    fn failed(code: u32, msg: &str) -> Json<serde_json::Value> {
-        Json(
-            json!({"subsonic-response": {"status": "failed", "error": {"code": code, "message": msg}}}),
-        )
-    }
-    fn allowed(q: &HashMap<String, String>) -> bool {
-        let password =
-            std::env::var("NAVIDROME_TEST_PASSWORD").unwrap_or_else(|_| "sesame".to_string());
-        q.get("u").map(String::as_str) == Some("me")
-            && q.get("p").is_none()
-            && match (q.get("t"), q.get("s")) {
-                (Some(t), Some(s)) => *t == crate::navidrome::token(&password, s),
-                _ => false,
-            }
-    }
     let app = axum::Router::new()
         .route(
             "/rest/ping",
-            get(|Query(q): Query<HashMap<String, String>>| async move {
-                if !allowed(&q) {
+            get(|State(pw): State<String>, Query(q): Q| async move {
+                if !allowed(&q, &pw) {
                     return failed(40, "Wrong username or password");
                 }
                 Json(json!({"subsonic-response": {"status": "ok", "serverVersion": "0.52.5"}}))
@@ -56,8 +63,8 @@ async fn fake_navidrome() -> String {
         )
         .route(
             "/rest/search3",
-            get(|Query(q): Query<HashMap<String, String>>| async move {
-                if !allowed(&q) {
+            get(|State(pw): State<String>, Query(q): Q| async move {
+                if !allowed(&q, &pw) {
                     return failed(40, "Wrong username or password");
                 }
                 let hit = q.get("query").is_some_and(|s| s.contains("song"));
@@ -71,8 +78,8 @@ async fn fake_navidrome() -> String {
         )
         .route(
             "/rest/stream",
-            get(|Query(q): Query<HashMap<String, String>>| async move {
-                if !allowed(&q) {
+            get(|State(pw): State<String>, Query(q): Q| async move {
+                if !allowed(&q, &pw) {
                     return failed(40, "Wrong username or password").into_response();
                 }
                 match q.get("id").map(String::as_str) {
@@ -82,7 +89,8 @@ async fn fake_navidrome() -> String {
                     _ => failed(70, "Song not found").into_response(),
                 }
             }),
-        );
+        )
+        .with_state(password.to_string());
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
@@ -107,15 +115,16 @@ async fn save(st: &AppState, url: &str, user: &str, password: &str) -> serde_jso
 #[tokio::test]
 async fn saving_the_account_tests_it_and_never_sends_the_password_back() {
     let (_d, st) = state();
-    let url = fake_navidrome().await;
-    let j = save(&st, &format!("{url}/"), "me", "sesame").await;
+    let pw = secret();
+    let url = fake_navidrome(&pw).await;
+    let j = save(&st, &format!("{url}/"), "me", &pw).await;
     assert_eq!(j["check"]["ok"], true, "{j}");
     assert_eq!(j["check"]["version"], "0.52.5");
     assert_eq!(j["configured"], true);
     assert_eq!(j["url"], url.as_str(), "the trailing slash is dropped");
     assert_eq!(j["user"], "me");
     assert_eq!(j["password_set"], true);
-    assert!(!j.to_string().contains("sesame"));
+    assert!(!j.to_string().contains(&pw));
     // saving again without a password keeps the one that is there
     let resp = put_navidrome_settings(
         State(st.clone()),
@@ -134,8 +143,9 @@ async fn saving_the_account_tests_it_and_never_sends_the_password_back() {
 #[tokio::test]
 async fn a_wrong_password_says_so_and_a_bad_address_is_refused() {
     let (_d, st) = state();
-    let url = fake_navidrome().await;
-    let j = save(&st, &url, "me", "wrong").await;
+    let pw = secret();
+    let url = fake_navidrome(&pw).await;
+    let j = save(&st, &url, "me", &secret()).await;
     assert_eq!(j["check"]["ok"], false);
     assert!(j["check"]["error"]
         .as_str()
@@ -179,8 +189,9 @@ async fn without_an_account_music_is_not_available() {
 #[tokio::test]
 async fn songs_are_found_and_fetched_once_then_served_with_ranges() {
     let (dir, st) = state();
-    let url = fake_navidrome().await;
-    save(&st, &url, "me", "sesame").await;
+    let pw = secret();
+    let url = fake_navidrome(&pw).await;
+    save(&st, &url, "me", &pw).await;
 
     let hit = |q: &str| {
         music_search(
@@ -226,8 +237,9 @@ async fn songs_are_found_and_fetched_once_then_served_with_ranges() {
 #[tokio::test]
 async fn a_missing_song_or_a_bad_id_or_a_non_audio_answer_is_an_error_and_leaves_nothing() {
     let (dir, st) = state();
-    let url = fake_navidrome().await;
-    save(&st, &url, "me", "sesame").await;
+    let pw = secret();
+    let url = fake_navidrome(&pw).await;
+    save(&st, &url, "me", &pw).await;
     for (id, want) in [
         ("gone", StatusCode::BAD_GATEWAY),
         ("html", StatusCode::BAD_GATEWAY),
@@ -249,8 +261,9 @@ async fn a_missing_song_or_a_bad_id_or_a_non_audio_answer_is_an_error_and_leaves
 #[tokio::test]
 async fn removing_the_account_forgets_it() {
     let (_d, st) = state();
-    let url = fake_navidrome().await;
-    save(&st, &url, "me", "sesame").await;
+    let pw = secret();
+    let url = fake_navidrome(&pw).await;
+    save(&st, &url, "me", &pw).await;
     let j = delete_navidrome_settings(State(st.clone()))
         .await
         .ok()
