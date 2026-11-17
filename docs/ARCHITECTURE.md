@@ -186,14 +186,14 @@ renders. Built with Vite; `npm run build` emits static files the Rust binary ser
   `SubtitleDiagnosis.jsx`, `ActivityView.jsx`, `Settings.jsx`, `SystemView.jsx` (with
   `TasksPanel.jsx`, `BackupsPanel.jsx`, `LogsPanel.jsx`), `SetupWizard.jsx`, `AuthScreen.jsx`,
   `Sidebar.jsx`, `TopBar.jsx`, `SearchScope.jsx` and `LibraryFilter.jsx` (the filter chips and
-  libraries picker), and `FontsPanel.jsx` (Settings → Caption fonts); and the editor's caption look and layers: `LookControls.jsx`, `LayersPanel.jsx`, `LayerOverlay.jsx` (the draggable layer on the player) and `PathControls.jsx` (keyframes and Follow it automatically).
+  libraries picker), and `FontsPanel.jsx` (Settings → Caption fonts); and the editor's caption look and layers: `LookControls.jsx`, `LayersPanel.jsx`, `LayerOverlay.jsx` (the draggable layer on the player) and `PathControls.jsx` (keyframes and Follow it automatically); and `MusicPanel.jsx` (the Music box: search Navidrome, the song's controls, and the song playing beside the player).
 - **Pure, unit-tested logic** sits beside them with no React in it: `searchScope.js`,
   `searchTips.js`, `libraryFilter.js`, `wantedFocus.js`, `subtitles.js`, `clipSettings.js`,
   `wizard.js`, `fonts.js`, `health.js`, `logs.js`, `theme.js`, `update.js`, `cueFind.js`, `format.js`,
   `base.js`, and for the editor and sequences `timecode.js` (frames, timecodes, the timeline's view
   maths), `cueEdit.js` (editing subtitle lines), `captionPreview.js` (caption size and place as the
   export draws them), `sequenceModel.js` (the sequence as a set: layout, reorder, trim, edits for all,
-  preview keys), `sequenceClip.js` (a stored clip to and from the editor), `textLook.js` (the caption look and what is sent to the export), `layersModel.js` (layers: making, limits, the export request), `pathModel.js` (keyframes, positions along a path, merging a tracked path), `bazarr.js`, `clipboard.js`.
+  preview keys), `sequenceClip.js` (a stored clip to and from the editor), `textLook.js` (the caption look and what is sent to the export), `layersModel.js` (layers: making, limits, the export request), `pathModel.js` (keyframes, positions along a path, merging a tracked path), `musicModel.js` (the song under a clip: limits, the export request, what the preview plays), `bazarr.js`, `clipboard.js`.
 - `web/src/api.js` is a thin `fetch` wrapper: one function per endpoint, and a shared `json()`
   helper that throws on non-OK responses and fires a `memearr:unauthorized` window event on a
   401 (the app listens for that and drops back to the login screen from anywhere).
