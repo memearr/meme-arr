@@ -188,6 +188,16 @@ pub struct ExportRequest {
     /// Pictures laid over the clip: shapes, stickers, other clips (see [`Layer`]).
     #[serde(default)]
     pub layers: Vec<Layer>,
+    /// A song laid under the clip (MP4 and WebM only; see [`Soundtrack`]).
+    #[serde(default)]
+    pub music: Option<Soundtrack>,
+    /// How loud the clip's own sound is, 0..=2 (only when `audio` keeps it).
+    #[serde(default = "volume_one")]
+    pub clip_volume: f32,
+}
+
+pub(super) fn volume_one() -> f32 {
+    1.0
 }
 
 pub(super) fn default_true() -> bool {

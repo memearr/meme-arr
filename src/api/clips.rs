@@ -202,7 +202,7 @@ pub(super) async fn preview(
 
 pub(super) async fn export_start(
     State(st): State<AppState>,
-    Json(req): Json<ExportRequest>,
+    Json(mut req): Json<ExportRequest>,
 ) -> Result<Response, AppError> {
     if req.end_ms <= req.start_ms {
         return Ok(bad_request("end must be greater than start"));
@@ -215,6 +215,18 @@ pub(super) async fn export_start(
     }
     if let Some(msg) = export::validate_layers(&req.layers, req.end_ms - req.start_ms) {
         return Ok(bad_request(msg));
+    }
+    if let Some(msg) = export::validate_music(
+        req.music.as_ref(),
+        req.clip_volume,
+        req.end_ms - req.start_ms,
+        req.format,
+        req.audio,
+    ) {
+        return Ok(bad_request(msg));
+    }
+    if req.music.is_some() && st.settings().navidrome().is_none() {
+        return Ok(bad_request("music needs Navidrome (Settings -> Navidrome)"));
     }
     if let Some(msg) = req
         .caption
@@ -286,6 +298,16 @@ pub(super) async fn export_start(
                 motion: !crate::overlays::Overlays::is_still(id),
             })
         };
+        // The song is fetched here, not before the job exists, so a big first fetch
+        // doesn't hold up the request.
+        if let Some(m) = req.music.as_mut() {
+            m.file = Some(match ensure_track(&st2, &m.id).await {
+                Ok(p) => p,
+                Err(TrackError::NotSetUp) => anyhow::bail!("music needs Navidrome"),
+                Err(TrackError::BadId) => anyhow::bail!("that isn't a song id"),
+                Err(TrackError::Upstream(e)) => anyhow::bail!("couldn't get the song: {e}"),
+            });
+        }
         export::run_export_with(tools(&st2), job, &file, &req, &cues, &font_path, &media).await
     });
     Ok(accepted(&st, &id))
