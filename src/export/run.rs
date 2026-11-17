@@ -463,10 +463,23 @@ pub async fn run_sequence_export(
     };
     let core = core_chain(canvas.0, fps, &CaptionSpec::none(canvas.1));
     let vf = video_filter(format, &core);
+    // A song under the whole sequence, and/or the clips' own volume: the same sound graph
+    // as for a single clip, over the joined sound.
+    let mix = if req.music.is_some() || (req.clip_volume - 1.0).abs() > f32::EPSILON {
+        if let Some(why) =
+            validate_music(req.music.as_ref(), req.clip_volume, total_ms, format, audio)
+        {
+            let _ = std::fs::remove_file(&concat_path);
+            anyhow::bail!(why);
+        }
+        plan_audio(req.music.as_ref(), req.clip_volume, audio, total_ms, 1)
+    } else {
+        None
+    };
     let codec = codec_args(
         format,
         quality,
-        if audio {
+        if audio || mix.is_some() {
             AudioMode::Encode // the one lossy audio encode, over the joined audio
         } else {
             AudioMode::None
@@ -481,6 +494,10 @@ pub async fn run_sequence_export(
         job.source_title,
         &out_path.to_string_lossy(),
     );
+    let args = match &mix {
+        Some(m) => splice_audio(args, m),
+        None => args,
+    };
     let result = ffmpeg::run(tools.ffmpeg, &args).await;
     let _ = std::fs::remove_file(&concat_path);
     result?;

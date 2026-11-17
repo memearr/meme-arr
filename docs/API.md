@@ -448,6 +448,11 @@ for its segment (so the concatenated result never has gaps or an
 inconsistent stream layout); see `src/export/`'s
 `sequence_clip_args_with_audio` for the mechanics.
 
+`music` and `clip_volume` are as on `POST /api/export`, for the sequence as a whole: one song (MP4 and WebM
+only) under the joined clips, with its `at_ms` counted from the start of the sequence and the song cut where the
+sequence ends, and `clip_volume` the loudness of the clips' own sound (with `audio: true`). Layers and captions
+stay per clip, as before.
+
 The same metadata rules apply, including to the intermediate files, so nothing from any
 clip's source survives into the result. With `credit_source`, the `title` lists each
 distinct source once, joined with ` / ` (cut short past 200 characters).

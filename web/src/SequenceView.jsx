@@ -1,6 +1,8 @@
 import { AUDIO_FORMATS } from "./clipSettings.js";
 import { Editor } from "./Editor.jsx";
 import { JobResult } from "./JobResult.jsx";
+import { MusicPanel } from "./MusicPanel.jsx";
+import { clipVolumeForRequest, musicForRequest } from "./musicModel.js";
 import { SectionEditor } from "./SectionEditor.jsx";
 import { SequenceBulkEdit } from "./SequenceBulkEdit.jsx";
 import SequencePlayer from "./SequencePlayer.jsx";
@@ -34,6 +36,9 @@ export function SequenceView({ sequence, setSequence, onJob }) {
   const [fps, setFps] = useState(15);
   const [quality, setQuality] = useState(80);
   const [audio, setAudio] = useState(false);
+  // One song under the whole sequence, and how loud the clips' own sound is.
+  const [music, setMusic] = useState(null);
+  const [clipVolume, setClipVolume] = useState(1);
   const [creditSource, setCreditSource] = useState(true); // the shows/movies in the file's title tag
   const [filename, setFilename] = useState("");
   const [job, setJob] = useState(null);
@@ -142,6 +147,12 @@ export function SequenceView({ sequence, setSequence, onJob }) {
     if (next && !AUDIO_FORMATS.includes(format)) setFormat("mp4");
   }
 
+  // Choosing a song needs a format that carries sound, as keeping the clips' audio does.
+  function chooseMusic(m) {
+    setMusic(m);
+    if (!AUDIO_FORMATS.includes(format)) setFormat("mp4");
+  }
+
   async function doExport() {
     setError(null);
     try {
@@ -158,6 +169,8 @@ export function SequenceView({ sequence, setSequence, onJob }) {
         fps,
         quality,
         audio,
+        music: musicForRequest(music, total),
+        clip_volume: clipVolumeForRequest(clipVolume, audio),
         credit_source: creditSource,
         filename: filename || null,
       });
@@ -240,10 +253,24 @@ export function SequenceView({ sequence, setSequence, onJob }) {
           </div>
 
           <div className="controls">
+            <MusicPanel
+              music={music}
+              onChoose={chooseMusic}
+              onClear={() => setMusic(null)}
+              onChange={setMusic}
+              clipVolume={clipVolume}
+              setClipVolume={setClipVolume}
+              audio={audio}
+              clipMs={total}
+              relMs={0}
+              playing={false}
+              preview={false}
+              what="sequence"
+            />
             <fieldset>
               <legend>Format</legend>
               {["gif", "webp", "mp4", "webm"].map((f) => {
-                const disabled = audio && !AUDIO_FORMATS.includes(f);
+                const disabled = (audio || !!music) && !AUDIO_FORMATS.includes(f);
                 return (
                   <label key={f} className={disabled ? "disabled" : undefined}>
                     <input
@@ -264,8 +291,10 @@ export function SequenceView({ sequence, setSequence, onJob }) {
                 />
                 Include audio (Opus)
               </label>
-              {audio && (
-                <p className="hint tiny">GIF and WebP can't carry audio — MP4/WebM only while this is on.</p>
+              {(audio || music) && (
+                <p className="hint tiny">
+                  GIF and WebP can't carry audio — MP4/WebM only while {audio ? "this is on" : "there is music"}.
+                </p>
               )}
               <label className="audio-toggle" title="Everything else from the original file (its name, tags, chapters, subtitle tracks) is always removed from the export.">
             <input type="checkbox" checked={creditSource} onChange={(e) => setCreditSource(e.target.checked)} />
