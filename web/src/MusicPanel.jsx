@@ -36,7 +36,7 @@ function Slider({ label, value, min, max, step, text, onChange, disabled }) {
  * in the page alongside the player (up to full volume; the export can go louder).
  * `relMs` is the playhead in clip time and `clipMs` the clip's length.
  */
-export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, setClipVolume, audio, clipMs, relMs, playing }) {
+export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, setClipVolume, audio, clipMs, relMs, playing, preview = true, what = "clip" }) {
   const [configured, setConfigured] = useState(null); // null: not known yet
   const [query, setQuery] = useState("");
   const [results, setResults] = useState(null);
@@ -107,7 +107,7 @@ export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, set
 
       {configured === false && (
         <p className="hint tiny">
-          Connect Navidrome under <b>Settings</b> to put one of your songs under the clip.
+          Connect Navidrome under <b>Settings</b> to put one of your songs under the {what}.
         </p>
       )}
 
@@ -202,16 +202,20 @@ export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, set
             text={(v) => `${secondsText(v)} s`}
             onChange={(v) => set({ fade_out_ms: v })}
           />
-          <label className="check">
-            <input type="checkbox" checked={hear} onChange={(e) => setHear(e.target.checked)} /> Hear it in the player
-          </label>
-          <audio ref={player} src={musicSrc(music.id)} preload="auto" loop={false} />
+          {preview && (
+            <>
+              <label className="check">
+                <input type="checkbox" checked={hear} onChange={(e) => setHear(e.target.checked)} /> Hear it in the player
+              </label>
+              <audio ref={player} src={musicSrc(music.id)} preload="auto" loop={false} />
+            </>
+          )}
         </div>
       )}
 
       <div className="layer-controls">
         <Slider
-          label="Clip sound volume"
+          label={what === "clip" ? "Clip sound volume" : "Clips' sound volume"}
           value={clipVolume}
           min={0}
           max={MAX_VOLUME}
@@ -222,14 +226,15 @@ export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, set
         />
         {!audio && (
           <p className="hint tiny">
-            Tick <b>Include audio</b> (MP4 or WebM) to keep the clip's own sound and set its volume.
+            Tick <b>Include audio</b> (MP4 or WebM) to keep the {what === "clip" ? "clip's" : "clips'"} own sound and set its volume.
           </p>
         )}
       </div>
       {music && (
         <p className="hint tiny">
-          Music is in MP4 and WebM exports only. The player plays it up to 100%; the export goes up to 200%. The song
-          stops where the clip does.
+          Music is in MP4 and WebM exports only.
+          {preview ? " The player plays it up to 100%; the export goes up to 200%." : " The export goes up to 200%; it is not played here."} The song
+          stops where the {what} does.
         </p>
       )}
     </fieldset>

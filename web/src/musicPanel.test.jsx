@@ -22,7 +22,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function Harness({ audio = false, playing = false, relMs = 0, onSeen }) {
+function Harness({ audio = false, playing = false, relMs = 0, onSeen, preview = true, what = "clip" }) {
   const [music, setMusic] = useState(null);
   const [clipVolume, setClipVolume] = useState(1);
   onSeen?.({ music, clipVolume });
@@ -38,6 +38,8 @@ function Harness({ audio = false, playing = false, relMs = 0, onSeen }) {
       clipMs={CLIP}
       relMs={relMs}
       playing={playing}
+      preview={preview}
+      what={what}
     />
   );
 }
@@ -160,5 +162,21 @@ describe("hearing it in the player", () => {
     fireEvent.change(screen.getByLabelText(/Comes in at/), { target: { value: "2000" } });
     view.rerender(<Harness playing relMs={1000} />);
     expect(window.HTMLMediaElement.prototype.play).not.toHaveBeenCalled();
+  });
+});
+
+describe("the Music box on a sequence", () => {
+  it("talks about the sequence and its clips, and does not play the song", async () => {
+    vi.spyOn(api, "getNavidromeSettings").mockResolvedValue({ configured: true });
+    vi.spyOn(api, "musicSearch").mockResolvedValue({ tracks });
+    render(<Harness preview={false} what="sequence" />);
+    fireEvent.change(await screen.findByLabelText("Search your music"), { target: { value: "x" } });
+    fireEvent.click(screen.getByText("Search"));
+    fireEvent.click(await screen.findByText("A Song"));
+    expect(screen.getByLabelText(/Clips' sound volume/)).toBeTruthy();
+    expect(screen.getByText(/stops where the sequence does/)).toBeTruthy();
+    expect(screen.getByText(/not played here/)).toBeTruthy();
+    expect(screen.queryByText(/Hear it in the player/)).toBeNull();
+    expect(document.querySelector("audio")).toBeNull();
   });
 });

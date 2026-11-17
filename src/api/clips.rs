@@ -384,13 +384,26 @@ fn resolve_sequence(
 
 pub(super) async fn sequence_export_start(
     State(st): State<AppState>,
-    Json(req): Json<export::SequenceExportRequest>,
+    Json(mut req): Json<export::SequenceExportRequest>,
 ) -> Result<Response, AppError> {
     if let Err(msg) = export::validate_sequence(&req.clips) {
         return Ok(bad_request(msg));
     }
     if let Some(msg) = export::validate_audio_format(req.format, req.audio) {
         return Ok(bad_request(msg));
+    }
+    let total_ms: i64 = req.clips.iter().map(|c| c.end_ms - c.start_ms).sum();
+    if let Some(msg) = export::validate_music(
+        req.music.as_ref(),
+        req.clip_volume,
+        total_ms,
+        req.format,
+        req.audio,
+    ) {
+        return Ok(bad_request(msg));
+    }
+    if req.music.is_some() && st.settings().navidrome().is_none() {
+        return Ok(bad_request("music needs Navidrome (Settings -> Navidrome)"));
     }
 
     let (pool, mappings, specs, fonts) = (
@@ -430,6 +443,14 @@ pub(super) async fn sequence_export_start(
             out_path: &out_path,
             source_title: source_title.as_deref(),
         };
+        if let Some(m) = req.music.as_mut() {
+            m.file = Some(match ensure_track(&st2, &m.id).await {
+                Ok(p) => p,
+                Err(TrackError::NotSetUp) => anyhow::bail!("music needs Navidrome"),
+                Err(TrackError::BadId) => anyhow::bail!("that isn't a song id"),
+                Err(TrackError::Upstream(e)) => anyhow::bail!("couldn't get the song: {e}"),
+            });
+        }
         export::run_sequence_export(tools(&st2), job, &req, &clips, &font_path).await
     });
     Ok(accepted(&st, &id))

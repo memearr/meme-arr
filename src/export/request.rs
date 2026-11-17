@@ -259,6 +259,13 @@ pub struct SequenceExportRequest {
     /// As on [`ExportRequest`]: name the sources in the `title` tag.
     #[serde(default = "default_true")]
     pub credit_source: bool,
+    /// One song under the whole sequence (see [`Soundtrack`]); its times are from the start
+    /// of the sequence.
+    #[serde(default)]
+    pub music: Option<Soundtrack>,
+    /// How loud the clips' own sound is, 0..=2 (only when `audio` keeps it).
+    #[serde(default = "volume_one")]
+    pub clip_volume: f32,
 }
 
 /// What the clip came from, for the file's `title` tag: `Paper Moon Heist

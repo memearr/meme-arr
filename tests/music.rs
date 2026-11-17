@@ -386,3 +386,160 @@ async fn gif_and_webp_refuse_music_and_a_bad_volume_is_refused() {
         assert!(format!("{err:#}").contains("MP4 or WebM"), "{err:#}");
     }
 }
+
+fn seq_clip(file: PathBuf, secs: i64) -> export::ResolvedSequenceClip {
+    export::ResolvedSequenceClip {
+        file,
+        start_ms: 0,
+        end_ms: secs * 1000,
+        caption: None,
+        subtitle_offset_ms: 0,
+        cues: vec![],
+        source: String::new(),
+        font_path: None,
+    }
+}
+
+async fn render_sequence(
+    dir: &Path,
+    name: &str,
+    clips: &[export::ResolvedSequenceClip],
+    req: export::SequenceExportRequest,
+) -> anyhow::Result<PathBuf> {
+    let out = dir.join(format!("{name}.{}", req.format.ext()));
+    export::run_sequence_export(
+        TOOLS,
+        export::JobSpec {
+            id: &format!("job-{name}"),
+            tmp_dir: dir,
+            out_path: &out,
+            source_title: None,
+        },
+        &req,
+        clips,
+        concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/MemeTestSans.ttf"
+        ),
+    )
+    .await?;
+    Ok(out)
+}
+
+fn seq_request(
+    format: Format,
+    audio: bool,
+    m: Option<Soundtrack>,
+    clip_volume: f32,
+) -> export::SequenceExportRequest {
+    export::SequenceExportRequest {
+        clips: vec![],
+        format,
+        width: 240,
+        fps: 10,
+        quality: 80,
+        audio,
+        filename: None,
+        credit_source: false,
+        music: m,
+        clip_volume,
+    }
+}
+
+#[tokio::test]
+async fn a_song_plays_under_the_whole_sequence_and_stops_with_it() {
+    need_ffmpeg!();
+    let tmp = tempfile::tempdir().unwrap();
+    let song = song_file(tmp.path());
+    let (a, b) = (clip(tmp.path(), true), clip(tmp.path(), false));
+    // 2 s of the toned clip, then 2 s of the silent one
+    let clips = [seq_clip(a, 2), seq_clip(b, 2)];
+
+    // music with the clips' sound kept: the second half, where the clips are silent, still has the song
+    let out = render_sequence(
+        tmp.path(),
+        "both",
+        &clips,
+        seq_request(Format::Mp4, true, Some(music(&song)), 1.0),
+    )
+    .await
+    .unwrap();
+    let (has, secs) = audio_stream(&out);
+    assert!(has && secs > 3.5 && secs < 4.4, "{has} {secs}");
+    assert!(
+        level(&out, 2.5, 1.0) > -30.0,
+        "the song carries on over the silent clip"
+    );
+    assert!(level(&out, 0.3, 1.0) > -30.0);
+
+    // music alone, the clips' sound not kept
+    let alone = render_sequence(
+        tmp.path(),
+        "alone",
+        &clips,
+        seq_request(Format::Webm, false, Some(music(&song)), 1.0),
+    )
+    .await
+    .unwrap();
+    assert!(audio_stream(&alone).0);
+    assert!(level(&alone, 0.5, 2.0) > -30.0);
+
+    // the clips' own volume, no music: the first half is quieter by half
+    let full = render_sequence(
+        tmp.path(),
+        "full",
+        &clips,
+        seq_request(Format::Mp4, true, None, 1.0),
+    )
+    .await
+    .unwrap();
+    let half = render_sequence(
+        tmp.path(),
+        "half",
+        &clips,
+        seq_request(Format::Mp4, true, None, 0.5),
+    )
+    .await
+    .unwrap();
+    let diff = level(&full, 0.3, 1.0) - level(&half, 0.3, 1.0);
+    assert!(
+        (diff - 6.0).abs() < 1.5,
+        "half volume is 6 dB down ({diff})"
+    );
+}
+
+#[tokio::test]
+async fn a_sequence_refuses_music_in_a_gif_and_music_that_comes_in_after_the_end() {
+    need_ffmpeg!();
+    let tmp = tempfile::tempdir().unwrap();
+    let song = song_file(tmp.path());
+    let clips = [seq_clip(clip(tmp.path(), false), 2)];
+    let err = render_sequence(
+        tmp.path(),
+        "gif",
+        &clips,
+        seq_request(Format::Gif, false, Some(music(&song)), 1.0),
+    )
+    .await
+    .unwrap_err();
+    assert!(format!("{err:#}").contains("MP4 or WebM"), "{err:#}");
+    let mut late = music(&song);
+    late.at_ms = 2000;
+    let err = render_sequence(
+        tmp.path(),
+        "late",
+        &clips,
+        seq_request(Format::Mp4, false, Some(late), 1.0),
+    )
+    .await
+    .unwrap_err();
+    assert!(format!("{err:#}").contains("within the clip"), "{err:#}");
+    // and nothing was left behind
+    let left: Vec<_> = std::fs::read_dir(tmp.path())
+        .unwrap()
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| n.contains("concat") || n.contains("list"))
+        .collect();
+    assert!(left.is_empty(), "{left:?}");
+}

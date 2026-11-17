@@ -152,7 +152,7 @@ and WebM only; GIF and WebP can't carry audio). Finished files also land in your
   when in the clip it arrives, and **Fade in** and **Fade out** soften its edges; the song stops where the
   clip does. The clip's own volume applies when **Include audio** is ticked (a clip with no sound of its
   own just gets the music). Music is for MP4 and WebM, so picking a song switches a GIF or WebP to MP4. It
-  is in the exported clip only, not in a sequence or a saved frame.
+  is in the exported clip or sequence, not in a saved frame.
 - **Move over time.** A layer, or the styled caption text, can travel across the picture: tick
   **Move over time** to put a first keyframe where it is now, move the playhead, and drag it on the
   player to where it should be at that moment, which makes the next keyframe. It travels in a straight
@@ -209,6 +209,12 @@ any shows or movies, into one back-to-back GIF, WebP, MP4 or WebM (up to 20 sect
   sets one font and size for every caption (meme words are left alone), moves every start
   or end by a quarter or half a second, shortens every section to a longest length, or
   reverses the order.
+- **Music.** The **Music** box on this tab is the same as in the editor, for the whole sequence: one
+  song under all the sections, with its own volume, a **Clips' sound volume** for the sections' own
+  sound, where in the song to start, when it comes in (counted from the start of the sequence) and its
+  fades. It stops where the sequence does. The song is mixed in the export; it is not played in the
+  sequence player. Music is for MP4 and WebM, so picking a song switches a GIF or WebP to MP4. Layers
+  are still only for a single clip.
 - **Undo and redo** step back through every change made here (typing a time or dragging a
   slider counts as one step).
 
