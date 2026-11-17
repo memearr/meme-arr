@@ -385,7 +385,20 @@ Request (`ExportRequest`):
   first 80% of the line, by character count); `*word*` in a line makes that word 1.5× bigger. A caption
   with a look is drawn from an ASS script instead of an SRT. In a single saved frame the entrance and
   reveal are left out (there is nothing to animate from). `GET /api/preview` takes the same object as
-  `look_json`.
+  `look_json`. `look.path` (and a layer's `path`, below) is a list of keyframes
+  `{"t_ms": 0, "x": 0.2, "y": 0.5}`: times from the start of the clip, places as fractions of the picture.
+  The text (or layer) moves in a straight line between keyframes and stays at the first before it and the
+  last after it; with a path, `x` and `y` are ignored and a sliding entrance becomes a fade. At most 100
+  keyframes, each inside the clip and the picture (`400` otherwise).
+- `layers` (default none, at most 12): pictures laid over the clip, each
+  `{"kind":"shape","shape":"arrow|ring|box|dot","color":"#RRGGBB"}` or
+  `{"kind":"media","asset":"<id from GET /api/overlays>"}` plus `start_ms` and `end_ms` (from the start of the
+  clip; `end_ms` null is the end), `x` and `y` (the centre, fractions of the picture), `size` (its width as a
+  fraction of the picture's, 0.01 to 2), `rotation` (clockwise degrees), `opacity` (0 to 1) and optionally a
+  `path` of keyframes (see `look.path`) that replaces `x` and `y`. They are laid
+  over in order and the captions go on top. A GIF, WebP or clip (`motion`) loops while it is on. `400` for a
+  layer that cannot be used (bad number, unknown shape, starts outside the clip) or an upload that is gone.
+  Layers apply to this single export, not to a sequence or a `/api/still`.
 - `quality` drives libwebp's `-q:v` and x264/VP9 CRF for webp/mp4/webm, and
   (as of the gifsicle integration) a `gifsicle --lossy=N` post-process pass
   for GIF — ffmpeg's own palette pipeline for GIF has no quality lever of its
@@ -455,6 +468,52 @@ the limit of 50 uploaded fonts is reached; `413` over 16 MB.
 
 ### `DELETE /api/fonts/:id`
 Deletes an uploaded font: `204`; `404` if there is none; `400` for a built-in font.
+
+### Layers: `GET /api/overlays`, `POST /api/overlays?name=`, `DELETE /api/overlays/:id`
+Pictures and clips an export can lay over a clip (see `layers` under `POST /api/export`).
+`GET` lists the uploaded ones (`{"overlays": [{"id","name","kind","bytes"}], "shapes": [{"id","label"}],
+"max_bytes", "max_overlays"}`; `kind` is `"still"` for PNG/JPEG and `"motion"` for GIF/WebP/MP4/WebM). `POST`
+keeps an upload (the body is the file's bytes): `201 {"overlay": {...}}`; `400` if it is empty or not one of
+those formats (decided from the file's first bytes, not its name); `409` over 100 overlays; `413` over 25 MB.
+`DELETE`: `204`, or `404`.
+
+### `GET /api/overlays/:id/file`
+The stored file itself, with its own content type (the editor previews with it). `404` for an unknown id or
+anything that is not a plain file name in the overlay folder.
+
+### `GET /api/sprites/:shape?color=%23RRGGBB`
+A built-in shape (`arrow`, `ring`, `box`, `dot`) as the transparent PNG an export overlays; orange by default.
+`404` for an unknown shape, `400` for a colour that is not `#RRGGBB`.
+
+### `POST /api/track`
+Follows a spot of the picture through a clip and answers with a path (keyframes) a layer or the caption
+text can take (see `look.path` under `POST /api/export`). The clip is decoded at low resolution and the
+patch of picture round the spot is searched for in each following frame (normalised cross-correlation, to a
+fraction of a pixel, the template slowly updated while it matches well). It runs for a few seconds and
+answers with the result.
+
+```json
+{ "rating_key": "12345", "start_ms": 62500, "end_ms": 67500, "t_ms": 500,
+  "x": 0.42, "y": 0.55, "size": 0.12, "max_points": 100 }
+```
+
+- `start_ms`, `end_ms`: the clip, in the media's own time (at most 60 s).
+- `t_ms`: the moment to start from, in milliseconds from the start of the clip (default 0); the spot is
+  followed forward from there to the end of the clip.
+- `x`, `y`: where the spot is at that moment, fractions of the picture (0 to 1).
+- `size`: about how wide the spot is, as a fraction of the picture's width (default 0.12).
+- `max_points`: the most keyframes the answer may have (default and most 100); the path is thinned to the
+  few keyframes that describe the same movement.
+
+```json
+{ "path": [ { "t_ms": 500, "x": 0.42, "y": 0.55 }, { "t_ms": 1250, "x": 0.5, "y": 0.52 } ],
+  "tracked_ms": 3200, "lost": false }
+```
+
+`tracked_ms` is how far from `t_ms` it got; `lost` is true when the spot was lost (a poor match for three
+frames in a row) before the clip ended, in which case `path` is what was followed up to then. `400` for a
+spot with nothing in it to hold on to (flat colour), a clip over 60 s, or a start or place outside the
+clip or picture; `404` if the media isn't indexed. At most two run at once.
 
 ### `GET /api/jobs/:id`
 ```json

@@ -100,15 +100,26 @@ impl Caption {
         }
     }
 
-    /// The same caption with its entrance animation and word-by-word reveal
+    /// The same caption with its entrance animation, word-by-word reveal and path
     /// removed, for a single still frame (where there is no "before" to animate from).
+    /// Text that was placed only by a path stays where the path starts.
     pub fn without_motion(&self) -> Caption {
         let mut c = self.clone();
         if let Caption::Source { look: Some(l), .. } = &mut c {
             l.anim = TextAnim::None;
             l.reveal = TextReveal::None;
+            if let Some(first) = sorted_path(&l.path).first() {
+                l.x = Some(first.x);
+                l.y = Some(first.y);
+            }
+            l.path.clear();
         }
         c
+    }
+
+    /// Why this caption can't be used on a clip `clip_ms` long, or `None` if it can.
+    pub fn problem(&self, clip_ms: i64) -> Option<String> {
+        validate_path(&self.look()?.path, clip_ms).map(|why| format!("caption: {why}"))
     }
 
     /// Meme text in the default font at normal size.
@@ -174,6 +185,9 @@ pub struct ExportRequest {
     /// everything from the source file is stripped either way.
     #[serde(default = "default_true")]
     pub credit_source: bool,
+    /// Pictures laid over the clip: shapes, stickers, other clips (see [`Layer`]).
+    #[serde(default)]
+    pub layers: Vec<Layer>,
 }
 
 pub(super) fn default_true() -> bool {
@@ -315,6 +329,9 @@ pub fn validate_sequence(clips: &[SequenceClipSpec]) -> std::result::Result<(), 
             ));
         }
         let len = c.end_ms - c.start_ms;
+        if let Some(why) = c.caption.as_ref().and_then(|cap| cap.problem(len)) {
+            return Err(format!("clip {} (#{i}): {why}", c.rating_key));
+        }
         if len > MAX_CLIP_MS {
             return Err(format!(
                 "clip {} (#{i}) is longer than the {}s per-clip limit",

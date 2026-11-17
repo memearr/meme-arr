@@ -141,13 +141,25 @@ pub(super) fn drawtext(font_path: &str, text_file: &str, font_size: u32, y_expr:
     )
 }
 
+/// The palette pass that turns a picture into a GIF.
+const GIF_PALETTE: &str =
+    "split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=3";
+
 /// Full `-vf` string for a given format (GIF appends a palette pass).
 pub fn video_filter(format: Format, core: &str) -> String {
     match format {
-        Format::Gif => format!(
-            "{core},split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=3"
-        ),
+        Format::Gif => format!("{core},{GIF_PALETTE}"),
         _ => core.to_string(),
+    }
+}
+
+/// What runs on a finished picture before it is encoded: `chain` (captions; may be
+/// empty), then the palette pass for a GIF. Empty when there is nothing to run.
+pub fn finishing_filter(format: Format, chain: &str) -> String {
+    match (format, chain.is_empty()) {
+        (Format::Gif, true) => GIF_PALETTE.to_string(),
+        (Format::Gif, false) => format!("{chain},{GIF_PALETTE}"),
+        (_, _) => chain.to_string(),
     }
 }
 

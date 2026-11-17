@@ -230,6 +230,25 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload || {}),
     }),
+  /** Follow the spot at (x, y), `t_ms` into the clip, to the end of it: `{path, tracked_ms, lost}`. */
+  track: (body) =>
+    json(`/api/track`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+  overlays: () => json(`/api/overlays`),
+  uploadOverlay: (file) =>
+    json(`/api/overlays?name=${encodeURIComponent(file.name)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/octet-stream" },
+      body: file,
+    }),
+  deleteOverlay: async (id) => {
+    const res = await fetch(withBase(`/api/overlays/${encodeURIComponent(id)}`), { method: "DELETE" });
+    if (res.status === 401) window.dispatchEvent(new Event("memearr:unauthorized"));
+    if (!res.ok) throw new Error(res.statusText);
+  },
   fonts: () => json(`/api/fonts`),
   uploadFont: (file) =>
     json(`/api/fonts?name=${encodeURIComponent(file.name)}`, {

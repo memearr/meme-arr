@@ -50,7 +50,9 @@ pub fn prepare_captions(
     Ok((core, written))
 }
 
-/// Run a full export end to end, writing the finished file to `job.out_path`.
+/// Run a full export end to end, writing the finished file to `job.out_path`. Layers
+/// that use an uploaded picture fail here (there is nowhere to look it up): use
+/// [`run_export_with`] for those.
 pub async fn run_export(
     tools: Tools<'_>,
     job: JobSpec<'_>,
@@ -58,6 +60,19 @@ pub async fn run_export(
     req: &ExportRequest,
     cues: &[Cue],
     font_path: &str,
+) -> Result<()> {
+    run_export_with(tools, job, file, req, cues, font_path, &|_| None).await
+}
+
+/// [`run_export`], with `media` to find the file behind an uploaded picture's id.
+pub async fn run_export_with(
+    tools: Tools<'_>,
+    job: JobSpec<'_>,
+    file: &Path,
+    req: &ExportRequest,
+    cues: &[Cue],
+    font_path: &str,
+    media: &(dyn Fn(&str) -> Option<LayerSource> + Sync),
 ) -> Result<()> {
     job.prepare_dirs()?;
     let style = CaptionStyle::new(req.caption.as_ref(), font_path, height_hint_for(req.width));
@@ -67,26 +82,59 @@ pub async fn run_export(
         end_ms: req.end_ms,
         offset_ms: req.subtitle_offset_ms,
     };
-    let (core, caption_files) =
-        prepare_captions(job.tmp_dir, job.id, (req.width, req.fps), style, &window)?;
-    let vf = video_filter(req.format, &core);
     let audio_mode = if req.audio {
         AudioMode::Encode
     } else {
         AudioMode::None
     };
     let codec = codec_args(req.format, req.quality, audio_mode);
-    let args = export_args(
-        &file.to_string_lossy(),
-        req.start_ms,
-        req.end_ms,
-        &vf,
-        &codec,
-        job.source_title.filter(|_| req.credit_source),
-        &job.out_path.to_string_lossy(),
-    );
+    let title = job.source_title.filter(|_| req.credit_source);
+    let out = job.out_path.to_string_lossy();
+    // The sprite files (written for shape layers) go when this does.
+    let mut sprites = SpriteFiles::default();
+    let (args, caption_files) = if req.layers.is_empty() {
+        let (core, caption_files) =
+            prepare_captions(job.tmp_dir, job.id, (req.width, req.fps), style, &window)?;
+        let vf = video_filter(req.format, &core);
+        let args = export_args(
+            &file.to_string_lossy(),
+            req.start_ms,
+            req.end_ms,
+            &vf,
+            &codec,
+            title,
+            &out,
+        );
+        (args, caption_files)
+    } else {
+        let clip_ms = req.end_ms - req.start_ms;
+        if let Some(why) = validate_layers(&req.layers, clip_ms) {
+            anyhow::bail!(why);
+        }
+        let caption_files =
+            write_caption_files(job.tmp_dir, job.id, style.caption, &window, style.font_path)?;
+        let (sources, written) = resolve_layers(&req.layers, job.tmp_dir, job.id, media)?;
+        sprites = written;
+        let after = finishing_filter(
+            req.format,
+            &caption_filters(&caption_files.spec(style)).join(","),
+        );
+        let plan = plan_layers(&req.layers, &sources, req.width, req.fps, clip_ms, &after);
+        let args = export_args_with_layers(
+            &file.to_string_lossy(),
+            req.start_ms,
+            req.end_ms,
+            &plan,
+            req.audio,
+            &codec,
+            title,
+            &out,
+        );
+        (args, caption_files)
+    };
     let result = ffmpeg::run(tools.ffmpeg, &args).await;
     caption_files.cleanup();
+    drop(sprites);
     result?;
     maybe_optimize_gif(tools.gifsicle, req.format, req.quality, job.out_path).await;
     Ok(())

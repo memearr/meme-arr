@@ -211,6 +211,16 @@ impl Config {
         self.data_dir.join("fonts")
     }
 
+    /// Pictures and clips the admin has uploaded to lay over exports.
+    pub fn user_overlays_dir(&self) -> PathBuf {
+        self.data_dir.join("overlays")
+    }
+
+    /// The uploaded overlays.
+    pub fn overlays(&self) -> crate::overlays::Overlays {
+        crate::overlays::Overlays::new(self.user_overlays_dir())
+    }
+
     /// The built-in and uploaded caption fonts.
     pub fn fonts(&self) -> crate::fonts::Fonts {
         crate::fonts::Fonts::new(self.fonts_dir.clone(), self.user_fonts_dir())
