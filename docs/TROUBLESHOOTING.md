@@ -155,6 +155,20 @@ Burned subtitles look a font up by its *family name* inside the font file. A few
 the default font is used instead; meme text uses the file directly and is not affected. Try another
 file for the same family, or use meme text.
 
+**Follow it automatically says it can't follow the spot.**
+The picture is too flat there (a plain wall or sky) to tell it apart from its surroundings: put the
+marker on something with detail, such as an edge, a face or a pattern, and raise **Spot size** a little.
+If it follows then drifts or jumps (a cut, something passing in front, a very similar pattern nearby), it
+says where it lost the spot: keep what it followed, put the layer back on the thing at that moment, and
+press it again. It follows forward in time only, and tracks position, not size or turn.
+
+**An upload for a layer is refused.**
+Only PNG, JPEG, GIF, WebP, MP4 and WebM are taken (the file's contents are checked, not its name), up to
+25 MB each and 100 in all; delete an old one in the Layers box to make room.
+
+**My layer or styled text is in the export but not in a sequence or a saved frame.**
+Layers are drawn in single exports only. A saved frame keeps the caption look but not its animation or path.
+
 **"unknown font" when I export or preview.**
 The font you chose was deleted (a clip queued in a sequence can still refer to it). Choose another font
 for that clip.

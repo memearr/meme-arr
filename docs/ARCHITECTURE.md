@@ -101,6 +101,8 @@ Orientation only: each file's own `//!` comment is the authoritative description
 | `api/bazarr.rs` | Bazarr: its settings, search / re-time / shift for one item, and the webhook it calls after writing a subtitle. |
 | `api/session.rs` | Sessions, API keys, login/logout/password, trusted proxies and the `require_auth` middleware. The session cookie is `Secure` whenever the visitor used HTTPS. |
 | `api/authentik.rs`, `api/plex_login.rs` | Authentik (OIDC) and Plex single sign-on: login, callback and their settings. |
+| `api/overlays.rs` | List, upload and delete the pictures and clips a layer can use, serve one back, and draw the built-in shapes (`/api/sprites/:shape`). |
+| `api/track.rs` | `POST /api/track`: follows a spot through a clip (at most two at a time) and answers with a path. |
 | `api/fonts.rs` | List, upload and delete caption fonts, and resolve the font a caption chose. |
 | `api/system.rs` | Health, status, metrics, activity and server logs, storage, backups, scheduled tasks and `GET /api/system/connection` (how the app reads the connection, for checking a proxy). |
 
@@ -142,7 +144,9 @@ Orientation only: each file's own `//!` comment is the authoritative description
 | Module | Purpose |
 |---|---|
 | `ffmpeg.rs` | Thin orchestration over `ffmpeg`/`ffprobe`: probing the video, stills and filmstrips, previews. Argument building is pure and unit-tested; running the process is not. |
-| `export/` | Turns a clip window or a sequence into WebP/MP4/WebM/GIF. `request.rs` holds the request types, limits and naming; `caption.rs` the small types that describe a caption (its window, style and temp files) and writes those files; `filters.rs` the pure filtergraph and metadata-stripping arguments; `run.rs` runs ffmpeg for clips and sequences (`Tools` and `JobSpec` carry the programs and the job's paths); `still.rs` does the same for a single frame. |
+| `export/` | Turns a clip window or a sequence into WebP/MP4/WebM/GIF. `request.rs` holds the request types, limits and naming; `caption.rs` the small types that describe a caption (its window, style and temp files) and writes those files; `filters.rs` the pure filtergraph and metadata-stripping arguments; `run.rs` runs ffmpeg for clips and sequences (`Tools` and `JobSpec` carry the programs and the job's paths); `still.rs` does the same for a single frame; `ass.rs` builds the styled-caption script (presets, entrance animation, word reveal, `\move` along a path); `layers.rs` validates layers and adds them to the filtergraph as `overlay` inputs; `path.rs` turns keyframes into the `overlay` position expression (a balanced `if` tree, because ffmpeg refuses a deep chain). |
+| `sprite.rs`, `overlays.rs` | The built-in shape PNGs (drawn as PNGs, not ASS shapes, which would stretch at another aspect ratio) and the store for uploaded overlays in `/data/overlays`. |
+| `tracker.rs` | Follows a spot through decoded frames: normalised cross-correlation to sub-pixel accuracy, the template slowly updated, then Ramer-Douglas-Peucker thinning to a few keyframes. Positions only, forward in time only. |
 | `preview_cache.rs` | Renders previews safely: to a temporary file, checked for completeness before it becomes a cache entry. |
 | `diskstats.rs` | Disk-usage helpers for the System tab. |
 
@@ -182,14 +186,14 @@ renders. Built with Vite; `npm run build` emits static files the Rust binary ser
   `SubtitleDiagnosis.jsx`, `ActivityView.jsx`, `Settings.jsx`, `SystemView.jsx` (with
   `TasksPanel.jsx`, `BackupsPanel.jsx`, `LogsPanel.jsx`), `SetupWizard.jsx`, `AuthScreen.jsx`,
   `Sidebar.jsx`, `TopBar.jsx`, `SearchScope.jsx` and `LibraryFilter.jsx` (the filter chips and
-  libraries picker), and `FontsPanel.jsx` (Settings → Caption fonts).
+  libraries picker), and `FontsPanel.jsx` (Settings → Caption fonts); and the editor's caption look and layers: `LookControls.jsx`, `LayersPanel.jsx`, `LayerOverlay.jsx` (the draggable layer on the player) and `PathControls.jsx` (keyframes and Follow it automatically).
 - **Pure, unit-tested logic** sits beside them with no React in it: `searchScope.js`,
   `searchTips.js`, `libraryFilter.js`, `wantedFocus.js`, `subtitles.js`, `clipSettings.js`,
   `wizard.js`, `fonts.js`, `health.js`, `logs.js`, `theme.js`, `update.js`, `cueFind.js`, `format.js`,
   `base.js`, and for the editor and sequences `timecode.js` (frames, timecodes, the timeline's view
   maths), `cueEdit.js` (editing subtitle lines), `captionPreview.js` (caption size and place as the
   export draws them), `sequenceModel.js` (the sequence as a set: layout, reorder, trim, edits for all,
-  preview keys), `sequenceClip.js` (a stored clip to and from the editor), `bazarr.js`, `clipboard.js`.
+  preview keys), `sequenceClip.js` (a stored clip to and from the editor), `textLook.js` (the caption look and what is sent to the export), `layersModel.js` (layers: making, limits, the export request), `pathModel.js` (keyframes, positions along a path, merging a tracked path), `bazarr.js`, `clipboard.js`.
 - `web/src/api.js` is a thin `fetch` wrapper: one function per endpoint, and a shared `json()`
   helper that throws on non-OK responses and fires a `memearr:unauthorized` window event on a
   401 (the app listens for that and drops back to the login screen from anywhere).

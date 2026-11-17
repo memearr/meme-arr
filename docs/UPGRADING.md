@@ -46,6 +46,11 @@ specific version, change the image line to a tag such as
 
 Newer versions, newest first. Nothing here needs a change to your compose file unless it says so.
 
+- **0.36: styled captions, layers, motion and tracking.** The editor gained **Look** (styled
+  subtitles), **Layers** (shapes and your own pictures and clips laid over the clip), **Move over
+  time** (keyframes) and **Follow it automatically**. Nothing needs changing: uploaded overlays go in
+  a new `overlays/` folder inside `/data`, which survives upgrades but, like fonts, is not part of the
+  settings backups. Layers are in single exports only, not sequences or saved frames.
 - **0.32: reverse proxies and HTTPS.** The app now believes `X-Forwarded-Proto/-Host/-Port/-Prefix`
   only from a proxy on a private (or loopback) address or one on **Settings → Trusted proxies**;
   from a public address they are ignored. A proxy on your LAN or Docker network needs nothing; a
