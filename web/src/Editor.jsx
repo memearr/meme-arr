@@ -15,6 +15,8 @@ import { FrameSaver } from "./FrameSaver.jsx";
 import { PlayerPanel } from "./PlayerPanel.jsx";
 import { LayersPanel } from "./LayersPanel.jsx";
 import { layersForRequest, moveLayerTo } from "./layersModel.js";
+import { MusicPanel } from "./MusicPanel.jsx";
+import { clipVolumeForRequest, musicForRequest } from "./musicModel.js";
 import { JobResult } from "./JobResult.jsx";
 import { browserStorage, loadVolume, saveVolume, typingInto } from "./editorStorage.js";
 import { captionMetrics, containedRect } from "./captionPreview.js";
@@ -68,6 +70,9 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   // uploaded pictures there are to choose from.
   const [layers, setLayers] = useState([]);
   const [selectedLayer, setSelectedLayer] = useState(null);
+  // A song from Navidrome under the clip, and how loud the clip's own sound is (see MusicPanel).
+  const [music, setMusic] = useState(null);
+  const [clipVolume, setClipVolume] = useState(1);
   const [overlayList, setOverlayList] = useState({ overlays: [], shapes: [] });
   const [top, setTop] = useState(seed ? seed.top : "");
   const [bottom, setBottom] = useState(seed ? seed.bottom : item.line || "");
@@ -579,6 +584,12 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
     if (next && !AUDIO_FORMATS.includes(format)) setFormat("mp4");
   }
 
+  // Choosing a song needs a format that carries sound, as keeping the clip's audio does.
+  function chooseMusic(m) {
+    setMusic(m);
+    if (!AUDIO_FORMATS.includes(format)) setFormat("mp4");
+  }
+
   async function doExport() {
     setError(null);
     const caption = buildCaption();
@@ -597,6 +608,8 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
         credit_source: creditSource,
         filename: filename || null,
         layers: layersForRequest(layers, clipLength),
+        music: musicForRequest(music, clipLength),
+        clip_volume: clipVolumeForRequest(clipVolume, audio),
       });
       pushJob(started);
       pollRef.current = setInterval(async () => {
@@ -907,7 +920,23 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
             )}
 
             {!sequenceEdit && (
+              <MusicPanel
+                music={music}
+                onChoose={chooseMusic}
+                onClear={() => setMusic(null)}
+                onChange={setMusic}
+                clipVolume={clipVolume}
+                setClipVolume={setClipVolume}
+                audio={audio}
+                clipMs={clipLength}
+                relMs={Math.max(0, Math.round(playhead - start))}
+                playing={playing}
+              />
+            )}
+
+            {!sequenceEdit && (
               <ExportSettings
+                hasMusic={!!music}
                 format={format}
                 setFormat={setFormat}
                 audio={audio}

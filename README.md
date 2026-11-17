@@ -54,7 +54,9 @@ Browser UI ──> Rust API (axum) ──> Plex / Jellyfin API (library/metadata
   place, entrance animation, words appearing as they are said), lay shapes (the upvote arrow, a
   ring, a box, a dot) or your own pictures and clips over the video, move text or a layer along
   a path of keyframes, or have the app **follow a spot automatically** (a face, a hand, a
-  car) so an arrow or caption stays on it. See [Using meme-arr](docs/USING.md#make-the-clip).
+  car) so an arrow or caption stays on it.
+  Connect **Navidrome** to put one of your songs under a clip, with separate volume
+  controls for the song and the clip's own sound. See [Using meme-arr](docs/USING.md#make-the-clip).
 - **Subtitle sync correction.** If the indexed subtitle timing drifts from a
   particular video release, nudge it forward or backward (±100/500 ms) right in
   the editor — the correction applies to the preview and the final burned-in
