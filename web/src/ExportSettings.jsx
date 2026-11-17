@@ -3,6 +3,7 @@ import { fpsValue } from "./timecode.js";
 
 /** The Format and Output boxes: container, audio, the source credit, size, frame rate and quality. */
 export function ExportSettings({
+  hasMusic = false,
   format,
   setFormat,
   audio,
@@ -24,7 +25,7 @@ export function ExportSettings({
       <fieldset>
         <legend>Format</legend>
         {["webp", "mp4", "webm", "gif"].map((f) => {
-          const disabled = audio && !AUDIO_FORMATS.includes(f);
+          const disabled = (audio || hasMusic) && !AUDIO_FORMATS.includes(f);
           return (
             <label key={f} className={disabled ? "disabled" : undefined}>
               <input
@@ -41,7 +42,9 @@ export function ExportSettings({
           <input type="checkbox" checked={audio} onChange={(e) => toggleAudio(e.target.checked)} />
           Include audio (Opus)
         </label>
-        {audio && <p className="hint tiny">GIF and WebP can't carry audio — MP4/WebM only while this is on.</p>}
+        {(audio || hasMusic) && (
+          <p className="hint tiny">GIF and WebP can't carry audio — MP4/WebM only while {audio ? "this is on" : "there is music"}.</p>
+        )}
         <label
           className="audio-toggle"
           title="Everything else from the original file (its name, tags, chapters, subtitle tracks) is always removed from the export."

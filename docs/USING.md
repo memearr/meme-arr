@@ -145,6 +145,14 @@ and WebM only; GIF and WebP can't carry audio). Finished files also land in your
   for two seconds: set **On at** and **Off at** by typing, or with **= playhead**. Drag a layer on the player
   to place it; **Size**, **Turn**, **Opacity** and **Colour** change how it looks. Captions are drawn over
   the layers. Layers are in the exported clip only, not in a sequence or a saved frame.
+- **Music.** With Navidrome connected (Settings), the **Music** box puts one of your songs under the
+  clip: search for it, pick it, and the player plays it with the clip. **Music volume** and **Clip sound
+  volume** are separate faders, from silent to 200% (the player plays at most 100%; the export goes up
+  to 200% and is kept from clipping). **Start the song at** picks where in the song to begin, **Comes in at**
+  when in the clip it arrives, and **Fade in** and **Fade out** soften its edges; the song stops where the
+  clip does. The clip's own volume applies when **Include audio** is ticked (a clip with no sound of its
+  own just gets the music). Music is for MP4 and WebM, so picking a song switches a GIF or WebP to MP4. It
+  is in the exported clip only, not in a sequence or a saved frame.
 - **Move over time.** A layer, or the styled caption text, can travel across the picture: tick
   **Move over time** to put a first keyframe where it is now, move the playhead, and drag it on the
   player to where it should be at that moment, which makes the next keyframe. It travels in a straight

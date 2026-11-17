@@ -667,3 +667,21 @@
 .output-note {
   margin: 8px 0 0;
 }
+
+/* Music under a clip */
+.music-results {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.music-results li {
+  padding: 3px 0;
+}
+.music-results .link {
+  text-align: left;
+}
+.music-title {
+  margin: 0 0 6px;
+}
