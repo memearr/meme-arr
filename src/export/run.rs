@@ -82,7 +82,34 @@ pub async fn run_export_with(
         end_ms: req.end_ms,
         offset_ms: req.subtitle_offset_ms,
     };
-    let audio_mode = if req.audio {
+    let clip_ms = req.end_ms - req.start_ms;
+    if let Some(why) = validate_music(
+        req.music.as_ref(),
+        req.clip_volume,
+        clip_ms,
+        req.format,
+        req.audio,
+    ) {
+        anyhow::bail!(why);
+    }
+    // The sound is mixed when there is a song or the clip's own volume was changed.
+    let mix = if req.music.is_some() || (req.clip_volume - 1.0).abs() > f32::EPSILON {
+        let own = req.audio
+            && ffmpeg::probe(tools.ffprobe, file)
+                .await
+                .map(|p| p.has_audio)
+                .unwrap_or(false);
+        plan_audio(
+            req.music.as_ref(),
+            req.clip_volume,
+            own,
+            clip_ms,
+            req.layers.len() + 1,
+        )
+    } else {
+        None
+    };
+    let audio_mode = if req.audio || mix.is_some() {
         AudioMode::Encode
     } else {
         AudioMode::None
@@ -107,7 +134,6 @@ pub async fn run_export_with(
         );
         (args, caption_files)
     } else {
-        let clip_ms = req.end_ms - req.start_ms;
         if let Some(why) = validate_layers(&req.layers, clip_ms) {
             anyhow::bail!(why);
         }
@@ -131,6 +157,10 @@ pub async fn run_export_with(
             &out,
         );
         (args, caption_files)
+    };
+    let args = match &mix {
+        Some(m) => splice_audio(args, m),
+        None => args,
     };
     let result = ffmpeg::run(tools.ffmpeg, &args).await;
     caption_files.cleanup();

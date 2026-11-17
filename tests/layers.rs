@@ -77,6 +77,8 @@ fn request(format: Format, layers: Vec<Layer>, audio: bool) -> ExportRequest {
         filename: None,
         credit_source: false,
         layers,
+        music: None,
+        clip_volume: 1.0,
     }
 }
 
