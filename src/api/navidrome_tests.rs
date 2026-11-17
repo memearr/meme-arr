@@ -35,10 +35,12 @@ async fn fake_navidrome() -> String {
         )
     }
     fn allowed(q: &HashMap<String, String>) -> bool {
+        let password =
+            std::env::var("NAVIDROME_TEST_PASSWORD").unwrap_or_else(|_| "sesame".to_string());
         q.get("u").map(String::as_str) == Some("me")
             && q.get("p").is_none()
             && match (q.get("t"), q.get("s")) {
-                (Some(t), Some(s)) => *t == crate::navidrome::token("sesame", s),
+                (Some(t), Some(s)) => *t == crate::navidrome::token(&password, s),
                 _ => false,
             }
     }
