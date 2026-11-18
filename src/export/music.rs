@@ -110,6 +110,16 @@ fn secs(ms: i64) -> String {
     format!("{:.3}", ms as f64 / 1000.0)
 }
 
+/// One song in a mix: when it comes in over the whole export and how long it plays.
+#[derive(Debug, Clone, Copy)]
+pub struct Placed<'a> {
+    pub music: &'a Soundtrack,
+    /// From the start of the export.
+    pub at_ms: i64,
+    /// How long it plays (cut there, whatever the song's length).
+    pub len_ms: i64,
+}
+
 /// The mix for a `clip_ms` clip, or `None` when the sound is left as it is (no music, the
 /// clip's volume untouched). `clip_audio` is whether the clip's own sound is in the
 /// export (asked for, and the source has any). `music_input` is the song's input number.
@@ -120,46 +130,88 @@ pub fn plan_audio(
     clip_ms: i64,
     music_input: usize,
 ) -> Option<AudioMix> {
-    let song = music.filter(|m| m.file.is_some());
-    let own = clip_audio && (song.is_some() || (clip_volume - 1.0).abs() > f32::EPSILON);
-    if song.is_none() && !own {
+    let songs: Vec<Placed> = music
+        .filter(|m| m.file.is_some())
+        .map(|m| Placed {
+            music: m,
+            at_ms: m.at_ms,
+            len_ms: clip_ms - m.at_ms,
+        })
+        .into_iter()
+        .collect();
+    plan_mix(&songs, clip_volume, clip_audio, clip_ms, music_input)
+}
+
+/// The mix for `total_ms` of sound: the export's own sound (turned up or down) and any number
+/// of songs, each placed and cut as `Placed` says. The songs are inputs `first_input`,
+/// `first_input + 1`, ... in order. A song with ducking dips while the export's own sound plays.
+pub fn plan_mix(
+    songs: &[Placed],
+    clip_volume: f32,
+    clip_audio: bool,
+    total_ms: i64,
+    first_input: usize,
+) -> Option<AudioMix> {
+    let songs: Vec<&Placed> = songs.iter().filter(|p| p.music.file.is_some()).collect();
+    let own = clip_audio && (!songs.is_empty() || (clip_volume - 1.0).abs() > f32::EPSILON);
+    if songs.is_empty() && !own {
         return None;
     }
-    // The song dips under the clip's own sound: it is the sidechain of a compressor on the song.
-    let duck = song
-        .map(|m| m.duck)
-        .filter(|d| *d > 0.0 && own)
-        .unwrap_or(0.0);
+    let single = songs.len() == 1;
+    // Which songs dip under the export's own sound: it is the sidechain of a compressor on each.
+    let ducked: Vec<usize> = if own {
+        (0..songs.len())
+            .filter(|&i| songs[i].music.duck > 0.0)
+            .collect()
+    } else {
+        vec![]
+    };
     let mut parts = Vec::new();
-    let mut labels = Vec::new();
+    let mut labels: Vec<String> = Vec::new();
     let mut input_args = Vec::new();
     if own {
-        let to = if duck > 0.0 { "[ca0]" } else { "[ca]" };
+        let to = if ducked.is_empty() { "[ca]" } else { "[ca0]" };
         parts.push(format!(
             "[0:a:0]aformat=channel_layouts=stereo,volume={clip_volume:.3}{to}"
         ));
-        if duck > 0.0 {
-            // one copy is mixed, the other listens (at the song's own rate)
-            parts.push("[ca0]asplit=2[ca][cs0]".into());
-            parts.push("[cs0]aresample=48000[sc]".into());
+        if !ducked.is_empty() {
+            // one copy is mixed, the others listen (each at the songs' own rate)
+            let name = |i: usize| {
+                if single {
+                    "cs0".to_string()
+                } else {
+                    format!("cs{i}")
+                }
+            };
+            let outs: String = ducked.iter().map(|&i| format!("[{}]", name(i))).collect();
+            parts.push(format!("[ca0]asplit={}[ca]{outs}", ducked.len() + 1));
+            for &i in &ducked {
+                let sc = if single {
+                    "sc".to_string()
+                } else {
+                    format!("sc{i}")
+                };
+                parts.push(format!("[{}]aresample=48000[{sc}]", name(i)));
+            }
         }
-        labels.push("[ca]");
+        labels.push("[ca]".into());
     }
-    if let Some(m) = song {
-        let len = clip_ms - m.at_ms;
+    for (i, p) in songs.iter().enumerate() {
+        let m = p.music;
         input_args.extend([
             "-ss".to_string(),
             secs(m.start_ms),
             "-t".into(),
-            secs(len),
+            secs(p.len_ms),
             "-i".into(),
             m.file
                 .as_ref()
-                .map(|p| p.to_string_lossy().into_owned())
+                .map(|f| f.to_string_lossy().into_owned())
                 .unwrap_or_default(),
         ]);
         let mut chain = format!(
-            "[{music_input}:a:0]aresample=48000,aformat=channel_layouts=stereo,volume={:.3}",
+            "[{}:a:0]aresample=48000,aformat=channel_layouts=stereo,volume={:.3}",
+            first_input + i,
             m.volume
         );
         if m.fade_in_ms > 0 {
@@ -168,38 +220,63 @@ pub fn plan_audio(
         if m.fade_out_ms > 0 {
             chain.push_str(&format!(
                 ",afade=t=out:st={}:d={}",
-                secs(len - m.fade_out_ms),
+                secs(p.len_ms - m.fade_out_ms),
                 secs(m.fade_out_ms)
             ));
         }
-        if m.at_ms > 0 {
-            chain.push_str(&format!(",adelay={}:all=1", m.at_ms));
+        if p.at_ms > 0 {
+            chain.push_str(&format!(",adelay={}:all=1", p.at_ms));
         }
-        if duck > 0.0 {
-            chain.push_str("[mu0]");
+        let out = if single {
+            "mu".to_string()
+        } else {
+            format!("mu{i}")
+        };
+        if ducked.contains(&i) {
+            let (pre, sc) = if single {
+                ("mu0".to_string(), "sc".to_string())
+            } else {
+                (format!("mu{i}p"), format!("sc{i}"))
+            };
+            chain.push_str(&format!("[{pre}]"));
             parts.push(chain);
             parts.push(format!(
-                "[mu0][sc]sidechaincompress=threshold=0.02:ratio={:.1}:attack=40:release=600:makeup=1[mu]",
-                1.0 + 19.0 * duck
+                "[{pre}][{sc}]sidechaincompress=threshold=0.02:ratio={:.1}:attack=40:release=600:makeup=1[{out}]",
+                1.0 + 19.0 * m.duck
             ));
         } else {
-            chain.push_str("[mu]");
+            chain.push_str(&format!("[{out}]"));
             parts.push(chain);
         }
-        labels.push("[mu]");
+        labels.push(format!("[{out}]"));
     }
-    let tail = format!("atrim=end={},alimiter=limit=0.95[aout]", secs(clip_ms));
-    parts.push(if labels.len() == 2 {
-        format!(
-            "{}{}amix=inputs=2:duration=longest:normalize=0,{tail}",
-            labels[0], labels[1]
-        )
-    } else {
+    let tail = format!("atrim=end={},alimiter=limit=0.95[aout]", secs(total_ms));
+    parts.push(if labels.len() == 1 {
         format!("{}{tail}", labels[0])
+    } else {
+        format!(
+            "{}amix=inputs={}:duration=longest:normalize=0,{tail}",
+            labels.concat(),
+            labels.len()
+        )
     });
     Some(AudioMix {
         input_args,
         graph: parts.join(";"),
+    })
+}
+
+/// Why the songs on the clips of a sequence can't be used, or `None`. Each clip's song is
+/// checked as a single clip's would be (times from the start of that clip); the clip's own
+/// volume is the sequence's, checked separately.
+pub fn validate_clip_music(
+    clips: &[(Option<&Soundtrack>, i64)],
+    format: Format,
+    keep_audio: bool,
+) -> Option<String> {
+    clips.iter().enumerate().find_map(|(i, (m, len))| {
+        validate_music(*m, 1.0, *len, format, keep_audio)
+            .map(|why| format!("clip #{}: {why}", i + 1))
     })
 }
 

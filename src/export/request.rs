@@ -239,6 +239,10 @@ pub struct SequenceClipSpec {
     /// this clip, positions on the sequence's canvas.
     #[serde(default)]
     pub layers: Vec<Layer>,
+    /// A song under this clip only (see [`Soundtrack`]); its times are from the start of this
+    /// clip, and it stops where the clip does. It plays along with the sequence's own song.
+    #[serde(default)]
+    pub music: Option<Soundtrack>,
 }
 
 /// Export several clips — possibly from different source files — back to

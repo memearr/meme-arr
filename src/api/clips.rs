@@ -364,6 +364,7 @@ fn resolve_sequence(
         out.push(export::ResolvedSequenceClip {
             font_path,
             layers: spec.layers.clone(),
+            music: spec.music.clone(),
             file,
             start_ms: spec.start_ms,
             end_ms: spec.end_ms,
@@ -403,7 +404,17 @@ pub(super) async fn sequence_export_start(
     ) {
         return Ok(bad_request(msg));
     }
-    if req.music.is_some() && st.settings().navidrome().is_none() {
+    let clip_songs: Vec<(Option<&export::Soundtrack>, i64)> = req
+        .clips
+        .iter()
+        .map(|c| (c.music.as_ref(), c.end_ms - c.start_ms))
+        .collect();
+    if let Some(msg) = export::validate_clip_music(&clip_songs, req.format, req.audio) {
+        return Ok(bad_request(msg));
+    }
+    if (req.music.is_some() || clip_songs.iter().any(|(m, _)| m.is_some()))
+        && st.settings().navidrome().is_none()
+    {
         return Ok(bad_request("music needs Navidrome (Settings -> Navidrome)"));
     }
     // An uploaded picture a layer names must still be there.
@@ -474,6 +485,22 @@ pub(super) async fn sequence_export_start(
                 motion: !crate::overlays::Overlays::is_still(id),
             })
         };
+        // each clip's song too (a song used twice is fetched once)
+        let mut clips = clips;
+        for (n, c) in clips.iter_mut().enumerate() {
+            if let Some(m) = c.music.as_mut() {
+                m.file = Some(match ensure_track(&st2, &m.id).await {
+                    Ok(p) => p,
+                    Err(TrackError::NotSetUp) => anyhow::bail!("music needs Navidrome"),
+                    Err(TrackError::BadId) => {
+                        anyhow::bail!("clip #{}: that isn't a song id", n + 1)
+                    }
+                    Err(TrackError::Upstream(e)) => {
+                        anyhow::bail!("clip #{}: couldn't get the song: {e}", n + 1)
+                    }
+                });
+            }
+        }
         export::run_sequence_export_with(tools(&st2), job, &req, &clips, &font_path, &media).await
     });
     Ok(accepted(&st, &id))

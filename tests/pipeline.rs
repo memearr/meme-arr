@@ -239,6 +239,7 @@ async fn sequence_export_with_audio_handles_a_mute_clip() {
             source: String::new(),
             font_path: None,
             layers: vec![],
+            music: None,
         },
         export::ResolvedSequenceClip {
             file: without_audio,
@@ -250,6 +251,7 @@ async fn sequence_export_with_audio_handles_a_mute_clip() {
             source: String::new(),
             font_path: None,
             layers: vec![],
+            music: None,
         },
     ];
 
@@ -587,6 +589,7 @@ async fn sequence_exports_keep_nothing_from_their_sources_either() {
         source: source.into(),
         font_path: None,
         layers: vec![],
+        music: None,
     };
     let clips = vec![clip(a, "A (2019)"), clip(b, "B - S01E02 - X")];
     for (format, name, audio) in [
@@ -762,6 +765,7 @@ async fn webm_sequence_with_audio_keeps_sound_across_a_silent_clip() {
         source: String::new(),
         font_path: None,
         layers: vec![],
+        music: None,
     };
     let clips = vec![clip(loud.clone()), clip(mute), clip(loud)];
     let out = tmp.path().join("seq.webm");

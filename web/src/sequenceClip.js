@@ -2,7 +2,7 @@
 //
 // A sequence clip is what "Add to sequence" stored: the item's identity, the
 // trim, the caption settings (including lines edited in the editor), the
-// subtitle sync and the layers laid over it. These two functions convert between that and the editor's
+// subtitle sync, the layers laid over it and the song under it. These two functions convert between that and the editor's
 // own state, so editing a clip starts exactly where it was left.
 
 /** The editor's starting state for a stored clip. */
@@ -20,11 +20,12 @@ export function editorSeed(clip) {
     look: mode === "source" && cap.look ? cap.look : null,
     subtitleOffsetMs: clip.subtitle_offset_ms || 0,
     layers: Array.isArray(clip.layers) ? clip.layers : [],
+    music: clip.music && typeof clip.music.id === "string" ? clip.music : null,
   };
 }
 
 /** The stored clip with what the editor now says; its identity and place are kept. */
-export function updatedClip(clip, { start, end, caption, subtitleOffsetMs, layers }) {
+export function updatedClip(clip, { start, end, caption, subtitleOffsetMs, layers, music }) {
   return {
     ...clip,
     start_ms: start,
@@ -32,6 +33,7 @@ export function updatedClip(clip, { start, end, caption, subtitleOffsetMs, layer
     caption,
     subtitle_offset_ms: subtitleOffsetMs,
     layers: layers || [],
+    music: music || null,
   };
 }
 

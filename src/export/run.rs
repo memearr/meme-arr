@@ -208,6 +208,8 @@ pub struct ResolvedSequenceClip {
     pub font_path: Option<String>,
     /// Pictures and shapes over this clip.
     pub layers: Vec<Layer>,
+    /// A song under this clip only (its `file` filled in before the export runs).
+    pub music: Option<Soundtrack>,
 }
 
 /// What every clip of one sequence is rendered to: the frame rate, the shared
@@ -506,6 +508,14 @@ pub async fn run_sequence_export_with(
     } = *req;
     let (tmp_dir, job_id, out_path) = (job.tmp_dir, job.id, job.out_path);
     job.prepare_dirs()?;
+    // The songs on the clips are checked before any clip is rendered.
+    let lens: Vec<(Option<&Soundtrack>, i64)> = clips
+        .iter()
+        .map(|c| (c.music.as_ref(), c.end_ms - c.start_ms))
+        .collect();
+    if let Some(why) = validate_clip_music(&lens, format, audio) {
+        anyhow::bail!(why);
+    }
     let canvas = canvas_dims(width);
     let look = SequenceLook { fps, canvas, audio };
 
@@ -579,14 +589,35 @@ pub async fn run_sequence_export_with(
     let vf = video_filter(format, &core);
     // A song under the whole sequence, and/or the clips' own volume: the same sound graph
     // as for a single clip, over the joined sound.
-    let mix = if req.music.is_some() || (req.clip_volume - 1.0).abs() > f32::EPSILON {
+    // The sequence's own song, then each clip's, placed on the whole sequence's time.
+    let mut songs: Vec<Placed> = Vec::new();
+    if let Some(m) = req.music.as_ref() {
+        songs.push(Placed {
+            music: m,
+            at_ms: m.at_ms,
+            len_ms: total_ms - m.at_ms,
+        });
+    }
+    let mut offset = 0;
+    for c in clips {
+        let len = c.end_ms - c.start_ms;
+        if let Some(m) = c.music.as_ref() {
+            songs.push(Placed {
+                music: m,
+                at_ms: offset + m.at_ms,
+                len_ms: len - m.at_ms,
+            });
+        }
+        offset += len;
+    }
+    let mix = if !songs.is_empty() || (req.clip_volume - 1.0).abs() > f32::EPSILON {
         if let Some(why) =
             validate_music(req.music.as_ref(), req.clip_volume, total_ms, format, audio)
         {
             let _ = std::fs::remove_file(&concat_path);
             anyhow::bail!(why);
         }
-        plan_audio(req.music.as_ref(), req.clip_volume, audio, total_ms, 1)
+        plan_mix(&songs, req.clip_volume, audio, total_ms, 1)
     } else {
         None
     };

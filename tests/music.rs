@@ -125,10 +125,18 @@ fn level(file: &Path, from: f64, len: f64) -> f64 {
         .output()
         .expect("spawn ffmpeg");
     let text = String::from_utf8_lossy(&out.stderr).to_string();
-    text.lines()
+    if let Some(db) = text
+        .lines()
         .find_map(|l| l.split("mean_volume:").nth(1))
         .and_then(|v| v.trim().trim_end_matches(" dB").parse().ok())
-        .unwrap_or_else(|| panic!("no mean_volume in:\n{text}"))
+    {
+        return db;
+    }
+    // Digital silence is encoded as next to no packets, so a window of it decodes no samples.
+    if text.contains("n_samples: 0") {
+        return -120.0;
+    }
+    panic!("no mean_volume in:\n{text}")
 }
 
 /// `(has an audio stream, audio duration in s)`.
@@ -399,6 +407,7 @@ fn seq_clip(file: PathBuf, secs: i64) -> export::ResolvedSequenceClip {
         source: String::new(),
         font_path: None,
         layers: vec![],
+        music: None,
     }
 }
 
@@ -643,4 +652,165 @@ async fn ducking_needs_the_clips_sound() {
     .unwrap_err();
     assert!(format!("{err:#}").contains("ducking"), "{err:#}");
     assert!(!out.exists());
+}
+
+fn with_song(mut c: export::ResolvedSequenceClip, m: Soundtrack) -> export::ResolvedSequenceClip {
+    c.music = Some(m);
+    c
+}
+
+#[tokio::test]
+async fn a_song_on_one_clip_plays_under_that_clip_only_and_from_its_own_start() {
+    need_ffmpeg!();
+    let tmp = tempfile::tempdir().unwrap();
+    let song = song_file(tmp.path());
+    let src = clip(tmp.path(), false);
+    // three 2 s clips; the middle one has a song that comes in 1 s into it
+    let mut m = music(&song);
+    m.at_ms = 1000;
+    let clips = [
+        seq_clip(src.clone(), 2),
+        with_song(seq_clip(src.clone(), 2), m),
+        seq_clip(src, 2),
+    ];
+    let out = render_sequence(
+        tmp.path(),
+        "mid",
+        &clips,
+        seq_request(Format::Mp4, false, None, 1.0),
+    )
+    .await
+    .unwrap();
+    assert!(
+        level(&out, 0.2, 1.5) < -50.0,
+        "nothing under the first clip"
+    );
+    assert!(
+        level(&out, 2.2, 0.6) < -50.0,
+        "nor before the song comes in"
+    );
+    assert!(
+        level(&out, 3.2, 0.7) > -30.0,
+        "the song is under the second clip's second half"
+    );
+    assert!(
+        level(&out, 4.3, 1.5) < -50.0,
+        "and it stops where its clip does, not carrying into the third"
+    );
+}
+
+#[tokio::test]
+async fn clip_songs_and_the_sequences_song_play_together() {
+    need_ffmpeg!();
+    let tmp = tempfile::tempdir().unwrap();
+    let song = song_file(tmp.path());
+    let src = clip(tmp.path(), false);
+    let quiet = {
+        let mut m = music(&song);
+        m.volume = 0.2;
+        m
+    };
+    let loud = music(&song);
+    // the sequence's song is quiet all through; the second clip adds a loud one of its own
+    let clips = [seq_clip(src.clone(), 2), with_song(seq_clip(src, 2), loud)];
+    let out = render_sequence(
+        tmp.path(),
+        "both-songs",
+        &clips,
+        seq_request(Format::Mp4, false, Some(quiet), 1.0),
+    )
+    .await
+    .unwrap();
+    let (first, second) = (level(&out, 0.3, 1.4), level(&out, 2.3, 1.4));
+    assert!(
+        first > -40.0,
+        "the sequence's own song is there under the first clip ({first} dB)"
+    );
+    assert!(
+        second > first + 6.0,
+        "the second clip's own song is added to it ({second} dB vs {first} dB)"
+    );
+}
+
+#[tokio::test]
+async fn a_clip_song_can_duck_under_its_own_clips_sound() {
+    need_ffmpeg!();
+    let tmp = tempfile::tempdir().unwrap();
+    let song = song_file(tmp.path());
+    let spoken = speaking_clip(tmp.path());
+    let build = |duck: f32| {
+        let mut m = music(&song);
+        m.volume = 2.0;
+        m.duck = duck;
+        [with_song(seq_clip(spoken.clone(), 4), m)]
+    };
+    let plain = render_sequence(
+        tmp.path(),
+        "p",
+        &build(0.0),
+        seq_request(Format::Mp4, true, None, 1.0),
+    )
+    .await
+    .unwrap();
+    let ducked = render_sequence(
+        tmp.path(),
+        "d",
+        &build(1.0),
+        seq_request(Format::Mp4, true, None, 1.0),
+    )
+    .await
+    .unwrap();
+    assert!(
+        level(&ducked, 0.5, 1.2) < level(&plain, 0.5, 1.2) - 4.0,
+        "the song dips while the clip speaks"
+    );
+    assert!(
+        (level(&ducked, 3.0, 0.8) - level(&plain, 3.0, 0.8)).abs() < 1.0,
+        "and is back after"
+    );
+}
+
+#[tokio::test]
+async fn a_clip_song_is_refused_naming_the_clip_before_anything_is_rendered() {
+    need_ffmpeg!();
+    let tmp = tempfile::tempdir().unwrap();
+    let song = song_file(tmp.path());
+    let src = clip(tmp.path(), false);
+    let mut late = music(&song);
+    late.at_ms = 5000; // the clip is 2 s
+    let clips = [
+        seq_clip(src.clone(), 2),
+        with_song(seq_clip(src.clone(), 2), late),
+    ];
+    let err = render_sequence(
+        tmp.path(),
+        "late",
+        &clips,
+        seq_request(Format::Mp4, false, None, 1.0),
+    )
+    .await
+    .unwrap_err();
+    let msg = format!("{err:#}");
+    assert!(
+        msg.contains("clip #2") && msg.contains("within the clip"),
+        "{msg}"
+    );
+    // a GIF has no sound to put a song in
+    let clips = [with_song(seq_clip(src, 2), music(&song))];
+    let err = render_sequence(
+        tmp.path(),
+        "gif",
+        &clips,
+        seq_request(Format::Gif, false, None, 1.0),
+    )
+    .await
+    .unwrap_err();
+    assert!(format!("{err:#}").contains("clip #1"), "{err:#}");
+    let left: Vec<_> = std::fs::read_dir(tmp.path())
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| n.contains(".part") || n.starts_with("job-late") || n.starts_with("job-gif"))
+        .collect();
+    assert!(left.is_empty(), "nothing rendered or left behind: {left:?}");
 }

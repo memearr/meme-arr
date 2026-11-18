@@ -277,6 +277,7 @@ fn validate_sequence_rejects_backwards_or_overlong_clip() {
         caption: None,
         subtitle_offset_ms: 0,
         layers: vec![],
+        music: None,
     }];
     assert!(validate_sequence(&backwards).is_err());
 
@@ -287,6 +288,7 @@ fn validate_sequence_rejects_backwards_or_overlong_clip() {
         caption: None,
         subtitle_offset_ms: 0,
         layers: vec![],
+        music: None,
     }];
     assert!(validate_sequence(&too_long).is_err());
 }
@@ -302,6 +304,7 @@ fn validate_sequence_rejects_total_over_cap() {
             caption: None,
             subtitle_offset_ms: 0,
             layers: vec![],
+            music: None,
         })
         .collect();
     // Five clips at the per-clip cap comfortably exceed the total cap.
@@ -318,6 +321,7 @@ fn validate_sequence_rejects_too_many_clips() {
             caption: None,
             subtitle_offset_ms: 0,
             layers: vec![],
+            music: None,
         })
         .collect();
     assert!(validate_sequence(&clips).is_err());
@@ -333,6 +337,7 @@ fn validate_sequence_accepts_reasonable_sequence() {
             caption: None,
             subtitle_offset_ms: 0,
             layers: vec![],
+            music: None,
         },
         SequenceClipSpec {
             rating_key: "b".into(),
@@ -341,6 +346,7 @@ fn validate_sequence_accepts_reasonable_sequence() {
             caption: None,
             subtitle_offset_ms: 0,
             layers: vec![],
+            music: None,
         },
     ];
     assert!(validate_sequence(&clips).is_ok());

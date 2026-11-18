@@ -218,6 +218,12 @@ any shows or movies, into one back-to-back GIF, WebP, MP4 or WebM (up to 20 sect
   fades. It stops where the sequence does. The player plays the song along with the
   sections (up to 100%; untick **Hear it in the player** to silence it). Music is for MP4 and WebM, so
   picking a song switches a GIF or WebP to MP4.
+- **A song on one section.** Open a section in **✎ Detailed edit**: its **Music** box puts a song under
+  that section only (it comes in and fades counted from the start of the section, and it stops where the
+  section does). It plays along with the sequence's own song and other sections' songs. **Duck under the
+  clips' sound** dips it while that section's own sound plays (it needs **Include audio** on the Sequence
+  tab). The player plays every section's song with the sequence (untick **Hear the sections' songs in the
+  player** to silence them). The sequence's own **Clips' sound volume** stays on the Sequence tab.
 - **Layers on a section.** Open a section in **✎ Detailed edit** and add shapes, stickers and clips in its
   **Layers** box as in the editor: they are timed from the start of that section and placed on the
   sequence's 16:9 canvas (the picture is fitted into it, so on a 16:9 source it's the same place). They
