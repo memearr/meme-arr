@@ -202,6 +202,20 @@ export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, set
             text={(v) => `${secondsText(v)} s`}
             onChange={(v) => set({ fade_out_ms: v })}
           />
+          <Slider
+            label={`Duck under the ${what === "clip" ? "clip's" : "clips'"} sound`}
+            value={music.duck}
+            min={0}
+            max={1}
+            step={0.05}
+            text={percentText}
+            disabled={!audio}
+            onChange={(v) => set({ duck: v })}
+          />
+          <p className="hint tiny">
+            Ducking turns the song down while the {what === "clip" ? "clip's" : "clips'"} own sound is playing, and back up in the gaps
+            {audio ? "." : " (tick Include audio to use it)."} You hear it in the export; the player doesn't duck.
+          </p>
           {preview && (
             <>
               <label className="check">

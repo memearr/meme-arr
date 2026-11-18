@@ -8,6 +8,7 @@ fn song() -> Soundtrack {
         volume: 0.5,
         fade_in_ms: 0,
         fade_out_ms: 0,
+        duck: 0.0,
         file: Some(PathBuf::from("/data/music/abc-123.mp3")),
     }
 }
@@ -134,6 +135,47 @@ fn music_and_the_clips_sound_are_mixed_without_the_mixer_turning_them_down() {
     assert!(mix
         .graph
         .contains("[ca][mu]amix=inputs=2:duration=longest:normalize=0,atrim=end=5.000"));
+}
+
+#[test]
+fn ducking_makes_the_clips_sound_the_songs_sidechain() {
+    let mut m = song();
+    m.duck = 1.0;
+    let mix = plan_audio(Some(&m), 1.0, true, 5000, 1).unwrap();
+    assert!(
+        mix.graph.contains("[ca0]asplit=2[ca][cs0]"),
+        "{}",
+        mix.graph
+    );
+    assert!(mix
+        .graph
+        .contains("[mu0][sc]sidechaincompress=threshold=0.02:ratio=20.0"));
+    assert!(
+        mix.graph.contains("[ca][mu]amix"),
+        "the mix still takes the clip and the ducked song"
+    );
+    // no ducking: the plain graph
+    let plain = plan_audio(Some(&song()), 1.0, true, 5000, 1).unwrap();
+    assert!(!plain.graph.contains("sidechain") && !plain.graph.contains("asplit"));
+    // a clip without sound has nothing to duck for
+    let silent = plan_audio(Some(&m), 1.0, false, 5000, 1).unwrap();
+    assert!(!silent.graph.contains("sidechain"));
+}
+
+#[test]
+fn ducking_is_checked() {
+    let mut m = song();
+    m.duck = 0.5;
+    assert_eq!(check(Some(&m), 1.0, Format::Mp4, true), None);
+    assert!(check(Some(&m), 1.0, Format::Mp4, false)
+        .unwrap()
+        .contains("ducking"));
+    m.duck = 1.5;
+    assert!(check(Some(&m), 1.0, Format::Mp4, true)
+        .unwrap()
+        .contains("between 0 and 1"));
+    m.duck = f32::NAN;
+    assert!(check(Some(&m), 1.0, Format::Mp4, true).is_some());
 }
 
 #[test]

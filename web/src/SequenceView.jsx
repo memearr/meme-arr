@@ -169,7 +169,7 @@ export function SequenceView({ sequence, setSequence, onJob }) {
         fps,
         quality,
         audio,
-        music: musicForRequest(music, total),
+        music: musicForRequest(music, total, audio),
         clip_volume: clipVolumeForRequest(clipVolume, audio),
         credit_source: creditSource,
         filename: filename || null,

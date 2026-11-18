@@ -26,6 +26,7 @@ describe("choosing a song", () => {
       volume: 1,
       fade_in_ms: 0,
       fade_out_ms: 0,
+      duck: 0,
     });
   });
   it("copes with a song that has no title or length", () => {
@@ -74,7 +75,15 @@ describe("the export request", () => {
       volume: 0.5,
       fade_in_ms: 500,
       fade_out_ms: 0,
+      duck: 0,
     });
+  });
+  it("sends the ducking only when the clip's own sound is kept", () => {
+    const m = { ...newMusic(track), duck: 0.7 };
+    expect(musicForRequest(m, CLIP, true).duck).toBe(0.7);
+    expect(musicForRequest(m, CLIP, false).duck).toBe(0);
+    expect(adjustMusic(m, { duck: 4 }, CLIP).duck).toBe(1);
+    expect(adjustMusic(m, { duck: NaN }, CLIP).duck).toBe(0);
   });
   it("sends no music when there is none or the clip is too short for it", () => {
     expect(musicForRequest(null, CLIP)).toBeUndefined();
