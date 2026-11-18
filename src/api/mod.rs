@@ -154,6 +154,7 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/music/search", get(music_search))
         .route("/api/music/{id}/file", get(music_file))
+        .route("/api/music/{id}/peaks", get(music_peaks))
         .route("/api/settings/bazarr/test", post(test_bazarr_settings))
         .route("/api/settings/bazarr/rotate-hook", post(rotate_bazarr_hook))
         .route("/api/hooks/bazarr/{token}", post(bazarr_hook))

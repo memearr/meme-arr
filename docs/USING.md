@@ -148,7 +148,8 @@ and WebM only; GIF and WebP can't carry audio). Finished files also land in your
 - **Music.** With Navidrome connected (Settings), the **Music** box puts one of your songs under the
   clip: search for it, pick it, and the player plays it with the clip. **Music volume** and **Clip sound
   volume** are separate faders, from silent to 200% (the player plays at most 100%; the export goes up
-  to 200% and is kept from clipping). **Start the song at** picks where in the song to begin, **Comes in at**
+  to 200% and is kept from clipping). **Start the song at** picks where in the song to begin: click or drag on the waveform to put the stretch that
+  plays (highlighted) where the song is at its best, use the arrow keys to nudge it, or use the slider, **Comes in at**
   when in the clip it arrives, and **Fade in** and **Fade out** soften its edges; the song stops where the
   clip does. The clip's own volume applies when **Include audio** is ticked (a clip with no sound of its
   own just gets the music). Music is for MP4 and WebM, so picking a song switches a GIF or WebP to MP4. It

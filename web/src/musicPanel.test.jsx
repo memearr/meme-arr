@@ -16,6 +16,7 @@ beforeEach(() => {
   // jsdom has no media playback
   vi.spyOn(window.HTMLMediaElement.prototype, "play").mockImplementation(() => Promise.resolve());
   vi.spyOn(window.HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+  vi.spyOn(api, "musicPeaks").mockResolvedValue({ duration_ms: 0, peaks: [] });
 });
 afterEach(() => {
   cleanup();
@@ -109,6 +110,38 @@ describe("the Music box", () => {
     fireEvent.click(screen.getByText("Remove"));
     expect(await screen.findByLabelText("Search your music")).toBeTruthy();
     expect(document.querySelector("audio")).toBeNull();
+  });
+
+  it("draws the song's waveform and a pick on it sets where the song starts", async () => {
+    vi.spyOn(api, "getNavidromeSettings").mockResolvedValue({ configured: true });
+    vi.spyOn(api, "musicSearch").mockResolvedValue({ tracks });
+    const peaks = vi.spyOn(api, "musicPeaks").mockResolvedValue({
+      duration_ms: 200_000,
+      peaks: [0.2, 0.9, 0.4, 1, 0.3, 0.6, 0.5, 0.8, 0.1, 0.7],
+    });
+    let seen;
+    render(<Harness onSeen={(s) => (seen = s)} />);
+    fireEvent.change(await screen.findByLabelText("Search your music"), { target: { value: "x" } });
+    fireEvent.click(screen.getByText("Search"));
+    fireEvent.click(await screen.findByText("A Song"));
+    const el = await screen.findByRole("slider", { name: "Where in the song to start" });
+    expect(peaks).toHaveBeenCalledWith("s1");
+    el.getBoundingClientRect = () => ({ left: 0, width: 1000, top: 0, height: 50 });
+    fireEvent.pointerDown(el, { clientX: 500, pointerId: 1 }); // the middle of a 200 s song, 5 s plays
+    expect(seen.music.start_ms).toBe(97_500);
+  });
+
+  it("falls back to the slider when the waveform can't be made", async () => {
+    vi.spyOn(api, "getNavidromeSettings").mockResolvedValue({ configured: true });
+    vi.spyOn(api, "musicSearch").mockResolvedValue({ tracks });
+    vi.spyOn(api, "musicPeaks").mockRejectedValue(new Error("couldn't read that song"));
+    render(<Harness />);
+    fireEvent.change(await screen.findByLabelText("Search your music"), { target: { value: "x" } });
+    fireEvent.click(screen.getByText("Search"));
+    fireEvent.click(await screen.findByText("A Song"));
+    expect(await screen.findByText(/Couldn't draw the waveform/)).toBeTruthy();
+    expect(screen.queryByRole("slider", { name: "Where in the song to start" })).toBeNull();
+    expect(screen.getByLabelText(/Start the song at/)).toBeTruthy();
   });
 
   it("says when nothing is found, and why a search failed", async () => {
