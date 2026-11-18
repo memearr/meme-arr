@@ -102,7 +102,10 @@ async fn render(
         src,
         &req,
         cues,
-        "/nonexistent/font.ttf",
+        concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/MemeTestSans.ttf"
+        ),
         media,
     )
     .await
@@ -645,4 +648,25 @@ async fn a_bad_path_is_refused_before_an_export_starts() {
         let got = export::validate_layers(&[bad(kf)], 4000).unwrap();
         assert!(got.starts_with("layer 1:") && got.contains(why), "{got}");
     }
+}
+
+#[tokio::test]
+async fn layers_go_with_meme_text_too() {
+    if !ffmpeg_available() {
+        eprintln!("skipping layers test: ffmpeg not found on PATH");
+        return;
+    }
+    let tmp = tempfile::tempdir().unwrap();
+    let src = sample(tmp.path(), false);
+    let mut req = request(Format::Mp4, vec![shape("dot", None)], false);
+    req.caption = Some(Caption::Meme {
+        top: Some("TOP TEXT".into()),
+        bottom: Some("BOTTOM TEXT".into()),
+        font_size: 36,
+        font: None,
+        font_scale: 100,
+    });
+    let out = render(tmp.path(), &src, "meme", req, &[], &no_media).await;
+    let f = rgb_frame(&out, 1.5);
+    assert!(orange(&f).0 > 2000, "the shape is there under meme text");
 }
