@@ -196,7 +196,10 @@ async fn without_an_account_music_is_not_available() {
     .await
     .ok()
     .unwrap();
-    assert_eq!(resp.status(), StatusCode::CONFLICT);
+    // other sources (uploads, the library) may still have songs, so this is an empty answer
+    let (status, b) = body(resp).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json_of(&b)["tracks"].as_array().unwrap().len(), 0);
     let resp = music_file(State(st), Path("s1".into()), HeaderMap::new())
         .await
         .ok()
@@ -404,4 +407,99 @@ async fn a_cover_that_is_not_a_picture_or_not_there_is_refused() {
         cover_of(&st, "nope", None).await.status(),
         StatusCode::BAD_GATEWAY
     );
+}
+
+/// A state with a library folder holding a song called "Library Song" and an upload called "Upload Song".
+async fn state_with_local_songs() -> (tempfile::TempDir, tempfile::TempDir, AppState) {
+    let lib = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(lib.path().join("Band/LP")).unwrap();
+    std::fs::write(lib.path().join("Band/LP/Library Song.mp3"), b"ID3-x").unwrap();
+    let (dir, mut st) = state();
+    let mut cfg = (*st.config).clone();
+    cfg.music_library_dir = Some(lib.path().to_path_buf());
+    st.config = std::sync::Arc::new(cfg);
+    st.config.uploads().store("Upload Song.flac", SONG).unwrap();
+    (dir, lib, st)
+}
+
+async fn search(st: &AppState, q: &str) -> Response {
+    music_search(
+        State(st.clone()),
+        Query(MusicSearch {
+            q: q.into(),
+            limit: Some(10),
+        }),
+    )
+    .await
+    .ok()
+    .unwrap()
+}
+
+#[tokio::test]
+async fn search_covers_uploads_the_library_and_navidrome_each_marked_with_its_source() {
+    let (_d, _l, st) = state_with_local_songs().await;
+    let pw = secret();
+    let url = fake_navidrome(&pw).await;
+    save(&st, &url, "me", &pw).await;
+    // "song" is in all three: the stand-in Navidrome's one song is "A Song"
+    let (status, b) = body(search(&st, "song").await).await;
+    assert_eq!(status, StatusCode::OK);
+    let v = json_of(&b);
+    let got: Vec<(String, String)> = v["tracks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| {
+            (
+                t["source"].as_str().unwrap().into(),
+                t["title"].as_str().unwrap().into(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        got,
+        [
+            ("upload".to_string(), "Upload Song".to_string()),
+            ("library".into(), "Library Song".into()),
+            ("navidrome".into(), "A Song".into()),
+        ]
+    );
+    assert!(v["warning"].is_null());
+    // a library song says where it is, an upload has no album
+    assert_eq!(v["tracks"][1]["album"], "LP");
+    assert!(v["tracks"][1]["id"].as_str().unwrap().starts_with("lib-"));
+    // only the uploads match this one
+    let (_, b) = body(search(&st, "upload").await).await;
+    assert_eq!(json_of(&b)["tracks"].as_array().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn search_works_without_navidrome_from_what_is_on_this_machine() {
+    let (_d, _l, st) = state_with_local_songs().await;
+    let (status, b) = body(search(&st, "library").await).await;
+    assert_eq!(status, StatusCode::OK);
+    let v = json_of(&b);
+    assert_eq!(v["tracks"].as_array().unwrap().len(), 1);
+    assert_eq!(v["tracks"][0]["source"], "library");
+}
+
+#[tokio::test]
+async fn when_navidrome_cannot_be_reached_the_other_songs_still_come_with_a_warning() {
+    let (_d, _l, st) = state_with_local_songs().await;
+    let pw = secret();
+    let url = fake_navidrome(&pw).await;
+    save(&st, &url, "me", &pw).await;
+    // the account is changed behind its back: Navidrome now refuses it
+    st.settings.write().unwrap().navidrome_url = Some("http://127.0.0.1:1".into());
+    let (status, b) = body(search(&st, "song").await).await;
+    assert_eq!(status, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
+    let v = json_of(&b);
+    assert_eq!(v["tracks"].as_array().unwrap().len(), 2);
+    assert!(
+        v["warning"].as_str().unwrap().starts_with("Navidrome: "),
+        "{v}"
+    );
+    // with nothing local to show, the failure is the answer
+    let (status, _) = body(search(&st, "nothing-local-matches-this").await).await;
+    assert_eq!(status, StatusCode::BAD_GATEWAY);
 }

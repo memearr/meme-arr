@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_RECENT, clearRecent, loadRecent, rememberSong } from "./recentSongs.js";
+import { MAX_RECENT, clearRecent, forgetSong, loadRecent, rememberSong } from "./recentSongs.js";
 
 /** A stand-in for localStorage. */
 function store(initial = {}) {
@@ -44,9 +44,20 @@ describe("recent songs", () => {
   it("keeps only what the list needs, and ignores what isn't a song", () => {
     const s = store();
     const list = rememberSong(s, [], song(1, { junk: "x", duration_s: "long" }));
-    expect(list[0]).toEqual({ id: "s1", title: "Song 1", artist: "Band", album: "LP", duration_s: 0, cover_art: "al-1" });
+    expect(list[0]).toEqual({ id: "s1", title: "Song 1", artist: "Band", album: "LP", duration_s: 0, cover_art: "al-1", source: "" });
     expect(rememberSong(s, list, { title: "no id" })).toBe(list);
     expect(rememberSong(s, list, null)).toBe(list);
+  });
+
+  it("remembers where a song is from, and drops one that was deleted", () => {
+    const s = store();
+    let list = rememberSong(s, [], song(1, { source: "upload" }));
+    list = rememberSong(s, list, song(2, { source: "library" }));
+    expect(list.map((t) => t.source)).toEqual(["library", "upload"]);
+    list = forgetSong(s, list, "s1");
+    expect(list.map((t) => t.id)).toEqual(["s2"]);
+    expect(loadRecent(s).map((t) => t.id)).toEqual(["s2"]);
+    expect(forgetSong(s, list, "nope")).toEqual(list);
   });
 
   it("is forgotten on request", () => {

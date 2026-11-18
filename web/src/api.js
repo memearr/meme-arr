@@ -92,6 +92,19 @@ export const api = {
     }),
   deleteNavidromeSettings: () => json(`/api/settings/navidrome`, { method: "DELETE" }),
   testNavidrome: () => json(`/api/settings/navidrome/test`, { method: "POST" }),
+  musicSources: () => json(`/api/music/sources`),
+  songUploads: () => json(`/api/music/uploads`),
+  uploadSong: (file) =>
+    json(`/api/music/uploads?name=${encodeURIComponent(file.name)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/octet-stream" },
+      body: file,
+    }),
+  deleteSongUpload: async (id) => {
+    const res = await fetch(withBase(`/api/music/uploads/${encodeURIComponent(id)}`), { method: "DELETE" });
+    if (res.status === 401) window.dispatchEvent(new Event("memearr:unauthorized"));
+    if (!res.ok) throw new Error(res.statusText);
+  },
   musicSearch: (q, limit = 20) => json(`/api/music/search?q=${encodeURIComponent(q)}&limit=${limit}`),
   musicPeaks: (id, bins = 600) => json(`/api/music/${encodeURIComponent(id)}/peaks?bins=${bins}`),
   rotateBazarrHook: () => json(`/api/settings/bazarr/rotate-hook`, { method: "POST" }),

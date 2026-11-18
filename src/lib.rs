@@ -22,6 +22,7 @@ pub mod health;
 pub mod index;
 pub mod jellyfin;
 pub mod langs;
+pub mod local_music;
 pub mod logs;
 pub mod mediaserver;
 pub mod music;

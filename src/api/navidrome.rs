@@ -2,6 +2,7 @@
 //! preview and for an export). See `crate::navidrome` for the client.
 
 use super::*;
+use crate::local_music::Source;
 use std::path::PathBuf;
 
 /// 502: Navidrome (or the network to it) said no. Not 401/403, which would tell the
@@ -119,23 +120,50 @@ pub(super) struct MusicSearch {
     limit: Option<u32>,
 }
 
-/// `GET /api/music/search?q=&limit=`: songs in Navidrome that match.
+/// `GET /api/music/search?q=&limit=`: songs that match, from every source there is: uploaded
+/// songs, the library folder and Navidrome, each marked with its `source`. When Navidrome can't
+/// be asked but other songs match, those are returned with a `warning`.
 pub(super) async fn music_search(
     State(st): State<AppState>,
     Query(p): Query<MusicSearch>,
 ) -> Result<Response, AppError> {
-    let Some(client) = st.settings().navidrome() else {
-        return Ok(not_set_up());
-    };
-    let q = p.q.trim();
+    let q = p.q.trim().to_string();
     if q.is_empty() {
         return Ok(Json(json!({ "tracks": [] })).into_response());
     }
     let limit = p.limit.unwrap_or(20).clamp(1, 50);
-    match client.search(q, limit).await {
-        Ok(tracks) => Ok(Json(json!({ "tracks": tracks })).into_response()),
-        Err(e) => Ok(upstream(format!("{e:#}"))),
+
+    // the songs on this machine
+    let (uploads, library, q2) = (st.config.uploads(), st.config.library(), q.clone());
+    let local = tokio::task::spawn_blocking(move || {
+        let mut found: Vec<_> = uploads
+            .search(&q2)
+            .into_iter()
+            .take(limit as usize)
+            .map(|t| (t, Source::Upload))
+            .collect();
+        if let Some(lib) = library {
+            found.extend(
+                lib.search(&q2, limit as usize)
+                    .into_iter()
+                    .map(|t| (t, Source::Library)),
+            );
+        }
+        found
+    })
+    .await?;
+    let mut tracks: Vec<serde_json::Value> = local.iter().map(|(t, s)| song_json(t, *s)).collect();
+
+    let mut warning = None;
+    if let Some(client) = st.settings().navidrome() {
+        match client.search(&q, limit).await {
+            Ok(found) => tracks.extend(found.iter().map(|t| song_json(t, Source::Navidrome))),
+            // nothing else to show: say what went wrong; otherwise show what there is
+            Err(e) if tracks.is_empty() => return Ok(upstream(format!("{e:#}"))),
+            Err(e) => warning = Some(format!("Navidrome: {e:#}")),
+        }
     }
+    Ok(Json(json!({ "tracks": tracks, "warning": warning })).into_response())
 }
 
 /// Why a song could not be made available.
@@ -153,6 +181,22 @@ pub(super) async fn ensure_track(st: &AppState, id: &str) -> Result<PathBuf, Tra
     let music = st.config.music();
     if !crate::music::valid_id(id) {
         return Err(TrackError::BadId);
+    }
+    // Uploaded songs and the library are files already; only Navidrome's are fetched.
+    match Source::of(id) {
+        Source::Upload => return st.config.uploads().path_of(id).ok_or(TrackError::BadId),
+        Source::Library => {
+            let Some(lib) = st.config.library() else {
+                return Err(TrackError::BadId);
+            };
+            let id2 = id.to_string();
+            return tokio::task::spawn_blocking(move || lib.path_of(&id2))
+                .await
+                .ok()
+                .flatten()
+                .ok_or(TrackError::BadId);
+        }
+        Source::Navidrome => {}
     }
     if let Some(p) = music.path_of(id) {
         return Ok(p);
@@ -242,7 +286,7 @@ pub(super) async fn music_cover(
 #[derive(Debug, Deserialize)]
 pub(super) struct PeaksQuery {
     /// How many bars (default 600, kept between 20 and 2000).
-    bins: Option<usize>,
+    pub(super) bins: Option<usize>,
 }
 
 /// `GET /api/music/{id}/peaks`: the song's loudness over time as bars, for the editor's

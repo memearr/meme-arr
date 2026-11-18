@@ -17,6 +17,7 @@ function clean(t) {
     album: text(t.album),
     duration_s: Number.isFinite(t.duration_s) ? t.duration_s : 0,
     cover_art: text(t.cover_art),
+    source: text(t.source),
   };
 }
 
@@ -43,6 +44,13 @@ export function rememberSong(store, list, track) {
   const t = clean(track);
   if (!t) return list;
   const next = [t, ...list.filter((x) => x.id !== t.id)].slice(0, MAX_RECENT);
+  save(store, next);
+  return next;
+}
+
+/** `list` without song `id` (it was deleted), also stored. */
+export function forgetSong(store, list, id) {
+  const next = list.filter((x) => x.id !== id);
   save(store, next);
   return next;
 }

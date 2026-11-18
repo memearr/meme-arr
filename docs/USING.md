@@ -145,8 +145,11 @@ and WebM only; GIF and WebP can't carry audio). Finished files also land in your
   for two seconds: set **On at** and **Off at** by typing, or with **= playhead**. Drag a layer on the player
   to place it; **Size**, **Turn**, **Opacity** and **Colour** change how it looks. Captions are drawn over
   the layers. Layers are in the exported clip only, not in a sequence or a saved frame.
-- **Music.** With Navidrome connected (Settings), the **Music** box puts one of your songs under the
-  clip: search for it (each song shows its album cover), pick it, and the player plays it with the clip. Before
+- **Music.** The **Music** box puts a song under the clip. The songs come from Navidrome (connect it in
+  Settings), from a folder of music on the server (`MUSIC_LIBRARY_DIR`, searched by file and folder names), or
+  from you: **Upload a song…** takes an MP3, FLAC, Ogg, WAV, M4A or WebM file and keeps it in the app (listed
+  under **Your uploads**, with a **remove** link). Search looks in all of them (uploads and library songs are
+  marked; a Navidrome song shows its album cover), you pick one, and the player plays it with the clip. Before
   you search, the box lists the songs you picked lately (kept in this browser, **Clear** forgets them). **Music volume** and **Clip sound
   volume** are separate faders, from silent to 200% (the player plays at most 100%; the export goes up
   to 200% and is kept from clipping). **Start the song at** picks where in the song to begin: click or drag on the waveform to put the stretch that
