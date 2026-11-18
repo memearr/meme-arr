@@ -150,7 +150,9 @@ and WebM only; GIF and WebP can't carry audio). Finished files also land in your
   volume** are separate faders, from silent to 200% (the player plays at most 100%; the export goes up
   to 200% and is kept from clipping). **Start the song at** picks where in the song to begin, **Comes in at**
   when in the clip it arrives, and **Fade in** and **Fade out** soften its edges; the song stops where the
-  clip does. The clip's own volume applies when **Include audio** is ticked (a clip with no sound of its
+  clip does. **Duck under the clip's sound** turns the song down while the clip itself is making sound and
+  back up in the gaps, so dialogue stays clear (you hear it in the export; the player doesn't duck; it needs
+  **Include audio**). The clip's own volume applies when **Include audio** is ticked (a clip with no sound of its
   own just gets the music). Music is for MP4 and WebM, so picking a song switches a GIF or WebP to MP4. It
   is in the exported clip or sequence, not in a saved frame.
 - **Move over time.** A layer, or the styled caption text, can travel across the picture: tick

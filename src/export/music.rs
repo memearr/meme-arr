@@ -37,6 +37,10 @@ pub struct Soundtrack {
     pub fade_in_ms: i64,
     #[serde(default)]
     pub fade_out_ms: i64,
+    /// Ducking: how far the song dips while the clip's own sound is playing, 0 (off) .. 1
+    /// (as far as it goes). Needs the clip's sound kept.
+    #[serde(default)]
+    pub duck: f32,
     /// The song's file, filled in by the server before the export runs.
     #[serde(skip)]
     pub file: Option<PathBuf>,
@@ -80,6 +84,12 @@ pub fn validate_music(
     if m.fade_in_ms < 0 || m.fade_out_ms < 0 || m.fade_in_ms > len || m.fade_out_ms > len {
         return Some("a fade can't be longer than the music is playing".into());
     }
+    if !m.duck.is_finite() || !(0.0..=1.0).contains(&m.duck) {
+        return Some("the ducking must be between 0 and 1".into());
+    }
+    if m.duck > 0.0 && !keep_audio {
+        return Some("ducking needs the clip's sound kept (it is what the music ducks for)".into());
+    }
     if !crate::music::valid_id(&m.id) {
         return Some("that isn't a song id".into());
     }
@@ -115,13 +125,24 @@ pub fn plan_audio(
     if song.is_none() && !own {
         return None;
     }
+    // The song dips under the clip's own sound: it is the sidechain of a compressor on the song.
+    let duck = song
+        .map(|m| m.duck)
+        .filter(|d| *d > 0.0 && own)
+        .unwrap_or(0.0);
     let mut parts = Vec::new();
     let mut labels = Vec::new();
     let mut input_args = Vec::new();
     if own {
+        let to = if duck > 0.0 { "[ca0]" } else { "[ca]" };
         parts.push(format!(
-            "[0:a:0]aformat=channel_layouts=stereo,volume={clip_volume:.3}[ca]"
+            "[0:a:0]aformat=channel_layouts=stereo,volume={clip_volume:.3}{to}"
         ));
+        if duck > 0.0 {
+            // one copy is mixed, the other listens (at the song's own rate)
+            parts.push("[ca0]asplit=2[ca][cs0]".into());
+            parts.push("[cs0]aresample=48000[sc]".into());
+        }
         labels.push("[ca]");
     }
     if let Some(m) = song {
@@ -154,8 +175,17 @@ pub fn plan_audio(
         if m.at_ms > 0 {
             chain.push_str(&format!(",adelay={}:all=1", m.at_ms));
         }
-        chain.push_str("[mu]");
-        parts.push(chain);
+        if duck > 0.0 {
+            chain.push_str("[mu0]");
+            parts.push(chain);
+            parts.push(format!(
+                "[mu0][sc]sidechaincompress=threshold=0.02:ratio={:.1}:attack=40:release=600:makeup=1[mu]",
+                1.0 + 19.0 * duck
+            ));
+        } else {
+            chain.push_str("[mu]");
+            parts.push(chain);
+        }
         labels.push("[mu]");
     }
     let tail = format!("atrim=end={},alimiter=limit=0.95[aout]", secs(clip_ms));

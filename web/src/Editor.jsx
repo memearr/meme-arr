@@ -608,7 +608,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
         credit_source: creditSource,
         filename: filename || null,
         layers: layersForRequest(layers, clipLength),
-        music: musicForRequest(music, clipLength),
+        music: musicForRequest(music, clipLength, audio),
         clip_volume: clipVolumeForRequest(clipVolume, audio),
       });
       pushJob(started);

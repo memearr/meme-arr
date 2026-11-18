@@ -21,6 +21,7 @@ export function newMusic(track) {
     volume: 1,
     fade_in_ms: 0,
     fade_out_ms: 0,
+    duck: 0,
   };
 }
 
@@ -29,6 +30,7 @@ export function adjustMusic(music, changes, clipMs) {
   const m = { ...music, ...changes };
   const songMs = m.duration_s > 0 ? Math.max(0, Math.round(m.duration_s * 1000) - 1000) : 6 * 3600 * 1000;
   m.volume = clamp(num(m.volume, 1), 0, MAX_VOLUME);
+  m.duck = clamp(num(m.duck), 0, 1);
   m.start_ms = Math.round(clamp(num(m.start_ms), 0, songMs));
   m.at_ms = Math.round(clamp(num(m.at_ms), 0, Math.max(0, clipMs - MIN_PLAY_MS)));
   const playing = Math.max(0, clipMs - m.at_ms);
@@ -37,8 +39,9 @@ export function adjustMusic(music, changes, clipMs) {
   return m;
 }
 
-/** The music as the export takes it (nothing extra from the editor), or `undefined` for none. */
-export function musicForRequest(music, clipMs) {
+/** The music as the export takes it (nothing extra from the editor), or `undefined` for none.
+ *  `keepAudio` is whether the clip's own sound is in the export. */
+export function musicForRequest(music, clipMs, keepAudio = true) {
   if (!music || !music.id || clipMs <= MIN_PLAY_MS) return undefined;
   const m = adjustMusic(music, {}, clipMs);
   return {
@@ -48,6 +51,8 @@ export function musicForRequest(music, clipMs) {
     volume: m.volume,
     fade_in_ms: m.fade_in_ms,
     fade_out_ms: m.fade_out_ms,
+    // ducking is for the clip's own sound, so it only goes when that is kept
+    duck: keepAudio ? m.duck : 0,
   };
 }
 

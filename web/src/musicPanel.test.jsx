@@ -95,8 +95,36 @@ describe("the Music box", () => {
       volume: 0.5,
       fade_in_ms: 0,
       fade_out_ms: 1500,
+      duck: 0,
     });
     expect(screen.getByText("50%")).toBeTruthy();
+  });
+
+  it("ducks the song under the clip's sound only when that sound is kept", async () => {
+    vi.spyOn(api, "getNavidromeSettings").mockResolvedValue({ configured: true });
+    vi.spyOn(api, "musicSearch").mockResolvedValue({ tracks });
+    let seen;
+    const { rerender } = render(<Harness audio={false} onSeen={(s) => (seen = s)} />);
+    fireEvent.change(await screen.findByLabelText("Search your music"), { target: { value: "x" } });
+    fireEvent.click(screen.getByText("Search"));
+    fireEvent.click(await screen.findByText("A Song"));
+    const slider = () => screen.getByLabelText(/Duck under the clip's sound/);
+    expect(slider().disabled).toBe(true);
+    rerender(<Harness audio onSeen={(s) => (seen = s)} />);
+    expect(slider().disabled).toBe(false);
+    fireEvent.change(slider(), { target: { value: "0.6" } });
+    expect(musicForRequest(seen.music, CLIP, true).duck).toBe(0.6);
+    expect(musicForRequest(seen.music, CLIP, false).duck).toBe(0);
+  });
+
+  it("calls it the clips' sound in a sequence", async () => {
+    vi.spyOn(api, "getNavidromeSettings").mockResolvedValue({ configured: true });
+    vi.spyOn(api, "musicSearch").mockResolvedValue({ tracks });
+    render(<Harness what="sequence" preview={false} />);
+    fireEvent.change(await screen.findByLabelText("Search your music"), { target: { value: "x" } });
+    fireEvent.click(screen.getByText("Search"));
+    fireEvent.click(await screen.findByText("A Song"));
+    expect(screen.getByLabelText(/Duck under the clips' sound/)).toBeTruthy();
   });
 
   it("removes the song and goes back to searching", async () => {

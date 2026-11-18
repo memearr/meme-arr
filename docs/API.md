@@ -400,13 +400,14 @@ Request (`ExportRequest`):
   layer that cannot be used (bad number, unknown shape, starts outside the clip) or an upload that is gone.
   Layers apply to this single export, not to a sequence or a `/api/still`.
 - `music` (default none): a song from Navidrome (see `GET /api/music/search`) laid under the clip, MP4 and
-  WebM only: `{"id": "<song id>", "start_ms": 0, "at_ms": 0, "volume": 1, "fade_in_ms": 0, "fade_out_ms": 0}`.
+  WebM only: `{"id": "<song id>", "start_ms": 0, "at_ms": 0, "volume": 1, "fade_in_ms": 0, "fade_out_ms": 0, "duck": 0}`.
   `start_ms` is where in the song to start playing, `at_ms` when in the clip it comes in (from the clip's start),
   `volume` is 0 (silent) to 2 (twice as loud), and the fades are shorter than the time the song plays. The song
   is cut at the end of the clip, however long it is. `clip_volume` (default 1, 0 to 2) is how loud the clip's own
   sound is, and applies only with `audio: true`; with music the two are mixed without either being turned down
   and kept from clipping. A clip with no sound of its own gets just the music. `400` for a GIF or WebP, a volume or
-  time out of range, or when Navidrome isn't set up; if the song can't be fetched the job fails with the reason.
+  time out of range, or when Navidrome isn't set up; `duck` (0 off to 1 fully) turns the song down while the
+  clip's own sound is playing and back up in the gaps, and needs `audio: true` (`400` otherwise); if the song can't be fetched the job fails with the reason.
 - `quality` drives libwebp's `-q:v` and x264/VP9 CRF for webp/mp4/webm, and
   (as of the gifsicle integration) a `gifsicle --lossy=N` post-process pass
   for GIF — ffmpeg's own palette pipeline for GIF has no quality lever of its

@@ -59,6 +59,7 @@ fn music(file: &Path) -> Soundtrack {
         volume: 1.0,
         fade_in_ms: 0,
         fade_out_ms: 0,
+        duck: 0.0,
         file: Some(file.to_path_buf()),
     }
 }
@@ -542,4 +543,103 @@ async fn a_sequence_refuses_music_in_a_gif_and_music_that_comes_in_after_the_end
         .filter(|n| n.contains("concat") || n.contains("list"))
         .collect();
     assert!(left.is_empty(), "{left:?}");
+}
+
+/// A 4 s clip with a 440 Hz tone for the first 2 s and silence after (like a line of dialogue).
+fn speaking_clip(dir: &Path) -> PathBuf {
+    let out = dir.join("speaking.mp4");
+    let ok = Command::new("ffmpeg")
+        .args(["-y", "-v", "error", "-f", "lavfi", "-i"])
+        .arg("color=c=0x303030:duration=4:size=320x240:rate=10")
+        .args([
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=2,apad=whole_dur=4",
+        ])
+        .args([
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-shortest",
+        ])
+        .arg(&out)
+        .status()
+        .expect("spawn ffmpeg")
+        .success();
+    assert!(ok);
+    out
+}
+
+#[tokio::test]
+async fn the_song_dips_while_the_clip_speaks_and_comes_back_after() {
+    need_ffmpeg!();
+    let tmp = tempfile::tempdir().unwrap();
+    let (src, song) = (speaking_clip(tmp.path()), song_file(tmp.path()));
+    let loud = |duck: f32| {
+        let mut m = music(&song);
+        m.volume = 2.0;
+        m.duck = duck;
+        m
+    };
+    let plain = render(
+        tmp.path(),
+        &src,
+        "plain",
+        request(Format::Mp4, true, Some(loud(0.0)), 1.0),
+    )
+    .await;
+    let ducked = render(
+        tmp.path(),
+        &src,
+        "ducked",
+        request(Format::Mp4, true, Some(loud(1.0)), 1.0),
+    )
+    .await;
+    let (p_talk, d_talk) = (level(&plain, 0.5, 1.2), level(&ducked, 0.5, 1.2));
+    assert!(
+        d_talk < p_talk - 4.0,
+        "while the clip speaks the mix is quieter ({d_talk} dB vs {p_talk} dB)"
+    );
+    let (p_after, d_after) = (level(&plain, 3.0, 0.8), level(&ducked, 3.0, 0.8));
+    assert!(
+        (p_after - d_after).abs() < 1.0,
+        "after it the song is back at full ({d_after} dB vs {p_after} dB)"
+    );
+    assert!(d_after > -30.0, "and audible");
+}
+
+#[tokio::test]
+async fn ducking_needs_the_clips_sound() {
+    need_ffmpeg!();
+    let tmp = tempfile::tempdir().unwrap();
+    let (src, song) = (clip(tmp.path(), true), song_file(tmp.path()));
+    let mut m = music(&song);
+    m.duck = 0.5;
+    let out = tmp.path().join("no.mp4");
+    let req = request(Format::Mp4, false, Some(m), 1.0);
+    let err = export::run_export_with(
+        TOOLS,
+        export::JobSpec {
+            id: "job-no",
+            tmp_dir: tmp.path(),
+            out_path: &out,
+            source_title: None,
+        },
+        &src,
+        &req,
+        &[],
+        concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/MemeTestSans.ttf"
+        ),
+        &|_: &str| -> Option<LayerSource> { None },
+    )
+    .await
+    .unwrap_err();
+    assert!(format!("{err:#}").contains("ducking"), "{err:#}");
+    assert!(!out.exists());
 }
