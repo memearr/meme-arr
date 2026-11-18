@@ -7,9 +7,11 @@ import { layout, locate, previewKey, previewParams, totalMs } from "./sequenceMo
  * Plays the whole sequence back to back: each section as its own preview
  * (captions burned in the way the export will draw them), the next one fetched
  * while the current plays. `index` is the section on screen and `onIndex`
- * changes it, so the timeline and the player stay together.
+ * changes it, so the timeline and the player stay together. `onProgress` is told where the
+ * playhead is in the whole sequence and `onPlaying` whether it is playing, so things beside
+ * the player (the music) can follow it.
  */
-export default function SequencePlayer({ sequence, width, fps, index, onIndex, onProgress }) {
+export default function SequencePlayer({ sequence, width, fps, index, onIndex, onProgress, onPlaying }) {
   const [src, setSrc] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -20,6 +22,11 @@ export default function SequencePlayer({ sequence, width, fps, index, onIndex, o
   const inflight = useRef(new Map()); // key -> promise of an object URL
   const pendingOffset = useRef(0); // ms to jump to once the section loads
   const videoRef = useRef(null);
+
+  useEffect(() => {
+    onPlaying?.(playing);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playing]);
 
   const opts = { width, fps };
   const spans = layout(sequence);
