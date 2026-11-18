@@ -2,6 +2,7 @@ import { AUDIO_FORMATS } from "./clipSettings.js";
 import { Editor } from "./Editor.jsx";
 import { JobResult } from "./JobResult.jsx";
 import { MusicPanel } from "./MusicPanel.jsx";
+import { layersForRequest } from "./layersModel.js";
 import { clipVolumeForRequest, musicForRequest } from "./musicModel.js";
 import { SectionEditor } from "./SectionEditor.jsx";
 import { SequenceBulkEdit } from "./SequenceBulkEdit.jsx";
@@ -164,6 +165,7 @@ export function SequenceView({ sequence, setSequence, onJob }) {
           end_ms: c.end_ms,
           caption: c.caption,
           subtitle_offset_ms: c.subtitle_offset_ms || 0,
+          layers: layersForRequest(c.layers, c.end_ms - c.start_ms),
         })),
         format,
         width,

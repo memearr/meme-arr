@@ -235,6 +235,10 @@ pub struct SequenceClipSpec {
     pub caption: Option<Caption>,
     #[serde(default)]
     pub subtitle_offset_ms: i64,
+    /// Pictures and shapes laid over this clip (see [`Layer`]); times are from the start of
+    /// this clip, positions on the sequence's canvas.
+    #[serde(default)]
+    pub layers: Vec<Layer>,
 }
 
 /// Export several clips — possibly from different source files — back to
@@ -347,6 +351,9 @@ pub fn validate_sequence(clips: &[SequenceClipSpec]) -> std::result::Result<(), 
         }
         let len = c.end_ms - c.start_ms;
         if let Some(why) = c.caption.as_ref().and_then(|cap| cap.problem(len)) {
+            return Err(format!("clip {} (#{i}): {why}", c.rating_key));
+        }
+        if let Some(why) = validate_layers(&c.layers, len) {
             return Err(format!("clip {} (#{i}): {why}", c.rating_key));
         }
         if len > MAX_CLIP_MS {

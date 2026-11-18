@@ -398,6 +398,7 @@ fn seq_clip(file: PathBuf, secs: i64) -> export::ResolvedSequenceClip {
         cues: vec![],
         source: String::new(),
         font_path: None,
+        layers: vec![],
     }
 }
 

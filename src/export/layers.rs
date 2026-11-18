@@ -204,8 +204,22 @@ pub fn plan_layers(
     clip_ms: i64,
     post: &str,
 ) -> LayerPlan {
+    let base = format!("fps={fps},scale={width}:-2:flags=lanczos");
+    plan_layers_on(layers, sources, &base, width, clip_ms, post)
+}
+
+/// [`plan_layers`] over a picture made by `base` (the filters that size the clip: for a
+/// sequence, fitted and padded to the shared canvas) that is `width` wide when they are done.
+pub fn plan_layers_on(
+    layers: &[Layer],
+    sources: &[LayerSource],
+    base: &str,
+    width: u32,
+    clip_ms: i64,
+    post: &str,
+) -> LayerPlan {
     let mut input_args = Vec::new();
-    let mut graph = format!("[0:v]fps={fps},scale={width}:-2:flags=lanczos[b0]");
+    let mut graph = format!("[0:v]{base}[b0]");
     for (i, (l, src)) in layers.iter().zip(sources).enumerate() {
         let n = i + 1;
         let start = l.start_ms.clamp(0, clip_ms);

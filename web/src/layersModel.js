@@ -90,6 +90,18 @@ export function layersForRequest(layers, clipMs) {
     });
 }
 
+/**
+ * Where the sequence's 16:9 canvas sits inside a video element `width` x `height` that shows it
+ * `object-fit: contain`, as an offset and size in the element's own pixels. The export fits every
+ * clip to that canvas, so layers are placed on it.
+ */
+export function canvasBox(width, height) {
+  if (!(width > 0) || !(height > 0)) return null;
+  const w = Math.min(width, (height * 16) / 9);
+  const h = (w * 9) / 16;
+  return { left: (width - w) / 2, top: (height - h) / 2, width: w, height: h };
+}
+
 /** Whether the layer is on screen `relMs` into the clip. */
 export function layerActive(layer, relMs) {
   return relMs >= layer.start_ms && (layer.end_ms == null || relMs < layer.end_ms);

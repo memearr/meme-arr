@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   adjustLayer,
+  canvasBox,
   isVideoAsset,
   layerActive,
   layerLabel,
@@ -142,5 +143,19 @@ describe("dragging and naming", () => {
     expect(secondsText(1500)).toBe("1.5");
     expect(secondsText(0)).toBe("0");
     expect(secondsText(2040)).toBe("2");
+  });
+});
+
+describe("the sequence canvas inside a video element", () => {
+  it("is the 16:9 picture, centred, when the element is wider", () => {
+    expect(canvasBox(900, 360)).toEqual({ left: 130, top: 0, width: 640, height: 360 });
+  });
+  it("is the whole element when it is 16:9, and fits a tall one by width", () => {
+    expect(canvasBox(640, 360)).toEqual({ left: 0, top: 0, width: 640, height: 360 });
+    expect(canvasBox(320, 400)).toEqual({ left: 0, top: 110, width: 320, height: 180 });
+  });
+  it("is nothing for an element with no size yet", () => {
+    expect(canvasBox(0, 100)).toBeNull();
+    expect(canvasBox(100, 0)).toBeNull();
   });
 });

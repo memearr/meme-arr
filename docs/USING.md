@@ -144,7 +144,7 @@ and WebM only; GIF and WebP can't carry audio). Finished files also land in your
   to use again later (a moving one loops while it is on). A new layer comes on at the playhead and stays on
   for two seconds: set **On at** and **Off at** by typing, or with **= playhead**. Drag a layer on the player
   to place it; **Size**, **Turn**, **Opacity** and **Colour** change how it looks. Captions are drawn over
-  the layers. Layers are in the exported clip only, not in a sequence or a saved frame.
+  the layers. Layers are in the exported clip or sequence, not in a saved frame.
 - **Music.** With Navidrome connected (Settings), the **Music** box puts one of your songs under the
   clip: search for it, pick it, and the player plays it with the clip. **Music volume** and **Clip sound
   volume** are separate faders, from silent to 200% (the player plays at most 100%; the export goes up
@@ -217,7 +217,11 @@ any shows or movies, into one back-to-back GIF, WebP, MP4 or WebM (up to 20 sect
   sound, where in the song to start, when it comes in (counted from the start of the sequence) and its
   fades. It stops where the sequence does. The player plays the song along with the
   sections (up to 100%; untick **Hear it in the player** to silence it). Music is for MP4 and WebM, so
-  picking a song switches a GIF or WebP to MP4. Layers are still only for a single clip.
+  picking a song switches a GIF or WebP to MP4.
+- **Layers on a section.** Open a section in **✎ Detailed edit** and add shapes, stickers and clips in its
+  **Layers** box as in the editor: they are timed from the start of that section and placed on the
+  sequence's 16:9 canvas (the picture is fitted into it, so on a 16:9 source it's the same place). They
+  are kept with the section, drawn over the player here, and burned in by the export under the captions.
 - **Undo and redo** step back through every change made here (typing a time or dragging a
   slider counts as one step).
 
