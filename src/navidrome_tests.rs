@@ -48,7 +48,7 @@ fn an_ok_answer_is_its_payload_and_a_failed_one_is_its_message() {
 #[test]
 fn songs_are_read_from_a_search_answer() {
     let body = json!({"subsonic-response": {"status": "ok", "searchResult3": {"song": [
-        {"id": "a1", "title": "Song", "artist": "Band", "album": "LP", "duration": 187},
+        {"id": "a1", "title": "Song", "artist": "Band", "album": "LP", "duration": 187, "coverArt": "al-9"},
         {"id": "", "title": "no id"},
         {"id": "b2", "title": "Bare"}
     ]}}});
@@ -61,10 +61,12 @@ fn songs_are_read_from_a_search_answer() {
             title: "Song".into(),
             artist: "Band".into(),
             album: "LP".into(),
-            duration_s: 187
+            duration_s: 187,
+            cover_art: "al-9".into(),
         }
     );
     assert_eq!(t[1].duration_s, 0);
+    assert_eq!(t[1].cover_art, "", "no cover is an empty id");
     // nothing found: Navidrome sends an empty searchResult3
     let none = json!({"subsonic-response": {"status": "ok", "searchResult3": {}}});
     assert!(parse_search(&none).unwrap().is_empty());

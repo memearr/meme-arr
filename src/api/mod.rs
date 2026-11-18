@@ -153,6 +153,7 @@ pub fn router(state: AppState) -> Router {
             post(test_navidrome_settings),
         )
         .route("/api/music/search", get(music_search))
+        .route("/api/music/cover/{id}", get(music_cover))
         .route("/api/music/{id}/file", get(music_file))
         .route("/api/music/{id}/peaks", get(music_peaks))
         .route("/api/settings/bazarr/test", post(test_bazarr_settings))

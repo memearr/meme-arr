@@ -207,6 +207,39 @@ pub(super) async fn music_file(
 }
 
 #[derive(Debug, Deserialize)]
+pub(super) struct CoverQuery {
+    /// Pixels (default 96, kept between 32 and 512).
+    size: Option<u32>,
+}
+
+/// `GET /api/music/cover/{id}?size=`: a song's cover picture from Navidrome (`id` is a
+/// search result's `cover_art`), for the picker. Pictures don't change, so the browser keeps them.
+pub(super) async fn music_cover(
+    State(st): State<AppState>,
+    Path(id): Path<String>,
+    Query(q): Query<CoverQuery>,
+) -> Result<Response, AppError> {
+    if !crate::music::valid_id(&id) {
+        return Ok(not_found("no such picture"));
+    }
+    let Some(client) = st.settings().navidrome() else {
+        return Ok(not_set_up());
+    };
+    let size = q.size.unwrap_or(96).clamp(32, 512);
+    match client.cover(&id, size).await {
+        Ok((kind, bytes)) => Ok((
+            [
+                (header::CONTENT_TYPE, kind),
+                (header::CACHE_CONTROL, "private, max-age=86400".to_string()),
+            ],
+            bytes,
+        )
+            .into_response()),
+        Err(e) => Ok(upstream(format!("{e:#}"))),
+    }
+}
+
+#[derive(Debug, Deserialize)]
 pub(super) struct PeaksQuery {
     /// How many bars (default 600, kept between 20 and 2000).
     bins: Option<usize>,
