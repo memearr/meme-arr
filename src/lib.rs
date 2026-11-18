@@ -21,6 +21,7 @@ pub mod forwarded;
 pub mod health;
 pub mod index;
 pub mod jellyfin;
+pub mod jellyfin_music;
 pub mod langs;
 pub mod local_music;
 pub mod logs;

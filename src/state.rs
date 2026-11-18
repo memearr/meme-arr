@@ -68,6 +68,19 @@ impl AppSettings {
         ))
     }
 
+    /// A Jellyfin client to take songs from, when Jellyfin is the selected media server and
+    /// is set up (its music libraries are searched along with the others).
+    pub fn jellyfin_music(&self) -> Option<crate::jellyfin::JellyfinClient> {
+        if self.server != ServerKind::Jellyfin {
+            return None;
+        }
+        let set = |v: &Option<String>| v.as_deref().filter(|s| !s.is_empty()).map(str::to_owned);
+        Some(crate::jellyfin::JellyfinClient::new(
+            set(&self.jellyfin_url)?,
+            set(&self.jellyfin_api_key)?,
+        ))
+    }
+
     /// Whether the *selected* media server has everything it needs.
     pub fn configured(&self) -> bool {
         let set = |v: &Option<String>| v.as_deref().is_some_and(|s| !s.is_empty());

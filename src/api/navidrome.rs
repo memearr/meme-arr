@@ -121,8 +121,8 @@ pub(super) struct MusicSearch {
 }
 
 /// `GET /api/music/search?q=&limit=`: songs that match, from every source there is: uploaded
-/// songs, the library folder and Navidrome, each marked with its `source`. When Navidrome can't
-/// be asked but other songs match, those are returned with a `warning`.
+/// songs, the library folder, Navidrome and Jellyfin, each marked with its `source`. When a
+/// server can't be asked but other songs match, those are returned with a `warning`.
 pub(super) async fn music_search(
     State(st): State<AppState>,
     Query(p): Query<MusicSearch>,
@@ -154,15 +154,32 @@ pub(super) async fn music_search(
     .await?;
     let mut tracks: Vec<serde_json::Value> = local.iter().map(|(t, s)| song_json(t, *s)).collect();
 
-    let mut warning = None;
-    if let Some(client) = st.settings().navidrome() {
+    // the music servers, each asked in turn; one that can't be reached is a warning
+    let mut failed: Vec<(&str, String)> = Vec::new();
+    let settings = st.settings();
+    if let Some(client) = settings.navidrome() {
         match client.search(&q, limit).await {
             Ok(found) => tracks.extend(found.iter().map(|t| song_json(t, Source::Navidrome))),
-            // nothing else to show: say what went wrong; otherwise show what there is
-            Err(e) if tracks.is_empty() => return Ok(upstream(format!("{e:#}"))),
-            Err(e) => warning = Some(format!("Navidrome: {e:#}")),
+            Err(e) => failed.push(("Navidrome", format!("{e:#}"))),
         }
     }
+    if let Some(client) = settings.jellyfin_music() {
+        match client.search_songs(&q, limit).await {
+            Ok(found) => tracks.extend(found.iter().map(|t| song_json(t, Source::Jellyfin))),
+            Err(e) => failed.push(("Jellyfin", format!("{e:#}"))),
+        }
+    }
+    // nothing at all to show: say what went wrong; otherwise show what there is, with a note
+    if tracks.is_empty() && !failed.is_empty() {
+        return Ok(upstream(failed[0].1.clone()));
+    }
+    let warning = (!failed.is_empty()).then(|| {
+        failed
+            .iter()
+            .map(|(who, why)| format!("{who}: {why}"))
+            .collect::<Vec<_>>()
+            .join("; ")
+    });
     Ok(Json(json!({ "tracks": tracks, "warning": warning })).into_response())
 }
 
@@ -173,7 +190,7 @@ pub(super) enum TrackError {
     Upstream(String),
 }
 
-/// Song `id` as a file in the music cache, fetching it from Navidrome the first time.
+/// Song `id` as a file in the music cache, fetching it from Navidrome or Jellyfin the first time.
 /// One fetch at a time: they share a download file name, and a song is fetched once
 /// however many people ask.
 pub(super) async fn ensure_track(st: &AppState, id: &str) -> Result<PathBuf, TrackError> {
@@ -196,13 +213,22 @@ pub(super) async fn ensure_track(st: &AppState, id: &str) -> Result<PathBuf, Tra
                 .flatten()
                 .ok_or(TrackError::BadId);
         }
-        Source::Navidrome => {}
+        Source::Navidrome | Source::Jellyfin => {}
     }
     if let Some(p) = music.path_of(id) {
         return Ok(p);
     }
-    let Some(client) = st.settings().navidrome() else {
-        return Err(TrackError::NotSetUp);
+    // which server it is fetched from
+    let settings = st.settings();
+    let navidrome = match Source::of(id) {
+        Source::Jellyfin => None,
+        _ => Some(settings.navidrome().ok_or(TrackError::NotSetUp)?),
+    };
+    let jellyfin = match Source::of(id) {
+        Source::Jellyfin => Some(settings.jellyfin_music().ok_or_else(|| {
+            TrackError::Upstream("Jellyfin isn't the media server set up in Settings".into())
+        })?),
+        _ => None,
     };
     let _one = FETCHING.lock().await;
     if let Some(p) = music.path_of(id) {
@@ -217,10 +243,15 @@ pub(super) async fn ensure_track(st: &AppState, id: &str) -> Result<PathBuf, Tra
         let _ = tokio::task::spawn_blocking(move || m.prune(crate::music::MAX_CACHE_BYTES)).await;
     }
     let dl = music.download_path(id).ok_or(TrackError::BadId)?;
-    client
-        .fetch(id, &dl, crate::navidrome::MAX_TRACK_BYTES)
-        .await
-        .map_err(|e| up(format!("{e:#}")))?;
+    let fetched = match (&navidrome, &jellyfin) {
+        (Some(c), _) => c.fetch(id, &dl, crate::navidrome::MAX_TRACK_BYTES).await,
+        (_, Some(c)) => {
+            c.fetch_song(id, &dl, crate::navidrome::MAX_TRACK_BYTES)
+                .await
+        }
+        _ => return Err(TrackError::NotSetUp),
+    };
+    fetched.map_err(|e| up(format!("{e:#}")))?;
     let m = music.clone();
     let id2 = id.to_string();
     tokio::task::spawn_blocking(move || m.finish(&id2, &dl))
@@ -237,7 +268,7 @@ pub(super) fn track_error(e: TrackError) -> Response {
     }
 }
 
-/// `GET /api/music/{id}/file`: the song itself (fetched from Navidrome the first time),
+/// `GET /api/music/{id}/file`: the song itself (fetched from its server the first time),
 /// with range support so the player can seek in it.
 pub(super) async fn music_file(
     State(st): State<AppState>,
@@ -256,7 +287,7 @@ pub(super) struct CoverQuery {
     size: Option<u32>,
 }
 
-/// `GET /api/music/cover/{id}?size=`: a song's cover picture from Navidrome (`id` is a
+/// `GET /api/music/cover/{id}?size=`: a song's cover picture from Navidrome or Jellyfin (`id` is a
 /// search result's `cover_art`), for the picker. Pictures don't change, so the browser keeps them.
 pub(super) async fn music_cover(
     State(st): State<AppState>,
@@ -266,11 +297,24 @@ pub(super) async fn music_cover(
     if !crate::music::valid_id(&id) {
         return Ok(not_found("no such picture"));
     }
-    let Some(client) = st.settings().navidrome() else {
-        return Ok(not_set_up());
-    };
     let size = q.size.unwrap_or(96).clamp(32, 512);
-    match client.cover(&id, size).await {
+    let settings = st.settings();
+    let got = if Source::of(&id) == Source::Jellyfin {
+        match settings.jellyfin_music() {
+            Some(c) => c.song_cover(&id, size).await,
+            None => {
+                return Ok(upstream(
+                    "Jellyfin isn't the media server set up in Settings",
+                ))
+            }
+        }
+    } else {
+        match settings.navidrome() {
+            Some(c) => c.cover(&id, size).await,
+            None => return Ok(not_set_up()),
+        }
+    };
+    match got {
         Ok((kind, bytes)) => Ok((
             [
                 (header::CONTENT_TYPE, kind),

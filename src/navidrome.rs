@@ -210,8 +210,7 @@ impl Client {
     /// Download song `id` (the original file) to `dest`, giving up past `max_bytes`.
     /// Written to a side file and renamed, so a failed download leaves nothing behind.
     pub async fn fetch(&self, id: &str, dest: &Path, max_bytes: u64) -> Result<()> {
-        use tokio::io::AsyncWriteExt;
-        let mut resp = self
+        let resp = self
             .request(
                 "stream",
                 &[("id", id.to_string()), ("format", "raw".into())],
@@ -239,39 +238,7 @@ impl Client {
                 Err(_) => bail!("Navidrome sent no audio"),
             }
         }
-        let tmp = dest.with_extension("part");
-        let mut file = tokio::fs::File::create(&tmp).await?;
-        let mut total = 0u64;
-        let result: Result<()> = async {
-            while let Some(chunk) = resp.chunk().await? {
-                total += chunk.len() as u64;
-                if total > max_bytes {
-                    bail!(
-                        "that song is bigger than the {} MB allowed",
-                        max_bytes / 1024 / 1024
-                    );
-                }
-                file.write_all(&chunk).await?;
-            }
-            file.flush().await?;
-            Ok(())
-        }
-        .await;
-        drop(file);
-        match result {
-            Ok(()) if total > 0 => {
-                tokio::fs::rename(&tmp, dest).await?;
-                Ok(())
-            }
-            Ok(()) => {
-                let _ = tokio::fs::remove_file(&tmp).await;
-                bail!("Navidrome sent an empty file")
-            }
-            Err(e) => {
-                let _ = tokio::fs::remove_file(&tmp).await;
-                Err(e)
-            }
-        }
+        crate::music::save_stream(resp, dest, max_bytes, "Navidrome").await
     }
 }
 

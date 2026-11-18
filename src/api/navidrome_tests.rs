@@ -503,3 +503,221 @@ async fn when_navidrome_cannot_be_reached_the_other_songs_still_come_with_a_warn
     let (status, _) = body(search(&st, "nothing-local-matches-this").await).await;
     assert_eq!(status, StatusCode::BAD_GATEWAY);
 }
+
+// ---- Jellyfin as a source of songs --------------------------------------------
+
+const JF_SONG: &[u8] = b"ID3-a-jellyfin-song";
+
+/// A stand-in Jellyfin that accepts one API key and has one song, `aa11`, with a picture.
+async fn fake_jellyfin(key: &str) -> String {
+    use axum::routing::get;
+    fn allowed(h: &HeaderMap, key: &str) -> bool {
+        h.get(header::AUTHORIZATION)
+            .and_then(|v| v.to_str().ok())
+            .is_some_and(|v| v.contains(&format!("Token=\"{key}\"")))
+    }
+    let app = axum::Router::new()
+        .route(
+            "/Items",
+            get(|State(key): State<String>, h: HeaderMap, Query(q): Q| async move {
+                if !allowed(&h, &key) {
+                    return StatusCode::UNAUTHORIZED.into_response();
+                }
+                assert_eq!(q.get("IncludeItemTypes").map(String::as_str), Some("Audio"));
+                let hit = q.get("SearchTerm").is_some_and(|s| s.contains("song"));
+                let items = if hit {
+                    json!([{"Id": "aa11", "Name": "Jelly Song", "Artists": ["Band"], "Album": "LP",
+                            "RunTimeTicks": 1_875_000_000i64, "ImageTags": {"Primary": "t"}}])
+                } else {
+                    json!([])
+                };
+                Json(json!({ "Items": items })).into_response()
+            }),
+        )
+        .route(
+            "/Items/{id}/Download",
+            get(
+                |State(key): State<String>, h: HeaderMap, Path(id): Path<String>| async move {
+                    if !allowed(&h, &key) {
+                        return StatusCode::UNAUTHORIZED.into_response();
+                    }
+                    match id.as_str() {
+                        "aa11" => ([(header::CONTENT_TYPE, "audio/mpeg")], JF_SONG).into_response(),
+                        "page" => ([(header::CONTENT_TYPE, "text/html")], "<html>login</html>")
+                            .into_response(),
+                        _ => StatusCode::NOT_FOUND.into_response(),
+                    }
+                },
+            ),
+        )
+        .route(
+            "/Items/{id}/Images/Primary",
+            get(
+                |State(key): State<String>,
+                 h: HeaderMap,
+                 Path(id): Path<String>,
+                 Query(q): Q| async move {
+                    if !allowed(&h, &key) {
+                        return StatusCode::UNAUTHORIZED.into_response();
+                    }
+                    match id.as_str() {
+                        "aa11" => (
+                            [(header::CONTENT_TYPE, "image/png")],
+                            format!("JF-{}", q.get("maxWidth").cloned().unwrap_or_default()),
+                        )
+                            .into_response(),
+                        _ => StatusCode::NOT_FOUND.into_response(),
+                    }
+                },
+            ),
+        )
+        .with_state(key.to_string());
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    format!("http://{addr}")
+}
+
+/// Set Jellyfin up as the (selected, or not) media server.
+fn use_jellyfin(st: &AppState, url: &str, key: &str, selected: bool) {
+    let mut s = st.settings.write().unwrap();
+    s.server = if selected {
+        crate::mediaserver::ServerKind::Jellyfin
+    } else {
+        crate::mediaserver::ServerKind::Plex
+    };
+    s.jellyfin_url = Some(url.into());
+    s.jellyfin_api_key = Some(key.into());
+}
+
+#[tokio::test]
+async fn jellyfin_songs_are_found_fetched_once_and_their_cover_served() {
+    let (dir, st) = state();
+    let key = secret();
+    use_jellyfin(&st, &fake_jellyfin(&key).await, &key, true);
+
+    let (_, b) = body(search(&st, "song").await).await;
+    let v = json_of(&b);
+    let t = &v["tracks"][0];
+    assert_eq!(t["source"], "jellyfin");
+    assert_eq!(
+        (t["id"].as_str(), t["cover_art"].as_str()),
+        (Some("jf-aa11"), Some("jf-aa11"))
+    );
+    assert_eq!(
+        (
+            t["title"].as_str(),
+            t["artist"].as_str(),
+            t["duration_s"].as_u64()
+        ),
+        (Some("Jelly Song"), Some("Band"), Some(187))
+    );
+    assert!(v["warning"].is_null());
+
+    // the first play fetches the original file into the cache, as for Navidrome
+    let resp = music_file(State(st.clone()), Path("jf-aa11".into()), HeaderMap::new())
+        .await
+        .ok()
+        .unwrap();
+    assert_eq!(resp.headers()[header::CONTENT_TYPE], "audio/mpeg");
+    assert_eq!(body(resp).await.1, JF_SONG);
+    assert!(dir.path().join("music/jf-aa11.mp3").is_file());
+    assert!(!dir.path().join("music/jf-aa11.dl").exists());
+
+    // and so does the picture, scaled
+    let resp = music_cover(
+        State(st.clone()),
+        Path("jf-aa11".into()),
+        Query(CoverQuery { size: None }),
+    )
+    .await
+    .ok()
+    .unwrap();
+    assert_eq!(resp.headers()[header::CONTENT_TYPE], "image/png");
+    assert_eq!(body(resp).await.1, b"JF-96");
+
+    let (_, b) = body(
+        crate::api::music_sources(State(st))
+            .await
+            .ok()
+            .unwrap()
+            .into_response(),
+    )
+    .await;
+    assert_eq!(json_of(&b)["jellyfin"], true);
+}
+
+#[tokio::test]
+async fn jellyfin_is_a_source_only_when_it_is_the_media_server_in_use() {
+    let (_d, st) = state();
+    let key = secret();
+    use_jellyfin(&st, &fake_jellyfin(&key).await, &key, false); // Plex is the selected one
+    let (status, b) = body(search(&st, "song").await).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        json_of(&b)["tracks"].as_array().unwrap().len(),
+        0,
+        "not searched"
+    );
+    let (_, b) = body(
+        crate::api::music_sources(State(st.clone()))
+            .await
+            .ok()
+            .unwrap()
+            .into_response(),
+    )
+    .await;
+    assert_eq!(json_of(&b)["jellyfin"], false);
+    let resp = music_file(State(st), Path("jf-aa11".into()), HeaderMap::new())
+        .await
+        .ok()
+        .unwrap();
+    let (status, b) = body(resp).await;
+    assert_eq!(status, StatusCode::BAD_GATEWAY);
+    assert!(json_of(&b)["error"].as_str().unwrap().contains("Jellyfin"));
+}
+
+#[tokio::test]
+async fn a_wrong_key_is_said_so_and_other_songs_still_show_with_a_warning() {
+    let (_d, _l, st) = state_with_local_songs().await;
+    let key = secret();
+    use_jellyfin(&st, &fake_jellyfin(&key).await, "not-the-key", true);
+    // another source has songs: they are shown, with what went wrong
+    let (status, b) = body(search(&st, "song").await).await;
+    assert_eq!(status, StatusCode::OK);
+    let v = json_of(&b);
+    assert_eq!(v["tracks"].as_array().unwrap().len(), 2);
+    let warning = v["warning"].as_str().unwrap();
+    assert!(
+        warning.starts_with("Jellyfin: ") && warning.contains("API key"),
+        "{warning}"
+    );
+    // nothing else matches: the failure is the answer, and it never contains the key
+    let (status, b) = body(search(&st, "nothing-local-matches-this").await).await;
+    assert_eq!(status, StatusCode::BAD_GATEWAY);
+    assert!(!String::from_utf8_lossy(&b).contains("not-the-key"));
+}
+
+#[tokio::test]
+async fn a_jellyfin_download_that_is_a_web_page_is_refused_and_leaves_nothing() {
+    let (dir, st) = state();
+    let key = secret();
+    use_jellyfin(&st, &fake_jellyfin(&key).await, &key, true);
+    for id in ["jf-page", "jf-missing"] {
+        let resp = music_file(State(st.clone()), Path(id.into()), HeaderMap::new())
+            .await
+            .ok()
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_GATEWAY, "{id}");
+    }
+    let left: Vec<_> = std::fs::read_dir(dir.path().join("music"))
+        .map(|d| d.flatten().map(|e| e.file_name()).collect())
+        .unwrap_or_default();
+    assert!(left.is_empty(), "{left:?}");
+    // a path-like id is not a Jellyfin song at all
+    let resp = music_file(State(st), Path("jf-..".into()), HeaderMap::new())
+        .await
+        .ok()
+        .unwrap();
+    assert_ne!(resp.status(), StatusCode::OK);
+}

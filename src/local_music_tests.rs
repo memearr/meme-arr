@@ -17,6 +17,7 @@ fn uploads() -> (tempfile::TempDir, Uploads) {
 fn ids_say_where_a_song_is_from() {
     assert_eq!(Source::of("up-abc"), Source::Upload);
     assert_eq!(Source::of("lib-abc"), Source::Library);
+    assert_eq!(Source::of("jf-0123abcd"), Source::Jellyfin);
     assert_eq!(Source::of("a1b2c3"), Source::Navidrome);
     assert_eq!(
         Source::of("upload"),
@@ -24,6 +25,7 @@ fn ids_say_where_a_song_is_from() {
         "only the prefix `up-` counts"
     );
     assert_eq!(Source::Library.name(), "library");
+    assert_eq!(Source::Jellyfin.name(), "jellyfin");
 }
 
 #[test]

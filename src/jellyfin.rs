@@ -21,9 +21,9 @@ const PAGE: usize = 500;
 const TICKS_PER_MS: i64 = 10_000;
 
 pub struct JellyfinClient {
-    base_url: String,
-    api_key: String,
-    http: Client,
+    pub(crate) base_url: String,
+    pub(crate) api_key: String,
+    pub(crate) http: Client,
 }
 
 // ---- JSON shapes (only the fields we read) --------------------------------
@@ -362,7 +362,10 @@ impl JellyfinClient {
         }
     }
 
-    async fn get_json<T: for<'de> Deserialize<'de>>(&self, path_and_query: &str) -> Result<T> {
+    pub(crate) async fn get_json<T: for<'de> Deserialize<'de>>(
+        &self,
+        path_and_query: &str,
+    ) -> Result<T> {
         let url = format!("{}{}", self.base_url, path_and_query);
         let resp = self
             .http
@@ -433,7 +436,7 @@ fn check_subtitle_status(status: reqwest::StatusCode) -> Result<()> {
 
 /// `Authorization: MediaBrowser Token="<key>"`, with a client name so the key
 /// shows up recognizably in Jellyfin's activity/devices views.
-fn auth_header(api_key: &str) -> String {
+pub(crate) fn auth_header(api_key: &str) -> String {
     format!(r#"MediaBrowser Client="meme-arr", Token="{api_key}""#)
 }
 

@@ -35,7 +35,7 @@ function Slider({ label, value, min, max, step, text, onChange, disabled }) {
 }
 
 /** One song in a list: its cover, title, artist and length; a click picks it. */
-const SOURCE_LABEL = { upload: " · uploaded", library: " · library" };
+const SOURCE_LABEL = { upload: " · uploaded", library: " · library", jellyfin: " · Jellyfin" };
 
 function SongRow({ track, onPick, onRemove }) {
   return (
@@ -65,7 +65,7 @@ function SongRow({ track, onPick, onRemove }) {
 }
 
 /**
- * The Music box: a song under the clip (from Navidrome, a folder of music on the server, or uploaded), with the volume of the song and of the
+ * The Music box: a song under the clip (from Navidrome, Jellyfin, a folder of music on the server, or uploaded), with the volume of the song and of the
  * clip's own sound, where in the song to start, when it comes in, and its fades. The song plays
  * in the page alongside the player (up to full volume; the export can go louder).
  * `relMs` is the playhead in clip time and `clipMs` the clip's length.
@@ -217,7 +217,7 @@ export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, set
     <fieldset className="layers-panel music-panel">
       <legend>Music</legend>
 
-      {sources && !sources.navidrome && !sources.library && (
+      {sources && !sources.navidrome && !sources.library && !sources.jellyfin && (
         <p className="hint tiny">
           Connect Navidrome under <b>Settings</b> to search your music for a song to put under the {what}, or
           upload a song here.
@@ -226,7 +226,7 @@ export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, set
 
       {sources && !music && (
         <>
-          {(sources.navidrome || sources.library || uploadCount > 0) && (
+          {(sources.navidrome || sources.library || sources.jellyfin || uploadCount > 0) && (
             <form className="layer-add" onSubmit={search}>
               <input
                 type="search"
