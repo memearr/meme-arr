@@ -47,6 +47,7 @@ export function SequenceView({ sequence, setSequence, onJob }) {
   const [editingId, setEditingId] = useState(null); // the clip open in the full editor
   const [selectedId, setSelectedId] = useState(null); // the section being edited and shown
   const [progressMs, setProgressMs] = useState(0);
+  const [playerPlaying, setPlayerPlaying] = useState(false); // so the song can follow the player
   // Undo / redo of the edits made here (not of clips added from elsewhere).
   const [history, setHistory] = useState({ past: [], future: [] });
   const lastGroup = useRef({ key: null, at: 0 });
@@ -222,6 +223,7 @@ export function SequenceView({ sequence, setSequence, onJob }) {
             index={index}
             onIndex={(i) => sequence[i] && setSelectedId(sequence[i].id)}
             onProgress={setProgressMs}
+            onPlaying={setPlayerPlaying}
           />
 
           <SequenceTimeline
@@ -262,9 +264,8 @@ export function SequenceView({ sequence, setSequence, onJob }) {
               setClipVolume={setClipVolume}
               audio={audio}
               clipMs={total}
-              relMs={0}
-              playing={false}
-              preview={false}
+              relMs={progressMs}
+              playing={playerPlaying}
               what="sequence"
             />
             <fieldset>

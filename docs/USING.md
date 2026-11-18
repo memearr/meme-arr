@@ -212,9 +212,9 @@ any shows or movies, into one back-to-back GIF, WebP, MP4 or WebM (up to 20 sect
 - **Music.** The **Music** box on this tab is the same as in the editor, for the whole sequence: one
   song under all the sections, with its own volume, a **Clips' sound volume** for the sections' own
   sound, where in the song to start, when it comes in (counted from the start of the sequence) and its
-  fades. It stops where the sequence does. The song is mixed in the export; it is not played in the
-  sequence player. Music is for MP4 and WebM, so picking a song switches a GIF or WebP to MP4. Layers
-  are still only for a single clip.
+  fades. It stops where the sequence does. The player plays the song along with the
+  sections (up to 100%; untick **Hear it in the player** to silence it). Music is for MP4 and WebM, so
+  picking a song switches a GIF or WebP to MP4. Layers are still only for a single clip.
 - **Undo and redo** step back through every change made here (typing a time or dragging a
   slider counts as one step).
 
