@@ -143,6 +143,10 @@
   overflow: hidden;
   pointer-events: none;
 }
+.layer-overlay.readonly .layer-item {
+  pointer-events: none;
+  cursor: default;
+}
 .layer-item {
   pointer-events: auto;
   cursor: move;

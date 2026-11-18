@@ -68,7 +68,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   const [look, setLook] = useState(seed?.look ?? null);
   // Shapes, stickers and clips laid over the clip (times are from the clip's start), and the
   // uploaded pictures there are to choose from.
-  const [layers, setLayers] = useState([]);
+  const [layers, setLayers] = useState(seed?.layers ?? []);
   const [selectedLayer, setSelectedLayer] = useState(null);
   // A song from Navidrome under the clip, and how loud the clip's own sound is (see MusicPanel).
   const [music, setMusic] = useState(null);
@@ -556,6 +556,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
         end,
         caption: buildCaption(),
         subtitleOffsetMs: captionMode === "source" ? subtitleOffsetMs : 0,
+        layers,
       }),
       andNext
     );
@@ -574,6 +575,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
       end_ms: end,
       caption: buildCaption(),
       subtitle_offset_ms: captionMode === "source" ? subtitleOffsetMs : 0,
+      layers,
     });
   }
 
@@ -766,7 +768,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
             overlayText={overlayText}
             lookView={lookView}
             pictureBox={pictureBox}
-            layers={sequenceEdit ? [] : layers}
+            layers={layers}
             relMs={Math.max(0, Math.round(playhead - start))}
             selectedLayer={selectedLayer}
             setSelectedLayer={setSelectedLayer}
@@ -903,21 +905,19 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
               applyToSubtitleFile={applyToSubtitleFile}
             />
 
-            {!sequenceEdit && (
-              <LayersPanel
-                layers={layers}
-                setLayers={setLayers}
-                selectedId={selectedLayer}
-                setSelectedId={setSelectedLayer}
-                onSeek={(ms) => seekTo(start + ms)}
-                onTrack={trackSpot}
-                overlays={overlayList.overlays}
-                shapes={overlayList.shapes}
-                reloadOverlays={reloadOverlays}
-                clipMs={clipLength}
-                relMs={Math.max(0, Math.round(playhead - start))}
-              />
-            )}
+            <LayersPanel
+              layers={layers}
+              setLayers={setLayers}
+              selectedId={selectedLayer}
+              setSelectedId={setSelectedLayer}
+              onSeek={(ms) => seekTo(start + ms)}
+              onTrack={trackSpot}
+              overlays={overlayList.overlays}
+              shapes={overlayList.shapes}
+              reloadOverlays={reloadOverlays}
+              clipMs={clipLength}
+              relMs={Math.max(0, Math.round(playhead - start))}
+            />
 
             {!sequenceEdit && (
               <MusicPanel

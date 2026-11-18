@@ -363,6 +363,7 @@ fn resolve_sequence(
         };
         out.push(export::ResolvedSequenceClip {
             font_path,
+            layers: spec.layers.clone(),
             file,
             start_ms: spec.start_ms,
             end_ms: spec.end_ms,
@@ -404,6 +405,21 @@ pub(super) async fn sequence_export_start(
     }
     if req.music.is_some() && st.settings().navidrome().is_none() {
         return Ok(bad_request("music needs Navidrome (Settings -> Navidrome)"));
+    }
+    // An uploaded picture a layer names must still be there.
+    let overlays = st.config.overlays();
+    for (n, clip) in req.clips.iter().enumerate() {
+        for (i, l) in clip.layers.iter().enumerate() {
+            if let export::LayerKind::Media { asset } = &l.kind {
+                if overlays.path_of(asset).is_none() {
+                    return Ok(bad_request(format!(
+                        "clip #{} layer {}: the picture {asset:?} is not uploaded (see Settings -> Overlays)",
+                        n + 1,
+                        i + 1
+                    )));
+                }
+            }
+        }
     }
 
     let (pool, mappings, specs, fonts) = (
@@ -451,7 +467,14 @@ pub(super) async fn sequence_export_start(
                 Err(TrackError::Upstream(e)) => anyhow::bail!("couldn't get the song: {e}"),
             });
         }
-        export::run_sequence_export(tools(&st2), job, &req, &clips, &font_path).await
+        let overlays = st2.config.overlays();
+        let media = move |id: &str| {
+            overlays.path_of(id).map(|path| export::LayerSource {
+                path,
+                motion: !crate::overlays::Overlays::is_still(id),
+            })
+        };
+        export::run_sequence_export_with(tools(&st2), job, &req, &clips, &font_path, &media).await
     });
     Ok(accepted(&st, &id))
 }
