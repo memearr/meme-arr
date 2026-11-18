@@ -42,6 +42,22 @@ export function positionAt(path, t, fallback) {
 }
 
 /**
+ * A path split at the moment `t` for drawing: the stretch already travelled and the stretch still
+ * ahead, each as the points of a line (the two meet where the thing is at `t`). A path with one
+ * keyframe has no line; before the first keyframe all of it is ahead, after the last all is behind.
+ */
+export function splitPath(path, t) {
+  if (!path || path.length < 2) return { done: [], ahead: [] };
+  const here = positionAt(path, t, null);
+  const pt = (k) => ({ x: k.x, y: k.y });
+  const done = path.filter((k) => k.t_ms < t).map(pt);
+  const ahead = path.filter((k) => k.t_ms > t).map(pt);
+  if (done.length) done.push(here);
+  if (ahead.length) ahead.unshift(here);
+  return { done, ahead };
+}
+
+/**
  * The path with a keyframe at `t` putting the thing at `(x, y)`: a keyframe within
  * `SAME_INSTANT_MS` of `t` is moved there, otherwise one is added (unless the path is full).
  */

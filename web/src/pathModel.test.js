@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { layerPlace, layerStyle, layersForRequest, moveLayerTo, newShapeLayer } from "./layersModel.js";
-import { MAX_PATH_POINTS, pathForRequest, positionAt, removeKeyframe, setKeyframe, tidyPath } from "./pathModel.js";
+import { MAX_PATH_POINTS, pathForRequest, positionAt, removeKeyframe, setKeyframe, splitPath, tidyPath } from "./pathModel.js";
 import { freezeLook, lookForRequest, lookPlace } from "./textLook.js";
 
 const CLIP = 5000;
@@ -124,5 +124,36 @@ describe("text on a path", () => {
     expect(frozen).toMatchObject({ preset: "block", x: 0.8, y: 0.7 });
     expect(freezeLook({ preset: "block" }, 100)).toEqual({ preset: "block" });
     expect(freezeLook(null, 100)).toBeNull();
+  });
+});
+
+describe("drawing a path", () => {
+  const route = [k(1000, 0.1, 0.1), k(3000, 0.5, 0.5), k(5000, 0.9, 0.1)];
+
+  it("splits at the playhead into the way gone and the way still to go, meeting where the thing is", () => {
+    const { done, ahead } = splitPath(route, 2000);
+    expect(done).toHaveLength(2);
+    expect(done[0]).toEqual({ x: 0.1, y: 0.1 });
+    near(done[1].x, 0.3);
+    near(done[1].y, 0.3);
+    expect(ahead).toHaveLength(3);
+    expect(ahead[0]).toEqual(done[1]); // they meet where the thing is
+    expect(ahead.slice(1)).toEqual([{ x: 0.5, y: 0.5 }, { x: 0.9, y: 0.1 }]);
+  });
+
+  it("has all of it ahead before the first keyframe and all behind after the last", () => {
+    const before = splitPath(route, 0);
+    expect(before.done).toEqual([]);
+    expect(before.ahead[0]).toEqual({ x: 0.1, y: 0.1 });
+    expect(before.ahead).toHaveLength(4);
+    const after = splitPath(route, 5000);
+    expect(after.ahead).toEqual([]);
+    expect(after.done[after.done.length - 1]).toEqual({ x: 0.9, y: 0.1 });
+  });
+
+  it("has no line for one keyframe or none", () => {
+    expect(splitPath([k(1000, 0.5, 0.5)], 500)).toEqual({ done: [], ahead: [] });
+    expect(splitPath([], 500)).toEqual({ done: [], ahead: [] });
+    expect(splitPath(undefined, 500)).toEqual({ done: [], ahead: [] });
   });
 });
