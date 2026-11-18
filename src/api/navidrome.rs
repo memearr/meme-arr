@@ -206,6 +206,36 @@ pub(super) async fn music_file(
     }
 }
 
+#[derive(Debug, Deserialize)]
+pub(super) struct PeaksQuery {
+    /// How many bars (default 600, kept between 20 and 2000).
+    bins: Option<usize>,
+}
+
+/// `GET /api/music/{id}/peaks`: the song's loudness over time as bars, for the editor's
+/// waveform. `{"duration_ms": 187000, "peaks": [0.2, 0.9, ...]}`.
+pub(super) async fn music_peaks(
+    State(st): State<AppState>,
+    Path(id): Path<String>,
+    Query(q): Query<PeaksQuery>,
+) -> Result<Response, AppError> {
+    let path = match ensure_track(&st, &id).await {
+        Ok(p) => p,
+        Err(e) => return Ok(track_error(e)),
+    };
+    let bins = q.bins.unwrap_or(600);
+    match crate::waveform::analyze(&st.config.ffmpeg_bin, &path, bins).await {
+        Ok(w) => {
+            Ok(Json(json!({ "duration_ms": w.duration_ms, "peaks": w.peaks })).into_response())
+        }
+        Err(e) => Ok((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({ "error": format!("couldn't read that song: {e:#}") })),
+        )
+            .into_response()),
+    }
+}
+
 #[cfg(test)]
 #[path = "navidrome_tests.rs"]
 mod tests;

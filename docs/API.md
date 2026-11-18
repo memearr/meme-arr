@@ -510,6 +510,12 @@ The song as a file, with `Range` support. The first request fetches the original
 `404` for an id that is not letters, digits, `-` and `_`; `409` and `502` as above; `502` also when what
 Navidrome sent is not audio.
 
+### `GET /api/music/:id/peaks?bins=`
+The song's loudness over time, for the editor's waveform: `{"duration_ms": 187000, "peaks": [0.2, 0.9, ...]}`,
+`bins` values (20-2000, default 600) from 0 (silent) to 1 (the loudest part). ffmpeg reads the song at a low
+rate, so it takes a moment for a long one. `404`, `409` and `502` as for the file; `422` when ffmpeg can't read
+the song.
+
 ### `GET /api/overlays/:id/file`
 The stored file itself, with its own content type (the editor previews with it). `404` for an unknown id or
 anything that is not a plain file name in the overlay folder.

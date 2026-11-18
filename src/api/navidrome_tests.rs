@@ -273,3 +273,41 @@ async fn removing_the_account_forgets_it() {
     assert_eq!(j["password_set"], false);
     assert!(st.settings().navidrome().is_none());
 }
+
+fn peaks_of(st: &AppState, id: &str) -> impl std::future::Future<Output = Response> {
+    let (st, id) = (st.clone(), id.to_string());
+    async move {
+        music_peaks(State(st), Path(id), Query(PeaksQuery { bins: Some(50) }))
+            .await
+            .ok()
+            .unwrap()
+    }
+}
+
+#[tokio::test]
+async fn peaks_need_navidrome_and_a_real_song_id() {
+    let (_d, st) = state();
+    assert_eq!(peaks_of(&st, "s1").await.status(), StatusCode::CONFLICT);
+    let pw = secret();
+    let url = fake_navidrome(&pw).await;
+    save(&st, &url, "me", &pw).await;
+    assert_eq!(
+        peaks_of(&st, "../etc").await.status(),
+        StatusCode::NOT_FOUND
+    );
+}
+
+#[tokio::test]
+async fn peaks_of_a_file_that_is_not_audio_are_refused_not_a_crash() {
+    let (_d, st) = state();
+    let pw = secret();
+    let url = fake_navidrome(&pw).await;
+    save(&st, &url, "me", &pw).await;
+    // the stand-in's "song" is not decodable audio
+    let (status, b) = body(peaks_of(&st, "s1").await).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert!(json_of(&b)["error"]
+        .as_str()
+        .unwrap()
+        .contains("couldn't read"));
+}

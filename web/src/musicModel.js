@@ -61,6 +61,26 @@ export function clipVolumeForRequest(volume, keepAudio) {
   return keepAudio ? clamp(num(volume, 1), 0, MAX_VOLUME) : 1;
 }
 
+/**
+ * Where the stretch that plays (`playingMs` from `startMs`) sits on a `songMs` song's waveform,
+ * as fractions of its width.
+ */
+export function songWindow(startMs, playingMs, songMs) {
+  if (!(songMs > 0)) return { left: 0, width: 0 };
+  const left = clamp(num(startMs) / songMs, 0, 1);
+  return { left, width: clamp(num(playingMs) / songMs, 0, 1 - left) };
+}
+
+/**
+ * The start point for a pick `frac` (0..1) of the way along the waveform: the playing stretch is
+ * centred on the pick, kept inside the song, to the tenth of a second.
+ */
+export function startAtFraction(frac, songMs, playingMs) {
+  const room = Math.max(0, songMs - Math.max(num(playingMs), 1000));
+  const raw = clamp(num(frac), 0, 1) * songMs - num(playingMs) / 2;
+  return Math.round(clamp(raw, 0, room) / 100) * 100;
+}
+
 /** The URL of a song's audio (fetched from Navidrome the first time). */
 export function musicSrc(id) {
   return withBase(`/api/music/${encodeURIComponent(id)}/file`);

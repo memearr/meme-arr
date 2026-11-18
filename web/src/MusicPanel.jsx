@@ -11,6 +11,7 @@ import {
   songTimeText,
 } from "./musicModel.js";
 import { secondsText } from "./layersModel.js";
+import { Waveform } from "./Waveform.jsx";
 
 /** One slider with its value shown. */
 function Slider({ label, value, min, max, step, text, onChange, disabled }) {
@@ -44,6 +45,8 @@ export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, set
   const [error, setError] = useState(null);
   const [hear, setHear] = useState(true);
   const player = useRef(null);
+  const [wave, setWave] = useState(null); // {duration_ms, peaks} of the chosen song
+  const [waveError, setWaveError] = useState(null);
 
   useEffect(() => {
     let live = true;
@@ -55,6 +58,22 @@ export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, set
       live = false;
     };
   }, []);
+
+  // The chosen song's waveform, for picking where it starts.
+  const musicId = music?.id;
+  useEffect(() => {
+    setWave(null);
+    setWaveError(null);
+    if (!musicId) return undefined;
+    let live = true;
+    api
+      .musicPeaks(musicId)
+      .then((w) => live && setWave(w))
+      .catch((err) => live && setWaveError(err.message));
+    return () => {
+      live = false;
+    };
+  }, [musicId]);
 
   async function search(e) {
     e?.preventDefault();
@@ -99,7 +118,7 @@ export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, set
 
   const set = (changes) => onChange(adjustMusic(music, changes, clipMs));
   const playingMs = music ? Math.max(0, clipMs - music.at_ms) : 0;
-  const songMs = music?.duration_s > 0 ? Math.round(music.duration_s * 1000) : 600_000;
+  const songMs = wave?.duration_ms > 0 ? wave.duration_ms : music?.duration_s > 0 ? Math.round(music.duration_s * 1000) : 600_000;
 
   return (
     <fieldset className="layers-panel music-panel">
@@ -166,6 +185,14 @@ export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, set
             text={percentText}
             onChange={(v) => set({ volume: v })}
           />
+          <Waveform
+            peaks={wave?.peaks}
+            songMs={songMs}
+            startMs={music.start_ms}
+            playingMs={playingMs}
+            onPick={(v) => set({ start_ms: v })}
+          />
+          {waveError && <p className="hint tiny">Couldn't draw the waveform ({waveError}); use the slider.</p>}
           <Slider
             label="Start the song at"
             value={music.start_ms}

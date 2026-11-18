@@ -45,6 +45,7 @@ pub mod tasks;
 pub mod tls;
 pub mod tracker;
 pub mod version;
+pub mod waveform;
 
 use anyhow::{Context, Result};
 use config::Config;
