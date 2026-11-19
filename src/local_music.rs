@@ -1,8 +1,8 @@
 //! Songs that don't come from Navidrome: ones uploaded to the app, and a folder of music
 //! on disk (the library).
 //!
-//! Song ids say where a song is from: `up-…` for an upload and `lib-…` for a file in the
-//! library; any other id is a Navidrome song, as before. Uploads are kept in
+//! Song ids say where a song is from: `up-…` for an upload, `lib-…` for a file in the
+//! library and `jf-…` for a Jellyfin song; any other id is a Navidrome song, as before. Uploads are kept in
 //! `DATA_DIR/music-uploads` and never pruned (unlike the Navidrome cache, they can't be
 //! fetched again). The library is read in place and never changed: its files are found by
 //! walking the folder, and a song's id is a hash of its path inside it, so no path from the
@@ -28,12 +28,14 @@ const MAX_DEPTH: usize = 8;
 
 pub const UPLOAD_PREFIX: &str = "up-";
 pub const LIBRARY_PREFIX: &str = "lib-";
+pub const JELLYFIN_PREFIX: &str = "jf-";
 
 /// Where a song id says it is from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Source {
     Upload,
     Library,
+    Jellyfin,
     Navidrome,
 }
 
@@ -43,6 +45,8 @@ impl Source {
             Source::Upload
         } else if id.starts_with(LIBRARY_PREFIX) {
             Source::Library
+        } else if id.starts_with(JELLYFIN_PREFIX) {
+            Source::Jellyfin
         } else {
             Source::Navidrome
         }
@@ -53,6 +57,7 @@ impl Source {
         match self {
             Source::Upload => "upload",
             Source::Library => "library",
+            Source::Jellyfin => "jellyfin",
             Source::Navidrome => "navidrome",
         }
     }

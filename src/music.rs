@@ -1,4 +1,4 @@
-//! Songs fetched from Navidrome, kept in `DATA_DIR/music` so an export (and the editor's
+//! Songs fetched from Navidrome or Jellyfin, kept in `DATA_DIR/music` so an export (and the editor's
 //! preview) can read them as ordinary files. The cache is a convenience: anything in it
 //! can be fetched again, so it is pruned oldest-first to a size limit.
 //!
@@ -38,6 +38,51 @@ pub fn sniff(head: &[u8]) -> Option<(&'static str, &'static str)> {
         Some(("webm", "audio/webm"))
     } else {
         None
+    }
+}
+
+/// Stream the body of `resp` to `dest` through a side file that is renamed when it is all
+/// there, so a failed download leaves nothing behind. Gives up past `max_bytes`; `who` names
+/// the server in the messages.
+pub async fn save_stream(
+    mut resp: reqwest::Response,
+    dest: &Path,
+    max_bytes: u64,
+    who: &str,
+) -> anyhow::Result<()> {
+    use tokio::io::AsyncWriteExt;
+    let tmp = dest.with_extension("part");
+    let mut file = tokio::fs::File::create(&tmp).await?;
+    let mut total = 0u64;
+    let result: anyhow::Result<()> = async {
+        while let Some(chunk) = resp.chunk().await? {
+            total += chunk.len() as u64;
+            if total > max_bytes {
+                anyhow::bail!(
+                    "that song is bigger than the {} MB allowed",
+                    max_bytes / 1024 / 1024
+                );
+            }
+            file.write_all(&chunk).await?;
+        }
+        file.flush().await?;
+        Ok(())
+    }
+    .await;
+    drop(file);
+    match result {
+        Ok(()) if total > 0 => {
+            tokio::fs::rename(&tmp, dest).await?;
+            Ok(())
+        }
+        Ok(()) => {
+            let _ = tokio::fs::remove_file(&tmp).await;
+            anyhow::bail!("{who} sent an empty file")
+        }
+        Err(e) => {
+            let _ = tokio::fs::remove_file(&tmp).await;
+            Err(e)
+        }
     }
 }
 
@@ -102,7 +147,7 @@ impl Music {
             .map_err(|e| e.to_string())?;
         let Some((ext, _)) = sniff(&head[..n]) else {
             let _ = std::fs::remove_file(downloaded);
-            return Err("what Navidrome sent isn't an audio file this app can use".into());
+            return Err("what the music server sent isn't an audio file this app can use".into());
         };
         if !valid_id(id) {
             return Err("bad song id".into());

@@ -31,6 +31,7 @@ pub(super) async fn music_sources(
     let count = tokio::task::spawn_blocking(move || uploads.list().len()).await?;
     Ok(Json(json!({
         "navidrome": st.settings().navidrome().is_some(),
+        "jellyfin": st.settings().jellyfin_music().is_some(),
         "library": st.config.library().is_some(),
         "uploads": count,
         "max_uploads": MAX_UPLOADS,

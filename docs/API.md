@@ -511,17 +511,19 @@ token scheme (a fresh salt per request), so the password is never in a URL.
 
 ### `GET /api/music/search?q=&limit=`
 Songs matching `q` (every word of it, any case), from every source there is: songs uploaded to the app, the
-library folder (`MUSIC_LIBRARY_DIR`) and Navidrome (`limit` 1-50 each, default 20):
+library folder (`MUSIC_LIBRARY_DIR`), Navidrome and Jellyfin's music libraries (`limit` 1-50 each, default 20):
 `{"tracks": [{"id","title","artist","album","duration_s","cover_art","source"}], "warning": null}`. `source` is
-`upload`, `library` or `navidrome`; `cover_art` is the id of a Navidrome song's picture (empty otherwise);
+`upload`, `library`, `navidrome` or `jellyfin`; `cover_art` is the id of a Navidrome or Jellyfin song's picture
+(empty otherwise);
 `duration_s` is 0 for an upload or a library song (its length isn't known until it is read; see `.../peaks`). An
 empty `q` gives none. A song's id says where it is from: `up-…` is an upload, `lib-…` a library file (a hash of
-its path in the library), anything else a Navidrome song. When Navidrome can't be reached but other songs
-match, those come back with a `warning` naming it; when it can't be reached and nothing else matches, `502`.
+its path in the library), `jf-…` a Jellyfin song, anything else a Navidrome song. Jellyfin is searched when it is
+the media server in use (Settings). When a server can't be reached but other songs match, those come back with a
+`warning` naming it; when it can't be reached and nothing else matches, `502`.
 
 ### `GET /api/music/sources`
-Which sources of music there are: `{"navidrome": false, "library": true, "uploads": 3, "max_uploads": 200,
-"max_upload_bytes": 104857600}` (`navidrome` and `library` say whether they are set up; `uploads` is how many
+Which sources of music there are: `{"navidrome": false, "jellyfin": false, "library": true, "uploads": 3, "max_uploads": 200,
+"max_upload_bytes": 104857600}` (`navidrome`, `jellyfin` and `library` say whether they are set up (Jellyfin: it is the media server in use); `uploads` is how many
 songs are uploaded).
 
 ### `POST /api/music/uploads?name=<file name>`
@@ -539,13 +541,13 @@ Remove an uploaded song. `204`, or `404` for an id that isn't one.
 
 ### `GET /api/music/:id/file`
 The song as a file, with `Range` support. An upload or a library song is served from where it is kept (`404`
-when it is gone). For a Navidrome song the first request fetches the original file from Navidrome into
+when it is gone). For a Navidrome or Jellyfin song the first request fetches the original file from its server into
 `/data/music` (up to 200 MB; the cache is pruned oldest-first to about 1 GB); later ones are served from there.
 `404` for an id that is not letters, digits, `-` and `_`; `409` and `502` as above; `502` also when what
 Navidrome sent is not audio.
 
 ### `GET /api/music/cover/:id?size=`
-A song's cover picture from Navidrome (`id` is a search result's `cover_art`), scaled to about `size` pixels
+A song's cover picture from Navidrome or Jellyfin (`id` is a search result's `cover_art`), scaled to about `size` pixels
 (32-512, default 96), with a day's browser caching. `404` for an id that is not letters, digits, `-` and `_`;
 `409` when Navidrome isn't set up; `502` when it can't be reached or what it sent is not a picture.
 

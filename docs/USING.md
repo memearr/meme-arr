@@ -146,7 +146,7 @@ and WebM only; GIF and WebP can't carry audio). Finished files also land in your
   to place it; **Size**, **Turn**, **Opacity** and **Colour** change how it looks. Captions are drawn over
   the layers. Layers are in the exported clip or sequence, not in a saved frame.
 - **Music.** The **Music** box puts a song under the clip. The songs come from Navidrome (connect it in
-  Settings), from a folder of music on the server (`MUSIC_LIBRARY_DIR`, searched by file and folder names), or
+  Settings), from Jellyfin's music libraries (when Jellyfin is your media server), from a folder of music on the server (`MUSIC_LIBRARY_DIR`, searched by file and folder names), or
   from you: **Upload a song…** takes an MP3, FLAC, Ogg, WAV, M4A or WebM file and keeps it in the app (listed
   under **Your uploads**, with a **remove** link). Search looks in all of them (uploads and library songs are
   marked; a Navidrome song shows its album cover), you pick one, and the player plays it with the clip. Before

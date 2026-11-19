@@ -290,6 +290,21 @@ describe("the Music box", () => {
     expect(window.localStorage.getItem("memearr.recentSongs")).toBe("[]");
   });
 
+  it("searches when Jellyfin is the only source, and marks its songs and shows their covers", async () => {
+    vi.spyOn(api, "musicSources").mockResolvedValue({ navidrome: false, library: false, jellyfin: true, uploads: 0 });
+    vi.spyOn(api, "musicSearch").mockResolvedValue({
+      tracks: [{ id: "jf-aa11", title: "Jelly Song", artist: "Band", album: "LP", duration_s: 187, cover_art: "jf-aa11", source: "jellyfin" }],
+      warning: null,
+    });
+    render(<Harness />);
+    expect(screen.queryByText(/Connect Navidrome/)).toBeNull();
+    fireEvent.change(await screen.findByLabelText("Search your music"), { target: { value: "jelly" } });
+    fireEvent.click(screen.getByText("Search"));
+    await screen.findByText("Jelly Song");
+    expect(document.querySelector(".music-results").textContent).toContain("Jelly Song · Band · 3:07 · Jellyfin");
+    expect(document.querySelector(".music-results img.song-art").getAttribute("src")).toMatch(/cover\/jf-aa11\?size=64$/);
+  });
+
   it("marks library songs, and shows the warning when one source couldn't be searched", async () => {
     vi.spyOn(api, "musicSources").mockResolvedValue({ navidrome: true, library: true, uploads: 0 });
     vi.spyOn(api, "musicSearch").mockResolvedValue({

@@ -79,6 +79,9 @@ your monitoring system.
   password is stored as text in the database (it has to be, to sign requests), never sent back to the browser,
   and never put in a URL: requests carry a one-time token made from it. Use an account that can only play music.
   Songs you use are cached in `/data/music` (a cache you can delete) and are served only to a logged-in user.
+- **Jellyfin music** (optional): when Jellyfin is the media server in use, its music libraries can be searched
+  with the same API key (read-only requests: search, the original file, a cover). Songs you use are cached in
+  `/data/music` like Navidrome's.
 - **Uploaded songs and the music library** (optional): a song you upload is kept in `/data/music-uploads`
   (up to 200 files of 100 MB; only the logged-in admin can upload, list, delete or play them). It is accepted
   only if its first bytes say it is audio (the name is not trusted; the stored name is made from a hash of the
