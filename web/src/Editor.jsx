@@ -72,7 +72,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   const [selectedLayer, setSelectedLayer] = useState(null);
   const [showPaths, setShowPaths] = useState(true); // draw the routes of moving layers and text
   // A song from Navidrome under the clip, and how loud the clip's own sound is (see MusicPanel).
-  const [music, setMusic] = useState(null);
+  const [music, setMusic] = useState(seed?.music ?? null);
   const [clipVolume, setClipVolume] = useState(1);
   const [overlayList, setOverlayList] = useState({ overlays: [], shapes: [] });
   const [top, setTop] = useState(seed ? seed.top : "");
@@ -558,6 +558,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
         caption: buildCaption(),
         subtitleOffsetMs: captionMode === "source" ? subtitleOffsetMs : 0,
         layers,
+        music,
       }),
       andNext
     );
@@ -577,6 +578,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
       caption: buildCaption(),
       subtitle_offset_ms: captionMode === "source" ? subtitleOffsetMs : 0,
       layers,
+      music,
     });
   }
 
@@ -590,7 +592,8 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   // Choosing a song needs a format that carries sound, as keeping the clip's audio does.
   function chooseMusic(m) {
     setMusic(m);
-    if (!AUDIO_FORMATS.includes(format)) setFormat("mp4");
+    // (a clip in a sequence has no format of its own: the sequence's follows the songs)
+    if (!sequenceEdit && !AUDIO_FORMATS.includes(format)) setFormat("mp4");
   }
 
   async function doExport() {
@@ -938,20 +941,19 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
               relMs={Math.max(0, Math.round(playhead - start))}
             />
 
-            {!sequenceEdit && (
-              <MusicPanel
-                music={music}
-                onChoose={chooseMusic}
-                onClear={() => setMusic(null)}
-                onChange={setMusic}
-                clipVolume={clipVolume}
-                setClipVolume={setClipVolume}
-                audio={audio}
-                clipMs={clipLength}
-                relMs={Math.max(0, Math.round(playhead - start))}
-                playing={playing}
-              />
-            )}
+            <MusicPanel
+              music={music}
+              onChoose={chooseMusic}
+              onClear={() => setMusic(null)}
+              onChange={setMusic}
+              clipVolume={clipVolume}
+              setClipVolume={setClipVolume}
+              audio={sequenceEdit ? !!sequenceEdit.output?.audio : audio}
+              clipMs={clipLength}
+              relMs={Math.max(0, Math.round(playhead - start))}
+              playing={playing}
+              showClipVolume={!sequenceEdit}
+            />
 
             {!sequenceEdit && (
               <ExportSettings

@@ -295,3 +295,137 @@ fn a_layered_export_without_the_clips_sound_still_maps_the_mix() {
         "{got:?}"
     );
 }
+
+fn placed(m: &Soundtrack, at_ms: i64, len_ms: i64) -> Placed<'_> {
+    Placed {
+        music: m,
+        at_ms,
+        len_ms,
+    }
+}
+
+#[test]
+fn several_songs_are_inputs_in_order_each_placed_and_cut_on_its_own() {
+    let (a, b) = (song(), song());
+    let mix = plan_mix(
+        &[placed(&a, 0, 10_000), placed(&b, 4_000, 3_000)],
+        1.0,
+        false,
+        10_000,
+        1,
+    )
+    .unwrap();
+    // two song inputs, each cut to how long it plays
+    assert_eq!(
+        mix.input_args.iter().filter(|x| *x == "-i").count(),
+        2,
+        "{:?}",
+        mix.input_args
+    );
+    assert!(mix
+        .input_args
+        .windows(2)
+        .any(|w| w[0] == "-t" && w[1] == "10.000"));
+    assert!(mix
+        .input_args
+        .windows(2)
+        .any(|w| w[0] == "-t" && w[1] == "3.000"));
+    // the first plays from the start (no delay), the second is delayed to its place
+    assert!(mix.graph.contains("[1:a:0]aresample=48000"));
+    assert!(mix.graph.contains("[2:a:0]aresample=48000"));
+    assert!(
+        mix.graph.contains("adelay=4000:all=1[mu1]"),
+        "{}",
+        mix.graph
+    );
+    assert!(!mix.graph.contains("adelay=0"));
+    assert!(mix
+        .graph
+        .contains("[mu0][mu1]amix=inputs=2:duration=longest:normalize=0,atrim=end=10.000"));
+}
+
+#[test]
+fn a_clip_song_fades_out_at_the_end_of_its_own_stretch() {
+    let mut m = song();
+    m.fade_out_ms = 500;
+    let mix = plan_mix(&[placed(&m, 6_000, 2_000)], 1.0, false, 10_000, 1).unwrap();
+    // 2 s of music: the fade starts 1.5 s in, in the song's own time, before the delay
+    assert!(
+        mix.graph
+            .contains("afade=t=out:st=1.500:d=0.500,adelay=6000:all=1"),
+        "{}",
+        mix.graph
+    );
+}
+
+#[test]
+fn each_ducked_song_listens_to_its_own_copy_of_the_sound_and_others_do_not() {
+    let (mut a, plain, mut c) = (song(), song(), song());
+    a.duck = 1.0;
+    c.duck = 0.5;
+    let songs = [
+        placed(&a, 0, 5000),
+        placed(&plain, 0, 5000),
+        placed(&c, 0, 5000),
+    ];
+    let mix = plan_mix(&songs, 1.0, true, 5000, 1).unwrap();
+    assert!(
+        mix.graph.contains("[ca0]asplit=3[ca][cs0][cs2]"),
+        "{}",
+        mix.graph
+    );
+    assert!(mix.graph.contains("[cs0]aresample=48000[sc0]"));
+    assert!(mix.graph.contains("[cs2]aresample=48000[sc2]"));
+    assert!(mix
+        .graph
+        .contains("[mu0p][sc0]sidechaincompress=threshold=0.02:ratio=20.0"));
+    assert!(mix
+        .graph
+        .contains("[mu2p][sc2]sidechaincompress=threshold=0.02:ratio=10.5"));
+    assert_eq!(
+        mix.graph.matches("sidechaincompress").count(),
+        2,
+        "the plain song is left alone"
+    );
+    assert!(mix.graph.contains("[ca][mu0][mu1][mu2]amix=inputs=4"));
+}
+
+#[test]
+fn songs_without_their_file_are_not_mixed() {
+    let mut gone = song();
+    gone.file = None;
+    assert_eq!(
+        plan_mix(&[placed(&gone, 0, 5000)], 1.0, true, 5000, 1),
+        None
+    );
+    assert_eq!(plan_mix(&[], 1.0, true, 5000, 1), None);
+}
+
+#[test]
+fn the_songs_of_a_sequences_clips_are_checked_naming_the_clip() {
+    let ok = song();
+    let mut late = song();
+    late.at_ms = 9000;
+    let clips = [(Some(&ok), 5000), (None, 5000), (Some(&late), 5000)];
+    assert_eq!(validate_clip_music(&clips[..2], Format::Mp4, false), None);
+    let why = validate_clip_music(&clips, Format::Mp4, false).unwrap();
+    assert!(
+        why.starts_with("clip #3: ") && why.contains("within the clip"),
+        "{why}"
+    );
+    // no sound in a GIF; ducking needs the clips' sound
+    assert!(validate_clip_music(&clips[..1], Format::Gif, false)
+        .unwrap()
+        .starts_with("clip #1: "));
+    let mut duck = song();
+    duck.duck = 0.5;
+    assert!(
+        validate_clip_music(&[(Some(&duck), 5000)], Format::Mp4, false)
+            .unwrap()
+            .contains("ducking")
+    );
+    assert_eq!(
+        validate_clip_music(&[(Some(&duck), 5000)], Format::Mp4, true),
+        None
+    );
+}

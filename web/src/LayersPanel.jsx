@@ -119,7 +119,7 @@ export function LayersPanel({ layers, setLayers, selectedId, setSelectedId, over
       {layers.length === 0 ? (
         <p className="hint tiny">
           Add an arrow, a ring or a sticker; drag it into place on the player. Layers are in the exported
-          clip only (not in a sequence or a saved frame).
+          clip or sequence (not in a saved frame).
         </p>
       ) : (
         <ul className="layer-list">

@@ -458,6 +458,12 @@ of that clip, and placed on the sequence's 16:9 canvas, which the clip's picture
 the clip's captions; a layer that can't be used (as there) or an uploaded picture that is gone is a `400` naming
 the clip.
 
+A clip may also carry its own song, `"music": {...}` as on `POST /api/export`, with its times from the start of
+that clip: it comes in at `at_ms` into the clip, is cut where the clip ends, and plays along with the sequence's
+own `music` and any other clip's. `duck` dips it under that clip's own sound (needs `audio: true`). A song that
+can't be used (a GIF or WebP, a time outside the clip, a duck without sound) is a `400` that begins `clip #N:`;
+the songs are fetched from Navidrome by the job.
+
 The same metadata rules apply, including to the intermediate files, so nothing from any
 clip's source survives into the result. With `credit_source`, the `title` lists each
 distinct source once, joined with ` / ` (cut short past 200 characters).
