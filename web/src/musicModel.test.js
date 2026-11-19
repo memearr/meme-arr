@@ -6,6 +6,7 @@ import {
   musicForRequest,
   musicSrc,
   newMusic,
+  coverSrc,
   percentText,
   previewState,
   songTimeText,
@@ -21,6 +22,7 @@ describe("choosing a song", () => {
       title: "Song",
       artist: "Band",
       duration_s: 200,
+      cover_art: "",
       start_ms: 0,
       at_ms: 0,
       volume: 1,
@@ -28,6 +30,13 @@ describe("choosing a song", () => {
       fade_out_ms: 0,
       duck: 0,
     });
+  });
+  it("keeps the song's cover picture id, for showing it", () => {
+    expect(newMusic({ ...track, cover_art: "al-9" }).cover_art).toBe("al-9");
+    expect(coverSrc("al-9", 64)).toMatch(/api\/music\/cover\/al-9\?size=64$/);
+    expect(coverSrc("a b")).toMatch(/cover\/a%20b\?size=96$/);
+    // and the export never sends it
+    expect(musicForRequest(newMusic({ ...track, cover_art: "al-9" }), CLIP)).not.toHaveProperty("cover_art");
   });
   it("copes with a song that has no title or length", () => {
     const m = newMusic({ id: "x" });

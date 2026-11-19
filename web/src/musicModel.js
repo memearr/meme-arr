@@ -16,6 +16,7 @@ export function newMusic(track) {
     title: track.title || "",
     artist: track.artist || "",
     duration_s: num(track.duration_s),
+    cover_art: track.cover_art || "",
     start_ms: 0,
     at_ms: 0,
     volume: 1,
@@ -84,6 +85,11 @@ export function startAtFraction(frac, songMs, playingMs) {
 /** The URL of a song's audio (fetched from Navidrome the first time). */
 export function musicSrc(id) {
   return withBase(`/api/music/${encodeURIComponent(id)}/file`);
+}
+
+/** The URL of a song's cover picture, about `size` pixels (from Navidrome, kept by the browser). */
+export function coverSrc(coverArt, size = 96) {
+  return withBase(`/api/music/cover/${encodeURIComponent(coverArt)}?size=${size}`);
 }
 
 /** "75%" for a volume of 0.75. */

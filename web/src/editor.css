@@ -744,6 +744,33 @@
 .music-results .link {
   text-align: left;
 }
+.song-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+.song-art {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  object-fit: cover;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+.song-row .song-art {
+  margin-right: 0;
+}
+.song-art.none {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--panel-2, rgba(128, 128, 128, 0.15));
+}
+.music-recent-head {
+  margin: 6px 0 0;
+}
 .waveform {
   display: block;
   width: 100%;

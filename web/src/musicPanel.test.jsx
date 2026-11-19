@@ -8,11 +8,12 @@ import { musicForRequest } from "./musicModel.js";
 
 const CLIP = 5000;
 const tracks = [
-  { id: "s1", title: "A Song", artist: "Band", album: "LP", duration_s: 200 },
+  { id: "s1", title: "A Song", artist: "Band", album: "LP", duration_s: 200, cover_art: "al-1" },
   { id: "s2", title: "Other", artist: "", album: "", duration_s: 0 },
 ];
 
 beforeEach(() => {
+  window.localStorage.clear();
   // jsdom has no media playback
   vi.spyOn(window.HTMLMediaElement.prototype, "play").mockImplementation(() => Promise.resolve());
   vi.spyOn(window.HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
@@ -170,6 +171,48 @@ describe("the Music box", () => {
     expect(await screen.findByText(/Couldn't draw the waveform/)).toBeTruthy();
     expect(screen.queryByRole("slider", { name: "Where in the song to start" })).toBeNull();
     expect(screen.getByLabelText(/Start the song at/)).toBeTruthy();
+  });
+
+  it("shows each song's cover, and the chosen song's", async () => {
+    vi.spyOn(api, "getNavidromeSettings").mockResolvedValue({ configured: true });
+    vi.spyOn(api, "musicSearch").mockResolvedValue({ tracks });
+    render(<Harness />);
+    fireEvent.change(await screen.findByLabelText("Search your music"), { target: { value: "x" } });
+    fireEvent.click(screen.getByText("Search"));
+    await screen.findByText("A Song");
+    const art = document.querySelectorAll(".music-results img.song-art");
+    expect(art).toHaveLength(1); // the second song has no cover
+    expect(art[0].getAttribute("src")).toMatch(/api\/music\/cover\/al-1\?size=64$/);
+    expect(document.querySelectorAll(".music-results .song-art.none")).toHaveLength(1);
+    fireEvent.click(screen.getByText("A Song"));
+    expect(document.querySelector(".music-title img.song-art").getAttribute("src")).toMatch(/cover\/al-1\?size=96$/);
+  });
+
+  it("offers the songs picked before, newest first, and picking one again brings it to the front", async () => {
+    vi.spyOn(api, "getNavidromeSettings").mockResolvedValue({ configured: true });
+    vi.spyOn(api, "musicSearch").mockResolvedValue({ tracks });
+    const first = render(<Harness />);
+    fireEvent.change(await screen.findByLabelText("Search your music"), { target: { value: "x" } });
+    fireEvent.click(screen.getByText("Search"));
+    fireEvent.click(await screen.findByText("A Song"));
+    first.unmount();
+    // a new visit: nothing searched yet, the pick is waiting
+    render(<Harness />);
+    const list = await screen.findByRole("list", { name: "Recent songs" });
+    expect(list.textContent).toContain("A Song");
+    expect(screen.getByText("Recent songs")).toBeTruthy();
+    fireEvent.click(screen.getByText("A Song"));
+    expect(screen.getByText("Remove")).toBeTruthy(); // chosen straight from the list
+  });
+
+  it("forgets the recent songs when asked", async () => {
+    window.localStorage.setItem("memearr.recentSongs", JSON.stringify([tracks[0]]));
+    vi.spyOn(api, "getNavidromeSettings").mockResolvedValue({ configured: true });
+    render(<Harness />);
+    await screen.findByRole("list", { name: "Recent songs" });
+    fireEvent.click(screen.getByText("Clear"));
+    expect(screen.queryByRole("list", { name: "Recent songs" })).toBeNull();
+    expect(window.localStorage.getItem("memearr.recentSongs")).toBe("[]");
   });
 
   it("says when nothing is found, and why a search failed", async () => {
