@@ -34,6 +34,8 @@ export function PlayerPanel({
   top,
   bottom,
   playhead,
+  gradeStyle,
+  fade = 0,
   srcFps,
   seekTo,
   start,
@@ -65,6 +67,7 @@ export function PlayerPanel({
                 key={proxy.src}
                 ref={videoRef}
                 src={proxy.src}
+                style={gradeStyle}
                 playsInline
                 onLoadedMetadata={measurePicture}
                 onLoadedData={proxyLoaded}
@@ -151,6 +154,7 @@ export function PlayerPanel({
                 onSelect={setSelectedLayer}
                 onMove={moveLayer}
               />
+              {fade > 0 && <div className="fade-veil" style={{ opacity: fade }} aria-hidden="true" />}
               {showPaths && <PathPreview paths={paths} relMs={relMs} pictureBox={pictureBox} onSeek={(ms) => seekTo(start + ms)} />}
               <span className="player-chip mono">
                 {fmtTime(playhead)}

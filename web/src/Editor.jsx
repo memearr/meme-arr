@@ -18,6 +18,8 @@ import { layerLabel, layersForRequest, moveLayerTo } from "./layersModel.js";
 import { MusicPanel } from "./MusicPanel.jsx";
 import { adjustMusic, clipVolumeForRequest, musicForRequest } from "./musicModel.js";
 import { MixTimeline } from "./MixTimeline.jsx";
+import { GradePanel } from "./GradePanel.jsx";
+import { PLAIN, fadeLevel, gradeForRequest, previewStyle } from "./gradeModel.js";
 import { curveForRequest, fitted, gainAt } from "./volumeCurve.js";
 import { JobResult } from "./JobResult.jsx";
 import { browserStorage, loadVolume, saveVolume, typingInto } from "./editorStorage.js";
@@ -76,6 +78,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   // A song from Navidrome under the clip, and how loud the clip's own sound is (see MusicPanel).
   const [music, setMusic] = useState(seed?.music ?? null);
   const [clipVolume, setClipVolume] = useState(1);
+  const [grade, setGrade] = useState(PLAIN); // the look of the picture: colour, mirror, fades
   const [clipCurve, setClipCurve] = useState([]); // the clip's own sound over the clip, as a volume line
   const [overlayList, setOverlayList] = useState({ overlays: [], shapes: [] });
   const [top, setTop] = useState(seed ? seed.top : "");
@@ -626,6 +629,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
         music: musicForRequest(music, clipLength, audio),
         clip_volume: clipVolumeForRequest(clipVolume, audio),
         clip_curve: audio ? curveForRequest(clipCurve, clipLength) : [],
+        grade: gradeForRequest(grade, clipLength),
       });
       pushJob(started);
       pollRef.current = setInterval(async () => {
@@ -816,6 +820,8 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
             top={top}
             bottom={bottom}
             playhead={playhead}
+            gradeStyle={sequenceEdit ? undefined : previewStyle(grade)}
+            fade={sequenceEdit ? 0 : fadeLevel(grade, Math.max(0, Math.round(playhead - start)), clipLength)}
             srcFps={srcFps}
             seekTo={seekTo}
             start={start}
@@ -980,6 +986,8 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
               playing={playing}
               showClipVolume={!sequenceEdit}
             />
+
+            {!sequenceEdit && <GradePanel grade={grade} onChange={setGrade} clipMs={clipLength} />}
 
             {!sequenceEdit && (
               <ExportSettings
