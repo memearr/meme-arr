@@ -33,6 +33,7 @@ mod fonts;
 mod frames;
 mod jobs;
 mod library;
+mod local_music;
 mod navidrome;
 mod overlays;
 mod plex_login;
@@ -50,6 +51,7 @@ use self::fonts::*;
 use self::frames::*;
 use self::jobs::*;
 use self::library::*;
+use self::local_music::*;
 use self::navidrome::*;
 use self::overlays::*;
 use self::plex_login::*;
@@ -153,6 +155,16 @@ pub fn router(state: AppState) -> Router {
             post(test_navidrome_settings),
         )
         .route("/api/music/search", get(music_search))
+        .route("/api/music/sources", get(music_sources))
+        .route(
+            "/api/music/uploads",
+            get(list_song_uploads)
+                .post(upload_song)
+                .layer(DefaultBodyLimit::max(
+                    crate::local_music::MAX_UPLOAD_BYTES + 4096,
+                )),
+        )
+        .route("/api/music/uploads/{id}", delete(delete_song_upload))
         .route("/api/music/cover/{id}", get(music_cover))
         .route("/api/music/{id}/file", get(music_file))
         .route("/api/music/{id}/peaks", get(music_peaks))

@@ -400,7 +400,7 @@ Request (`ExportRequest`):
   layer that cannot be used (bad number, unknown shape, starts outside the clip) or an upload that is gone.
   Layers apply to this single export and, per clip, to a sequence (see `POST /api/sequence/export`); not to a
   `/api/still`.
-- `music` (default none): a song from Navidrome (see `GET /api/music/search`) laid under the clip, MP4 and
+- `music` (default none): a song (see `GET /api/music/search`: from Navidrome, the library folder or an upload) laid under the clip, MP4 and
   WebM only: `{"id": "<song id>", "start_ms": 0, "at_ms": 0, "volume": 1, "fade_in_ms": 0, "fade_out_ms": 0, "duck": 0}`.
   `start_ms` is where in the song to start playing, `at_ms` when in the clip it comes in (from the clip's start),
   `volume` is 0 (silent) to 2 (twice as loud), and the fades are shorter than the time the song plays. The song
@@ -510,13 +510,36 @@ it: the answer is the same object plus `"check": {"ok": true, "version"}` or `{"
 token scheme (a fresh salt per request), so the password is never in a URL.
 
 ### `GET /api/music/search?q=&limit=`
-Songs in Navidrome matching `q` (`limit` 1-50, default 20): `{"tracks": [{"id","title","artist","album",
-"duration_s","cover_art"}]}` (`cover_art` is the id of the song's picture, empty if it has none); an empty `q`
-gives none. `409` when Navidrome isn't set up, `502` when it can't be reached or
-refuses the account.
+Songs matching `q` (every word of it, any case), from every source there is: songs uploaded to the app, the
+library folder (`MUSIC_LIBRARY_DIR`) and Navidrome (`limit` 1-50 each, default 20):
+`{"tracks": [{"id","title","artist","album","duration_s","cover_art","source"}], "warning": null}`. `source` is
+`upload`, `library` or `navidrome`; `cover_art` is the id of a Navidrome song's picture (empty otherwise);
+`duration_s` is 0 for an upload or a library song (its length isn't known until it is read; see `.../peaks`). An
+empty `q` gives none. A song's id says where it is from: `up-…` is an upload, `lib-…` a library file (a hash of
+its path in the library), anything else a Navidrome song. When Navidrome can't be reached but other songs
+match, those come back with a `warning` naming it; when it can't be reached and nothing else matches, `502`.
+
+### `GET /api/music/sources`
+Which sources of music there are: `{"navidrome": false, "library": true, "uploads": 3, "max_uploads": 200,
+"max_upload_bytes": 104857600}` (`navidrome` and `library` say whether they are set up; `uploads` is how many
+songs are uploaded).
+
+### `POST /api/music/uploads?name=<file name>`
+Keep a song uploaded to the app: the body is the file's bytes (up to 100 MB; 200 songs). MP3, FLAC, Ogg, WAV,
+M4A and WebM are taken (the file's contents are checked, not its name). The same file twice is one song.
+`201` with `{"track": {...}}` (its `id` is `up-…`; its title is the file's name without the extension);
+`400` for something that isn't audio or is empty, `413` when too big, `409` when 200 songs are already kept.
+Uploads are kept in `/data/music-uploads` and are never pruned.
+
+### `GET /api/music/uploads`
+The uploaded songs, newest first: `{"tracks": [...]}`.
+
+### `DELETE /api/music/uploads/:id`
+Remove an uploaded song. `204`, or `404` for an id that isn't one.
 
 ### `GET /api/music/:id/file`
-The song as a file, with `Range` support. The first request fetches the original file from Navidrome into
+The song as a file, with `Range` support. An upload or a library song is served from where it is kept (`404`
+when it is gone). For a Navidrome song the first request fetches the original file from Navidrome into
 `/data/music` (up to 200 MB; the cache is pruned oldest-first to about 1 GB); later ones are served from there.
 `404` for an id that is not letters, digits, `-` and `_`; `409` and `502` as above; `502` also when what
 Navidrome sent is not audio.

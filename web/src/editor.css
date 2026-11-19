@@ -744,6 +744,15 @@
 .music-results .link {
   text-align: left;
 }
+.song-item.removable {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.song-item.removable .song-row {
+  flex: 1;
+  min-width: 0;
+}
 .song-row {
   display: flex;
   align-items: center;

@@ -46,7 +46,8 @@ pub fn content_type(path: &Path) -> &'static str {
     match path.extension().and_then(|e| e.to_str()) {
         Some("mp3") => "audio/mpeg",
         Some("flac") => "audio/flac",
-        Some("ogg") => "audio/ogg",
+        Some("ogg") | Some("oga") | Some("opus") => "audio/ogg",
+        Some("aac") => "audio/aac",
         Some("wav") => "audio/wav",
         Some("m4a") => "audio/mp4",
         Some("webm") => "audio/webm",

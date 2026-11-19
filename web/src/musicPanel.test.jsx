@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "./api.js";
@@ -48,14 +48,14 @@ function Harness({ audio = false, playing = false, relMs = 0, onSeen, preview = 
 
 describe("the Music box", () => {
   it("points to Settings when Navidrome is not set up, and offers no search", async () => {
-    vi.spyOn(api, "getNavidromeSettings").mockResolvedValue({ configured: false });
+    vi.spyOn(api, "musicSources").mockResolvedValue({ navidrome: false, library: false, uploads: 0 });
     render(<Harness />);
     await waitFor(() => expect(screen.getByText(/Connect Navidrome/)).toBeTruthy());
     expect(screen.queryByLabelText("Search your music")).toBeNull();
   });
 
   it("searches, lists songs, and a chosen song gets its controls", async () => {
-    vi.spyOn(api, "getNavidromeSettings").mockResolvedValue({ configured: true });
+    vi.spyOn(api, "musicSources").mockResolvedValue({ navidrome: true, library: false, uploads: 0 });
     const search = vi.spyOn(api, "musicSearch").mockResolvedValue({ tracks });
     let seen;
     render(<Harness onSeen={(s) => (seen = s)} />);
@@ -80,7 +80,7 @@ describe("the Music box", () => {
   });
 
   it("changes the volume, and what it sends is what was set", async () => {
-    vi.spyOn(api, "getNavidromeSettings").mockResolvedValue({ configured: true });
+    vi.spyOn(api, "musicSources").mockResolvedValue({ navidrome: true, library: false, uploads: 0 });
     vi.spyOn(api, "musicSearch").mockResolvedValue({ tracks });
     let seen;
     render(<Harness onSeen={(s) => (seen = s)} />);
@@ -103,7 +103,7 @@ describe("the Music box", () => {
   });
 
   it("ducks the song under the clip's sound only when that sound is kept", async () => {
-    vi.spyOn(api, "getNavidromeSettings").mockResolvedValue({ configured: true });
+    vi.spyOn(api, "musicSources").mockResolvedValue({ navidrome: true, library: false, uploads: 0 });
     vi.spyOn(api, "musicSearch").mockResolvedValue({ tracks });
     let seen;
     const { rerender } = render(<Harness audio={false} onSeen={(s) => (seen = s)} />);
@@ -120,7 +120,7 @@ describe("the Music box", () => {
   });
 
   it("calls it the clips' sound in a sequence", async () => {
-    vi.spyOn(api, "getNavidromeSettings").mockResolvedValue({ configured: true });
+    vi.spyOn(api, "musicSources").mockResolvedValue({ navidrome: true, library: false, uploads: 0 });
     vi.spyOn(api, "musicSearch").mockResolvedValue({ tracks });
     render(<Harness what="sequence" preview={false} />);
     fireEvent.change(await screen.findByLabelText("Search your music"), { target: { value: "x" } });
@@ -130,7 +130,7 @@ describe("the Music box", () => {
   });
 
   it("removes the song and goes back to searching", async () => {
-    vi.spyOn(api, "getNavidromeSettings").mockResolvedValue({ configured: true });
+    vi.spyOn(api, "musicSources").mockResolvedValue({ navidrome: true, library: false, uploads: 0 });
     vi.spyOn(api, "musicSearch").mockResolvedValue({ tracks });
     render(<Harness />);
     fireEvent.change(await screen.findByLabelText("Search your music"), { target: { value: "x" } });
@@ -142,7 +142,7 @@ describe("the Music box", () => {
   });
 
   it("draws the song's waveform and a pick on it sets where the song starts", async () => {
-    vi.spyOn(api, "getNavidromeSettings").mockResolvedValue({ configured: true });
+    vi.spyOn(api, "musicSources").mockResolvedValue({ navidrome: true, library: false, uploads: 0 });
     vi.spyOn(api, "musicSearch").mockResolvedValue({ tracks });
     const peaks = vi.spyOn(api, "musicPeaks").mockResolvedValue({
       duration_ms: 200_000,
@@ -161,7 +161,7 @@ describe("the Music box", () => {
   });
 
   it("falls back to the slider when the waveform can't be made", async () => {
-    vi.spyOn(api, "getNavidromeSettings").mockResolvedValue({ configured: true });
+    vi.spyOn(api, "musicSources").mockResolvedValue({ navidrome: true, library: false, uploads: 0 });
     vi.spyOn(api, "musicSearch").mockResolvedValue({ tracks });
     vi.spyOn(api, "musicPeaks").mockRejectedValue(new Error("couldn't read that song"));
     render(<Harness />);
@@ -174,7 +174,7 @@ describe("the Music box", () => {
   });
 
   it("shows each song's cover, and the chosen song's", async () => {
-    vi.spyOn(api, "getNavidromeSettings").mockResolvedValue({ configured: true });
+    vi.spyOn(api, "musicSources").mockResolvedValue({ navidrome: true, library: false, uploads: 0 });
     vi.spyOn(api, "musicSearch").mockResolvedValue({ tracks });
     render(<Harness />);
     fireEvent.change(await screen.findByLabelText("Search your music"), { target: { value: "x" } });
@@ -189,7 +189,7 @@ describe("the Music box", () => {
   });
 
   it("offers the songs picked before, newest first, and picking one again brings it to the front", async () => {
-    vi.spyOn(api, "getNavidromeSettings").mockResolvedValue({ configured: true });
+    vi.spyOn(api, "musicSources").mockResolvedValue({ navidrome: true, library: false, uploads: 0 });
     vi.spyOn(api, "musicSearch").mockResolvedValue({ tracks });
     const first = render(<Harness />);
     fireEvent.change(await screen.findByLabelText("Search your music"), { target: { value: "x" } });
@@ -207,7 +207,7 @@ describe("the Music box", () => {
 
   it("forgets the recent songs when asked", async () => {
     window.localStorage.setItem("memearr.recentSongs", JSON.stringify([tracks[0]]));
-    vi.spyOn(api, "getNavidromeSettings").mockResolvedValue({ configured: true });
+    vi.spyOn(api, "musicSources").mockResolvedValue({ navidrome: true, library: false, uploads: 0 });
     render(<Harness />);
     await screen.findByRole("list", { name: "Recent songs" });
     fireEvent.click(screen.getByText("Clear"));
@@ -215,8 +215,96 @@ describe("the Music box", () => {
     expect(window.localStorage.getItem("memearr.recentSongs")).toBe("[]");
   });
 
+  it("offers an upload even with no Navidrome, but no search until there is something to search", async () => {
+    vi.spyOn(api, "musicSources").mockResolvedValue({ navidrome: false, library: false, uploads: 0 });
+    render(<Harness />);
+    expect(await screen.findByText("Upload a song…")).toBeTruthy();
+    expect(screen.getByText(/Connect Navidrome/)).toBeTruthy();
+    expect(screen.queryByLabelText("Search your music")).toBeNull();
+  });
+
+  it("searches when there is only a library folder, with no hint to connect Navidrome", async () => {
+    vi.spyOn(api, "musicSources").mockResolvedValue({ navidrome: false, library: true, uploads: 0 });
+    render(<Harness />);
+    expect(await screen.findByLabelText("Search your music")).toBeTruthy();
+    expect(screen.queryByText(/Connect Navidrome/)).toBeNull();
+  });
+
+  it("uploads a song, chooses it, and lists it among the uploads next time", async () => {
+    const sources = vi
+      .spyOn(api, "musicSources")
+      .mockResolvedValueOnce({ navidrome: false, library: false, uploads: 0 })
+      .mockResolvedValue({ navidrome: false, library: false, uploads: 1 });
+    const track = { id: "up-123", title: "Dance Break", artist: "", album: "", duration_s: 0, cover_art: "", source: "upload" };
+    const up = vi.spyOn(api, "uploadSong").mockResolvedValue({ track });
+    vi.spyOn(api, "songUploads").mockResolvedValue({ tracks: [track] });
+    let seen;
+    render(<Harness onSeen={(s) => (seen = s)} />);
+    const input = (await screen.findByText("Upload a song…")).querySelector("input");
+    const file = new File(["fLaC"], "Dance Break.flac", { type: "audio/flac" });
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [file] } });
+    });
+    expect(up).toHaveBeenCalledWith(file);
+    await waitFor(() => expect(seen.music?.id).toBe("up-123")); // chosen straight away
+    expect(sources).toHaveBeenCalledTimes(2);
+    // removing it goes back to the picker, with the upload listed
+    fireEvent.click(screen.getByText("Remove"));
+    const list = await screen.findByRole("list", { name: "Your uploads" });
+    expect(list.textContent).toContain("Dance Break");
+    expect(list.textContent).toContain("uploaded");
+  });
+
+  it("says why an upload was refused and chooses nothing", async () => {
+    vi.spyOn(api, "musicSources").mockResolvedValue({ navidrome: false, library: false, uploads: 0 });
+    vi.spyOn(api, "uploadSong").mockRejectedValue(new Error("that isn't an audio file this app can use"));
+    let seen;
+    render(<Harness onSeen={(s) => (seen = s)} />);
+    const input = (await screen.findByText("Upload a song…")).querySelector("input");
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [new File(["<html>"], "x.mp3")] } });
+    });
+    expect((await screen.findByRole("alert")).textContent).toContain("isn't an audio file");
+    expect(seen.music).toBeNull();
+  });
+
+  it("removes an upload from the list and from the recent songs", async () => {
+    const track = { id: "up-9", title: "Old Take", artist: "", album: "", duration_s: 0, cover_art: "", source: "upload" };
+    window.localStorage.setItem("memearr.recentSongs", JSON.stringify([track]));
+    const sources = vi
+      .spyOn(api, "musicSources")
+      .mockResolvedValueOnce({ navidrome: false, library: false, uploads: 1 })
+      .mockResolvedValue({ navidrome: false, library: false, uploads: 0 });
+    vi.spyOn(api, "songUploads").mockResolvedValue({ tracks: [track] });
+    const del = vi.spyOn(api, "deleteSongUpload").mockResolvedValue();
+    render(<Harness />);
+    const list = await screen.findByRole("list", { name: "Your uploads" });
+    expect(screen.getByRole("list", { name: "Recent songs" }).textContent).toContain("Old Take");
+    await act(async () => {
+      fireEvent.click(list.querySelector('button[aria-label="Remove Old Take"]'));
+    });
+    expect(del).toHaveBeenCalledWith("up-9");
+    expect(sources).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(screen.queryByRole("list", { name: "Your uploads" })).toBeNull());
+    expect(screen.queryByRole("list", { name: "Recent songs" })).toBeNull(); // forgotten there too
+    expect(window.localStorage.getItem("memearr.recentSongs")).toBe("[]");
+  });
+
+  it("marks library songs, and shows the warning when one source couldn't be searched", async () => {
+    vi.spyOn(api, "musicSources").mockResolvedValue({ navidrome: true, library: true, uploads: 0 });
+    vi.spyOn(api, "musicSearch").mockResolvedValue({
+      tracks: [{ id: "lib-1", title: "Folder Song", artist: "Band", album: "LP", duration_s: 0, cover_art: "", source: "library" }],
+      warning: "Navidrome: couldn't reach Navidrome at http://nd",
+    });
+    render(<Harness />);
+    fireEvent.change(await screen.findByLabelText("Search your music"), { target: { value: "folder" } });
+    fireEvent.click(screen.getByText("Search"));
+    expect(await screen.findByText(/couldn't reach Navidrome/)).toBeTruthy();
+    expect(document.querySelector(".music-results").textContent).toContain("Folder Song · Band · library");
+  });
+
   it("says when nothing is found, and why a search failed", async () => {
-    vi.spyOn(api, "getNavidromeSettings").mockResolvedValue({ configured: true });
+    vi.spyOn(api, "musicSources").mockResolvedValue({ navidrome: true, library: false, uploads: 0 });
     const search = vi.spyOn(api, "musicSearch").mockResolvedValueOnce({ tracks: [] }).mockRejectedValueOnce(new Error("Wrong username or password"));
     render(<Harness />);
     fireEvent.change(await screen.findByLabelText("Search your music"), { target: { value: "x" } });
@@ -228,7 +316,7 @@ describe("the Music box", () => {
   });
 
   it("the clip's volume only moves when its sound is kept", async () => {
-    vi.spyOn(api, "getNavidromeSettings").mockResolvedValue({ configured: true });
+    vi.spyOn(api, "musicSources").mockResolvedValue({ navidrome: true, library: false, uploads: 0 });
     const { rerender } = render(<Harness audio={false} />);
     const slider = await screen.findByLabelText(/Clip sound volume/);
     expect(slider.disabled).toBe(true);
@@ -240,7 +328,7 @@ describe("the Music box", () => {
 
 describe("hearing it in the player", () => {
   async function withSong(props) {
-    vi.spyOn(api, "getNavidromeSettings").mockResolvedValue({ configured: true });
+    vi.spyOn(api, "musicSources").mockResolvedValue({ navidrome: true, library: false, uploads: 0 });
     vi.spyOn(api, "musicSearch").mockResolvedValue({ tracks });
     const view = render(<Harness {...props} />);
     fireEvent.change(await screen.findByLabelText("Search your music"), { target: { value: "x" } });
@@ -271,7 +359,7 @@ describe("hearing it in the player", () => {
 
 describe("the Music box on a sequence", () => {
   it("talks about the sequence and its clips, and does not play the song", async () => {
-    vi.spyOn(api, "getNavidromeSettings").mockResolvedValue({ configured: true });
+    vi.spyOn(api, "musicSources").mockResolvedValue({ navidrome: true, library: false, uploads: 0 });
     vi.spyOn(api, "musicSearch").mockResolvedValue({ tracks });
     render(<Harness preview={false} what="sequence" />);
     fireEvent.change(await screen.findByLabelText("Search your music"), { target: { value: "x" } });

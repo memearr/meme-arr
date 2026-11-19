@@ -13,7 +13,7 @@ import { secondsText } from "./layersModel.js";
 import { SongPreview } from "./SongPreview.jsx";
 import { Waveform } from "./Waveform.jsx";
 import { browserStorage } from "./editorStorage.js";
-import { clearRecent, loadRecent, rememberSong } from "./recentSongs.js";
+import { clearRecent, forgetSong, loadRecent, rememberSong } from "./recentSongs.js";
 
 /** One slider with its value shown. */
 function Slider({ label, value, min, max, step, text, onChange, disabled }) {
@@ -34,9 +34,11 @@ function Slider({ label, value, min, max, step, text, onChange, disabled }) {
 }
 
 /** One song in a list: its cover, title, artist and length; a click picks it. */
-function SongRow({ track, onPick }) {
+const SOURCE_LABEL = { upload: " · uploaded", library: " · library" };
+
+function SongRow({ track, onPick, onRemove }) {
   return (
-    <li>
+    <li className={onRemove ? "song-item removable" : undefined}>
       <button type="button" className="link song-row" onClick={() => onPick(track)}>
         {track.cover_art ? (
           <img className="song-art" src={coverSrc(track.cover_art, 64)} alt="" width="32" height="32" loading="lazy" />
@@ -49,20 +51,29 @@ function SongRow({ track, onPick }) {
           <b>{track.title || "Untitled"}</b>
           {track.artist ? ` · ${track.artist}` : ""}
           {track.duration_s ? ` · ${durationText(track.duration_s)}` : ""}
+          {SOURCE_LABEL[track.source] || ""}
         </span>
       </button>
+      {onRemove && (
+        <button type="button" className="link" aria-label={`Remove ${track.title || "this song"}`} onClick={() => onRemove(track)}>
+          remove
+        </button>
+      )}
     </li>
   );
 }
 
 /**
- * The Music box: a song from Navidrome under the clip, with the volume of the song and of the
+ * The Music box: a song under the clip (from Navidrome, a folder of music on the server, or uploaded), with the volume of the song and of the
  * clip's own sound, where in the song to start, when it comes in, and its fades. The song plays
  * in the page alongside the player (up to full volume; the export can go louder).
  * `relMs` is the playhead in clip time and `clipMs` the clip's length.
  */
 export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, setClipVolume, audio, clipMs, relMs, playing, preview = true, what = "clip", showClipVolume = true }) {
-  const [configured, setConfigured] = useState(null); // null: not known yet
+  const [sources, setSources] = useState(null); // {navidrome, library, uploads} once known
+  const [uploads, setUploads] = useState([]); // the songs uploaded to the app
+  const [uploading, setUploading] = useState(false);
+  const [warning, setWarning] = useState(null); // a source that couldn't be searched
   const [query, setQuery] = useState("");
   const [results, setResults] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -72,16 +83,38 @@ export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, set
   const [wave, setWave] = useState(null); // {duration_ms, peaks} of the chosen song
   const [waveError, setWaveError] = useState(null);
 
+  const refreshSources = () =>
+    api
+      .musicSources()
+      .then(setSources)
+      .catch(() => setSources((s) => s || { navidrome: false, library: false, uploads: 0 }));
   useEffect(() => {
     let live = true;
     api
-      .getNavidromeSettings()
-      .then((s) => live && setConfigured(!!s.configured))
-      .catch(() => live && setConfigured(false));
+      .musicSources()
+      .then((s) => live && setSources(s))
+      .catch(() => live && setSources({ navidrome: false, library: false, uploads: 0 }));
     return () => {
       live = false;
     };
   }, []);
+
+  // The uploaded songs, listed before a search so they are easy to find again.
+  const uploadCount = sources?.uploads || 0;
+  useEffect(() => {
+    if (!uploadCount) {
+      setUploads([]);
+      return undefined;
+    }
+    let live = true;
+    api
+      .songUploads()
+      .then((r) => live && setUploads(r.tracks || []))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [uploadCount]);
 
   // The chosen song's waveform, for picking where it starts.
   const musicId = music?.id;
@@ -105,6 +138,33 @@ export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, set
     onChoose(newMusic(track));
   }
 
+  async function upload(file) {
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const r = await api.uploadSong(file);
+      await refreshSources();
+      pick(r.track);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function removeUpload(track) {
+    setError(null);
+    try {
+      await api.deleteSongUpload(track.id);
+      setRecent((list) => forgetSong(browserStorage(), list, track.id));
+      setResults((r) => (r ? r.filter((t) => t.id !== track.id) : r));
+      await refreshSources();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   async function search(e) {
     e?.preventDefault();
     const q = query.trim();
@@ -114,6 +174,7 @@ export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, set
     try {
       const r = await api.musicSearch(q);
       setResults(r.tracks || []);
+      setWarning(r.warning || null);
     } catch (err) {
       setResults(null);
       setError(err.message);
@@ -130,31 +191,49 @@ export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, set
     <fieldset className="layers-panel music-panel">
       <legend>Music</legend>
 
-      {configured === false && (
+      {sources && !sources.navidrome && !sources.library && (
         <p className="hint tiny">
-          Connect Navidrome under <b>Settings</b> to put one of your songs under the {what}.
+          Connect Navidrome under <b>Settings</b> to search your music for a song to put under the {what}, or
+          upload a song here.
         </p>
       )}
 
-      {configured && !music && (
+      {sources && !music && (
         <>
-          <form className="layer-add" onSubmit={search}>
-            <input
-              type="search"
-              aria-label="Search your music"
-              placeholder="Search your music"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            <button type="submit" className="small secondary" disabled={busy || !query.trim()}>
-              {busy ? "Searching…" : "Search"}
-            </button>
-          </form>
+          {(sources.navidrome || sources.library || uploadCount > 0) && (
+            <form className="layer-add" onSubmit={search}>
+              <input
+                type="search"
+                aria-label="Search your music"
+                placeholder="Search your music"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+              <button type="submit" className="small secondary" disabled={busy || !query.trim()}>
+                {busy ? "Searching…" : "Search"}
+              </button>
+            </form>
+          )}
+          <div className="layer-add">
+            <label className="file-btn">
+              {uploading ? "Uploading…" : "Upload a song…"}
+              <input
+                type="file"
+                accept="audio/*,.mp3,.flac,.ogg,.opus,.m4a,.wav,.webm"
+                disabled={uploading}
+                onChange={(e) => {
+                  upload(e.target.files?.[0]);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+          </div>
           {error && (
             <p className="error" role="alert">
               {error}
             </p>
           )}
+          {warning && <p className="hint tiny">{warning}</p>}
           {results && results.length === 0 && <p className="hint tiny">No songs found.</p>}
           {results && results.length > 0 && (
             <ul className="music-results">
@@ -174,6 +253,16 @@ export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, set
               <ul className="music-results" aria-label="Recent songs">
                 {recent.map((t) => (
                   <SongRow key={t.id} track={t} onPick={pick} />
+                ))}
+              </ul>
+            </>
+          )}
+          {!results && uploads.length > 0 && (
+            <>
+              <p className="hint tiny music-recent-head">Your uploads</p>
+              <ul className="music-results" aria-label="Your uploads">
+                {uploads.map((t) => (
+                  <SongRow key={t.id} track={t} onPick={pick} onRemove={removeUpload} />
                 ))}
               </ul>
             </>

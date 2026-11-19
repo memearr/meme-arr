@@ -74,6 +74,9 @@ pub struct Config {
     /// `config.xml` and restarting to force new credentials, just via an
     /// env var instead of a file edit.
     pub reset_admin_password: Option<String>,
+    /// A folder of music on disk the editor can search and use under a clip (env
+    /// `MUSIC_LIBRARY_DIR`), read in place and never changed.
+    pub music_library_dir: Option<PathBuf>,
 }
 
 fn env_or(key: &str, default: &str) -> String {
@@ -188,6 +191,10 @@ impl Config {
             reset_admin_password: std::env::var("RESET_ADMIN_PASSWORD")
                 .ok()
                 .filter(|p| !p.is_empty()),
+            music_library_dir: std::env::var("MUSIC_LIBRARY_DIR")
+                .ok()
+                .filter(|p| !p.trim().is_empty())
+                .map(PathBuf::from),
         })
     }
 
@@ -222,6 +229,22 @@ impl Config {
     }
 
     /// Songs fetched from Navidrome.
+    pub fn music_uploads_dir(&self) -> PathBuf {
+        self.data_dir.join("music-uploads")
+    }
+
+    /// The songs uploaded to the app.
+    pub fn uploads(&self) -> crate::local_music::Uploads {
+        crate::local_music::Uploads::new(self.music_uploads_dir())
+    }
+
+    /// The folder of music on disk, when there is one.
+    pub fn library(&self) -> Option<crate::local_music::Library> {
+        self.music_library_dir
+            .clone()
+            .map(crate::local_music::Library::new)
+    }
+
     pub fn music_dir(&self) -> PathBuf {
         self.data_dir.join("music")
     }

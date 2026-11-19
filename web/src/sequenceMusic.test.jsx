@@ -33,7 +33,7 @@ const clip = (id, start, end, extra = {}) => ({
 beforeEach(() => {
   window.localStorage.clear();
   vi.spyOn(api, "fetchBlobUrl").mockResolvedValue("blob:section");
-  vi.spyOn(api, "getNavidromeSettings").mockResolvedValue({ configured: true });
+  vi.spyOn(api, "musicSources").mockResolvedValue({ navidrome: true, library: false, jellyfin: false, uploads: 0 });
   vi.spyOn(window.HTMLMediaElement.prototype, "play").mockImplementation(() => Promise.resolve());
   vi.spyOn(window.HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
   URL.revokeObjectURL = vi.fn();
