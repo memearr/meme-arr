@@ -928,3 +928,29 @@
     margin-left: 72px;
   }
 }
+
+/* The Picture box and the player's fade */
+.grade-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.grade-presets .chip {
+  padding: 2px 10px;
+  border: 1px solid var(--border, rgba(128, 128, 128, 0.4));
+  border-radius: 999px;
+  background: var(--panel-2, transparent);
+  color: inherit;
+  cursor: pointer;
+}
+.grade-presets .chip:hover {
+  border-color: var(--accent, #7aa2ff);
+}
+.fade-veil {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  pointer-events: none;
+}
