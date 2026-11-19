@@ -69,11 +69,29 @@ async fn fake_navidrome(password: &str) -> String {
                 }
                 let hit = q.get("query").is_some_and(|s| s.contains("song"));
                 let songs = if hit {
-                    json!([{"id": "s1", "title": "A Song", "artist": "Band", "album": "LP", "duration": 200}])
+                    json!([{"id": "s1", "title": "A Song", "artist": "Band", "album": "LP", "duration": 200, "coverArt": "al-1"}])
                 } else {
                     json!([])
                 };
                 Json(json!({"subsonic-response": {"status": "ok", "searchResult3": {"song": songs}}}))
+            }),
+        )
+        .route(
+            "/rest/getCoverArt",
+            get(|State(pw): State<String>, Query(q): Q| async move {
+                if !allowed(&q, &pw) {
+                    return failed(40, "Wrong username or password").into_response();
+                }
+                match q.get("id").map(String::as_str) {
+                    Some("al-1") => (
+                        [(header::CONTENT_TYPE, "image/png")],
+                        format!("PNG-{}", q.get("size").cloned().unwrap_or_default()),
+                    )
+                        .into_response(),
+                    Some("odd") => ([(header::CONTENT_TYPE, "text/html")], "<html>login</html>")
+                        .into_response(),
+                    _ => failed(70, "Cover art not found").into_response(),
+                }
             }),
         )
         .route(
@@ -310,4 +328,80 @@ async fn peaks_of_a_file_that_is_not_audio_are_refused_not_a_crash() {
         .as_str()
         .unwrap()
         .contains("couldn't read"));
+}
+
+async fn cover_of(st: &AppState, id: &str, size: Option<u32>) -> Response {
+    music_cover(
+        State(st.clone()),
+        Path(id.into()),
+        Query(CoverQuery { size }),
+    )
+    .await
+    .ok()
+    .unwrap()
+}
+
+#[tokio::test]
+async fn search_results_carry_their_cover_and_it_is_served_scaled_and_cacheable() {
+    let (_d, st) = state();
+    let pw = secret();
+    let url = fake_navidrome(&pw).await;
+    save(&st, &url, "me", &pw).await;
+    let (_, b) = body(
+        music_search(
+            State(st.clone()),
+            Query(MusicSearch {
+                q: "song".into(),
+                limit: None,
+            }),
+        )
+        .await
+        .ok()
+        .unwrap(),
+    )
+    .await;
+    assert_eq!(json_of(&b)["tracks"][0]["cover_art"], "al-1");
+
+    let resp = cover_of(&st, "al-1", None).await;
+    assert_eq!(resp.headers()[header::CONTENT_TYPE], "image/png");
+    assert!(resp.headers()[header::CACHE_CONTROL]
+        .to_str()
+        .unwrap()
+        .contains("max-age"));
+    let (status, b) = body(resp).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(b, b"PNG-96", "the default size is asked for");
+    // a silly size is kept to what makes sense
+    assert_eq!(
+        body(cover_of(&st, "al-1", Some(5)).await).await.1,
+        b"PNG-32"
+    );
+    assert_eq!(
+        body(cover_of(&st, "al-1", Some(9000)).await).await.1,
+        b"PNG-512"
+    );
+}
+
+#[tokio::test]
+async fn a_cover_that_is_not_a_picture_or_not_there_is_refused() {
+    let (_d, st) = state();
+    assert_eq!(
+        cover_of(&st, "al-1", None).await.status(),
+        StatusCode::CONFLICT
+    );
+    let pw = secret();
+    let url = fake_navidrome(&pw).await;
+    save(&st, &url, "me", &pw).await;
+    assert_eq!(
+        cover_of(&st, "../x", None).await.status(),
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        cover_of(&st, "odd", None).await.status(),
+        StatusCode::BAD_GATEWAY
+    );
+    assert_eq!(
+        cover_of(&st, "nope", None).await.status(),
+        StatusCode::BAD_GATEWAY
+    );
 }

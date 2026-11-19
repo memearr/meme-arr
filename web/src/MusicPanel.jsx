@@ -3,6 +3,7 @@ import { api } from "./api.js";
 import {
   MAX_VOLUME,
   adjustMusic,
+  coverSrc,
   durationText,
   newMusic,
   percentText,
@@ -11,6 +12,8 @@ import {
 import { secondsText } from "./layersModel.js";
 import { SongPreview } from "./SongPreview.jsx";
 import { Waveform } from "./Waveform.jsx";
+import { browserStorage } from "./editorStorage.js";
+import { clearRecent, loadRecent, rememberSong } from "./recentSongs.js";
 
 /** One slider with its value shown. */
 function Slider({ label, value, min, max, step, text, onChange, disabled }) {
@@ -30,6 +33,28 @@ function Slider({ label, value, min, max, step, text, onChange, disabled }) {
   );
 }
 
+/** One song in a list: its cover, title, artist and length; a click picks it. */
+function SongRow({ track, onPick }) {
+  return (
+    <li>
+      <button type="button" className="link song-row" onClick={() => onPick(track)}>
+        {track.cover_art ? (
+          <img className="song-art" src={coverSrc(track.cover_art, 64)} alt="" width="32" height="32" loading="lazy" />
+        ) : (
+          <span className="song-art none" aria-hidden="true">
+            ♪
+          </span>
+        )}
+        <span>
+          <b>{track.title || "Untitled"}</b>
+          {track.artist ? ` · ${track.artist}` : ""}
+          {track.duration_s ? ` · ${durationText(track.duration_s)}` : ""}
+        </span>
+      </button>
+    </li>
+  );
+}
+
 /**
  * The Music box: a song from Navidrome under the clip, with the volume of the song and of the
  * clip's own sound, where in the song to start, when it comes in, and its fades. The song plays
@@ -43,6 +68,7 @@ export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, set
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [hear, setHear] = useState(true);
+  const [recent, setRecent] = useState(() => loadRecent(browserStorage())); // songs picked lately
   const [wave, setWave] = useState(null); // {duration_ms, peaks} of the chosen song
   const [waveError, setWaveError] = useState(null);
 
@@ -72,6 +98,12 @@ export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, set
       live = false;
     };
   }, [musicId]);
+
+  // Picking a song also puts it first among the recent ones.
+  function pick(track) {
+    setRecent((list) => rememberSong(browserStorage(), list, track));
+    onChoose(newMusic(track));
+  }
 
   async function search(e) {
     e?.preventDefault();
@@ -127,15 +159,24 @@ export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, set
           {results && results.length > 0 && (
             <ul className="music-results">
               {results.map((t) => (
-                <li key={t.id}>
-                  <button type="button" className="link" onClick={() => onChoose(newMusic(t))}>
-                    <b>{t.title || "Untitled"}</b>
-                    {t.artist ? ` · ${t.artist}` : ""}
-                    {t.duration_s ? ` · ${durationText(t.duration_s)}` : ""}
-                  </button>
-                </li>
+                <SongRow key={t.id} track={t} onPick={pick} />
               ))}
             </ul>
+          )}
+          {!results && recent.length > 0 && (
+            <>
+              <p className="hint tiny music-recent-head">
+                Recent songs{" "}
+                <button type="button" className="link" onClick={() => setRecent(clearRecent(browserStorage()))}>
+                  Clear
+                </button>
+              </p>
+              <ul className="music-results" aria-label="Recent songs">
+                {recent.map((t) => (
+                  <SongRow key={t.id} track={t} onPick={pick} />
+                ))}
+              </ul>
+            </>
           )}
         </>
       )}
@@ -143,7 +184,8 @@ export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, set
       {music && (
         <div className="layer-controls">
           <p className="music-title">
-            ♪ <b>{music.title || "Untitled"}</b>
+            {music.cover_art ? <img className="song-art" src={coverSrc(music.cover_art, 96)} alt="" width="32" height="32" /> : "♪ "}
+            <b>{music.title || "Untitled"}</b>
             {music.artist ? ` · ${music.artist}` : ""}
             {music.duration_s ? ` · ${durationText(music.duration_s)}` : ""}{" "}
             <button type="button" className="link" onClick={onClear}>

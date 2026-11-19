@@ -146,7 +146,8 @@ and WebM only; GIF and WebP can't carry audio). Finished files also land in your
   to place it; **Size**, **Turn**, **Opacity** and **Colour** change how it looks. Captions are drawn over
   the layers. Layers are in the exported clip or sequence, not in a saved frame.
 - **Music.** With Navidrome connected (Settings), the **Music** box puts one of your songs under the
-  clip: search for it, pick it, and the player plays it with the clip. **Music volume** and **Clip sound
+  clip: search for it (each song shows its album cover), pick it, and the player plays it with the clip. Before
+  you search, the box lists the songs you picked lately (kept in this browser, **Clear** forgets them). **Music volume** and **Clip sound
   volume** are separate faders, from silent to 200% (the player plays at most 100%; the export goes up
   to 200% and is kept from clipping). **Start the song at** picks where in the song to begin: click or drag on the waveform to put the stretch that
   plays (highlighted) where the song is at its best, use the arrow keys to nudge it, or use the slider, **Comes in at**
@@ -163,6 +164,11 @@ and WebM only; GIF and WebP can't carry audio). Finished files also land in your
   **remove** it, or **Keyframe at the playhead** to add one without moving it. Keep the keyframes
   close together on a fast-moving subject (a keyframe every half second or so) to make text follow it.
   **Save this frame** puts the text where its path has it at the frame you save.
+  **Show motion paths** (under the player, whenever something is moving) draws each route over the
+  picture: a solid line for the way already gone, a dashed one for the way still to go, and a dot at
+  every keyframe (a ring at the first, a filled square at the last). The selected layer's route is the
+  bold one; click a dot to put the playhead there. Use it to check a route, or the result of
+  **Follow it automatically**, before exporting.
 - **Follow it automatically.** Under **Move over time**, put the layer or text on the thing that moves
   (move the playhead to where it is, and drag the layer or text onto it), choose a **Spot size** (small
   for a face or a hand, large for a whole person) and press **Follow it automatically**. The picture

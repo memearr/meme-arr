@@ -511,7 +511,8 @@ token scheme (a fresh salt per request), so the password is never in a URL.
 
 ### `GET /api/music/search?q=&limit=`
 Songs in Navidrome matching `q` (`limit` 1-50, default 20): `{"tracks": [{"id","title","artist","album",
-"duration_s"}]}`; an empty `q` gives none. `409` when Navidrome isn't set up, `502` when it can't be reached or
+"duration_s","cover_art"}]}` (`cover_art` is the id of the song's picture, empty if it has none); an empty `q`
+gives none. `409` when Navidrome isn't set up, `502` when it can't be reached or
 refuses the account.
 
 ### `GET /api/music/:id/file`
@@ -519,6 +520,11 @@ The song as a file, with `Range` support. The first request fetches the original
 `/data/music` (up to 200 MB; the cache is pruned oldest-first to about 1 GB); later ones are served from there.
 `404` for an id that is not letters, digits, `-` and `_`; `409` and `502` as above; `502` also when what
 Navidrome sent is not audio.
+
+### `GET /api/music/cover/:id?size=`
+A song's cover picture from Navidrome (`id` is a search result's `cover_art`), scaled to about `size` pixels
+(32-512, default 96), with a day's browser caching. `404` for an id that is not letters, digits, `-` and `_`;
+`409` when Navidrome isn't set up; `502` when it can't be reached or what it sent is not a picture.
 
 ### `GET /api/music/:id/peaks?bins=`
 The song's loudness over time, for the editor's waveform: `{"duration_ms": 187000, "peaks": [0.2, 0.9, ...]}`,

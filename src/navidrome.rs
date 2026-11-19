@@ -2,7 +2,8 @@
 //! music under a clip.
 //!
 //! Navidrome speaks the Subsonic API. What is used: `ping` (is it there, which version),
-//! `search3` (songs only) and `stream?format=raw` (the original file, not a transcode).
+//! `search3` (songs only), `stream?format=raw` (the original file, not a transcode) and
+//! `getCoverArt` (the album's picture).
 //! Authentication is the Subsonic token scheme: `t = md5(password + salt)` with a fresh
 //! random `s` on every request, so the password itself never travels in a URL.
 
@@ -17,6 +18,8 @@ use std::time::Duration;
 const API_VERSION: &str = "1.16.1";
 /// A song fetched for use under a clip may be at most this big.
 pub const MAX_TRACK_BYTES: u64 = 200 * 1024 * 1024;
+/// A cover picture may be at most this big.
+pub const MAX_COVER_BYTES: usize = 2 * 1024 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Track {
@@ -25,6 +28,8 @@ pub struct Track {
     pub artist: String,
     pub album: String,
     pub duration_s: u32,
+    /// The id of the song's cover picture (see `Client::cover`), or empty when it has none.
+    pub cover_art: String,
 }
 
 #[derive(Clone)]
@@ -81,6 +86,7 @@ pub fn parse_search(body: &Value) -> Result<Vec<Track>> {
                 title: text(s, "title"),
                 artist: text(s, "artist"),
                 album: text(s, "album"),
+                cover_art: text(s, "coverArt"),
                 duration_s: s
                     .get("duration")
                     .and_then(Value::as_u64)
@@ -165,6 +171,40 @@ impl Client {
             )
             .await?;
         parse_search(&body)
+    }
+
+    /// The cover picture `id` (a [`Track::cover_art`]) scaled to about `size` pixels: its
+    /// content type and bytes. Only a picture is accepted (a failure comes back as JSON).
+    pub async fn cover(&self, id: &str, size: u32) -> Result<(String, Vec<u8>)> {
+        let resp = self
+            .request(
+                "getCoverArt",
+                &[("id", id.to_string()), ("size", size.to_string())],
+            )
+            .send()
+            .await
+            .with_context(|| format!("couldn't reach Navidrome at {}", self.base))?;
+        if !resp.status().is_success() {
+            bail!("Navidrome answered {}", resp.status());
+        }
+        let kind = resp
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+            .split(';')
+            .next()
+            .unwrap_or("")
+            .trim()
+            .to_ascii_lowercase();
+        if !kind.starts_with("image/") {
+            bail!("Navidrome sent no picture");
+        }
+        let bytes = resp.bytes().await.context("the picture didn't arrive")?;
+        if bytes.is_empty() || bytes.len() > MAX_COVER_BYTES {
+            bail!("the picture is empty or too big");
+        }
+        Ok((kind, bytes.to_vec()))
     }
 
     /// Download song `id` (the original file) to `dest`, giving up past `max_bytes`.

@@ -14,7 +14,7 @@ import { ExportBar } from "./ExportBar.jsx";
 import { FrameSaver } from "./FrameSaver.jsx";
 import { PlayerPanel } from "./PlayerPanel.jsx";
 import { LayersPanel } from "./LayersPanel.jsx";
-import { layersForRequest, moveLayerTo } from "./layersModel.js";
+import { layerLabel, layersForRequest, moveLayerTo } from "./layersModel.js";
 import { MusicPanel } from "./MusicPanel.jsx";
 import { clipVolumeForRequest, musicForRequest } from "./musicModel.js";
 import { JobResult } from "./JobResult.jsx";
@@ -70,6 +70,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   // uploaded pictures there are to choose from.
   const [layers, setLayers] = useState(seed?.layers ?? []);
   const [selectedLayer, setSelectedLayer] = useState(null);
+  const [showPaths, setShowPaths] = useState(true); // draw the routes of moving layers and text
   // A song from Navidrome under the clip, and how loud the clip's own sound is (see MusicPanel).
   const [music, setMusic] = useState(seed?.music ?? null);
   const [clipVolume, setClipVolume] = useState(1);
@@ -653,6 +654,21 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
 
   // ---- what the player and timeline draw ---------------------------------------
 
+  // Everything that travels (layers, and the caption text), for drawing the routes over the player.
+  const movingThings = [
+    ...layers
+      .filter((l) => l.path?.length)
+      .map((l) => ({
+        id: l.id,
+        path: l.path,
+        selected: l.id === selectedLayer,
+        label: layerLabel(l, overlayList.overlays, overlayList.shapes),
+      })),
+    ...(captionMode === "source" && look?.path?.length
+      ? [{ id: "caption-text", path: look.path, selected: false, label: "Caption text" }]
+      : []),
+  ];
+
   const overlayText =
     captionMode === "source" ? textAt(displayCues, playhead, subtitleOffsetMs) : "";
   // The caption overlay: laid over the picture itself (not the letterbox) and
@@ -800,6 +816,9 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
             setSpeed={setSpeed}
             volume={volume}
             setVolume={setVolume}
+            paths={movingThings}
+            showPaths={showPaths}
+            setShowPaths={setShowPaths}
           />
           <FrameSaver
             format={stillFormat}
