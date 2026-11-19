@@ -14,7 +14,7 @@ import { ExportBar } from "./ExportBar.jsx";
 import { FrameSaver } from "./FrameSaver.jsx";
 import { PlayerPanel } from "./PlayerPanel.jsx";
 import { LayersPanel } from "./LayersPanel.jsx";
-import { layersForRequest, moveLayerTo } from "./layersModel.js";
+import { layerLabel, layersForRequest, moveLayerTo } from "./layersModel.js";
 import { MusicPanel } from "./MusicPanel.jsx";
 import { clipVolumeForRequest, musicForRequest } from "./musicModel.js";
 import { JobResult } from "./JobResult.jsx";
@@ -68,10 +68,11 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   const [look, setLook] = useState(seed?.look ?? null);
   // Shapes, stickers and clips laid over the clip (times are from the clip's start), and the
   // uploaded pictures there are to choose from.
-  const [layers, setLayers] = useState([]);
+  const [layers, setLayers] = useState(seed?.layers ?? []);
   const [selectedLayer, setSelectedLayer] = useState(null);
+  const [showPaths, setShowPaths] = useState(true); // draw the routes of moving layers and text
   // A song from Navidrome under the clip, and how loud the clip's own sound is (see MusicPanel).
-  const [music, setMusic] = useState(null);
+  const [music, setMusic] = useState(seed?.music ?? null);
   const [clipVolume, setClipVolume] = useState(1);
   const [overlayList, setOverlayList] = useState({ overlays: [], shapes: [] });
   const [top, setTop] = useState(seed ? seed.top : "");
@@ -556,6 +557,8 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
         end,
         caption: buildCaption(),
         subtitleOffsetMs: captionMode === "source" ? subtitleOffsetMs : 0,
+        layers,
+        music,
       }),
       andNext
     );
@@ -574,6 +577,8 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
       end_ms: end,
       caption: buildCaption(),
       subtitle_offset_ms: captionMode === "source" ? subtitleOffsetMs : 0,
+      layers,
+      music,
     });
   }
 
@@ -587,7 +592,8 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   // Choosing a song needs a format that carries sound, as keeping the clip's audio does.
   function chooseMusic(m) {
     setMusic(m);
-    if (!AUDIO_FORMATS.includes(format)) setFormat("mp4");
+    // (a clip in a sequence has no format of its own: the sequence's follows the songs)
+    if (!sequenceEdit && !AUDIO_FORMATS.includes(format)) setFormat("mp4");
   }
 
   async function doExport() {
@@ -647,6 +653,21 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   }
 
   // ---- what the player and timeline draw ---------------------------------------
+
+  // Everything that travels (layers, and the caption text), for drawing the routes over the player.
+  const movingThings = [
+    ...layers
+      .filter((l) => l.path?.length)
+      .map((l) => ({
+        id: l.id,
+        path: l.path,
+        selected: l.id === selectedLayer,
+        label: layerLabel(l, overlayList.overlays, overlayList.shapes),
+      })),
+    ...(captionMode === "source" && look?.path?.length
+      ? [{ id: "caption-text", path: look.path, selected: false, label: "Caption text" }]
+      : []),
+  ];
 
   const overlayText =
     captionMode === "source" ? textAt(displayCues, playhead, subtitleOffsetMs) : "";
@@ -766,7 +787,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
             overlayText={overlayText}
             lookView={lookView}
             pictureBox={pictureBox}
-            layers={sequenceEdit ? [] : layers}
+            layers={layers}
             relMs={Math.max(0, Math.round(playhead - start))}
             selectedLayer={selectedLayer}
             setSelectedLayer={setSelectedLayer}
@@ -795,6 +816,9 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
             setSpeed={setSpeed}
             volume={volume}
             setVolume={setVolume}
+            paths={movingThings}
+            showPaths={showPaths}
+            setShowPaths={setShowPaths}
           />
           <FrameSaver
             format={stillFormat}
@@ -903,36 +927,33 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
               applyToSubtitleFile={applyToSubtitleFile}
             />
 
-            {!sequenceEdit && (
-              <LayersPanel
-                layers={layers}
-                setLayers={setLayers}
-                selectedId={selectedLayer}
-                setSelectedId={setSelectedLayer}
-                onSeek={(ms) => seekTo(start + ms)}
-                onTrack={trackSpot}
-                overlays={overlayList.overlays}
-                shapes={overlayList.shapes}
-                reloadOverlays={reloadOverlays}
-                clipMs={clipLength}
-                relMs={Math.max(0, Math.round(playhead - start))}
-              />
-            )}
+            <LayersPanel
+              layers={layers}
+              setLayers={setLayers}
+              selectedId={selectedLayer}
+              setSelectedId={setSelectedLayer}
+              onSeek={(ms) => seekTo(start + ms)}
+              onTrack={trackSpot}
+              overlays={overlayList.overlays}
+              shapes={overlayList.shapes}
+              reloadOverlays={reloadOverlays}
+              clipMs={clipLength}
+              relMs={Math.max(0, Math.round(playhead - start))}
+            />
 
-            {!sequenceEdit && (
-              <MusicPanel
-                music={music}
-                onChoose={chooseMusic}
-                onClear={() => setMusic(null)}
-                onChange={setMusic}
-                clipVolume={clipVolume}
-                setClipVolume={setClipVolume}
-                audio={audio}
-                clipMs={clipLength}
-                relMs={Math.max(0, Math.round(playhead - start))}
-                playing={playing}
-              />
-            )}
+            <MusicPanel
+              music={music}
+              onChoose={chooseMusic}
+              onClear={() => setMusic(null)}
+              onChange={setMusic}
+              clipVolume={clipVolume}
+              setClipVolume={setClipVolume}
+              audio={sequenceEdit ? !!sequenceEdit.output?.audio : audio}
+              clipMs={clipLength}
+              relMs={Math.max(0, Math.round(playhead - start))}
+              playing={playing}
+              showClipVolume={!sequenceEdit}
+            />
 
             {!sequenceEdit && (
               <ExportSettings

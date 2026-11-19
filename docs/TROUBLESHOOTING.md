@@ -166,8 +166,9 @@ press it again. It follows forward in time only, and tracks position, not size o
 Only PNG, JPEG, GIF, WebP, MP4 and WebM are taken (the file's contents are checked, not its name), up to
 25 MB each and 100 in all; delete an old one in the Layers box to make room.
 
-**My layer or styled text is in the export but not in a sequence or a saved frame.**
-Layers are drawn in single exports only. A saved frame keeps the caption look but not its animation or path.
+**My layer is in the export but not in a saved frame.**
+Layers are drawn in exported clips and sequences, not in a saved frame, which also keeps the caption look but
+not its animation or path.
 
 **"unknown font" when I export or preview.**
 The font you chose was deleted (a clip queued in a sequence can still refer to it). Choose another font

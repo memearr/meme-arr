@@ -2,16 +2,19 @@ import { AUDIO_FORMATS } from "./clipSettings.js";
 import { Editor } from "./Editor.jsx";
 import { JobResult } from "./JobResult.jsx";
 import { MusicPanel } from "./MusicPanel.jsx";
+import { layersForRequest } from "./layersModel.js";
 import { clipVolumeForRequest, musicForRequest } from "./musicModel.js";
 import { SectionEditor } from "./SectionEditor.jsx";
 import { SequenceBulkEdit } from "./SequenceBulkEdit.jsx";
 import SequencePlayer from "./SequencePlayer.jsx";
 import { SequenceTimeline } from "./SequenceTimeline.jsx";
+import { SongPreview } from "./SongPreview.jsx";
 import { replaceClip } from "./sequenceClip.js";
 import {
   MAX_SECTIONS,
   MAX_TOTAL_MS,
   duplicate,
+  layout,
   move,
   problems,
   remove,
@@ -32,6 +35,7 @@ function newSectionId() {
  */
 export function SequenceView({ sequence, setSequence, onJob }) {
   const [format, setFormat] = useState("gif");
+  const [hearClipSongs, setHearClipSongs] = useState(true); // the sections' own songs, in the player
   const [width, setWidth] = useState(480);
   const [fps, setFps] = useState(15);
   const [quality, setQuality] = useState(80);
@@ -53,6 +57,13 @@ export function SequenceView({ sequence, setSequence, onJob }) {
   const lastGroup = useRef({ key: null, at: 0 });
 
   useEffect(() => () => clearInterval(pollRef.current), []);
+
+  // A song on any section needs a format that carries sound.
+  const clipMusic = sequence.some((c) => c.music);
+  useEffect(() => {
+    if (clipMusic && !AUDIO_FORMATS.includes(format)) setFormat("mp4");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clipMusic]);
 
   // The selection follows the set: a first section is picked, a removed one is dropped.
   const selectedIndex = sequence.findIndex((c) => c.id === selectedId);
@@ -114,7 +125,7 @@ export function SequenceView({ sequence, setSequence, onJob }) {
             clip,
             index: editingIndex,
             count: sequence.length,
-            output: { width, fps },
+            output: { width, fps, audio },
             hasNext: editingIndex < sequence.length - 1,
             onSave: (updated, andNext) => {
               commit(replaceClip(sequence, updated));
@@ -164,6 +175,8 @@ export function SequenceView({ sequence, setSequence, onJob }) {
           end_ms: c.end_ms,
           caption: c.caption,
           subtitle_offset_ms: c.subtitle_offset_ms || 0,
+          layers: layersForRequest(c.layers, c.end_ms - c.start_ms),
+          music: musicForRequest(c.music, c.end_ms - c.start_ms, audio),
         })),
         format,
         width,
@@ -225,6 +238,25 @@ export function SequenceView({ sequence, setSequence, onJob }) {
             onProgress={setProgressMs}
             onPlaying={setPlayerPlaying}
           />
+          {/* the songs on the sections play with the player, each over its own section */}
+          {sequence.map((c, i) =>
+            c.music ? (
+              <SongPreview
+                key={c.id}
+                music={c.music}
+                relMs={progressMs - layout(sequence)[i].from}
+                clipMs={c.end_ms - c.start_ms}
+                playing={playerPlaying}
+                hear={hearClipSongs}
+              />
+            ) : null
+          )}
+          {clipMusic && (
+            <label className="check">
+              <input type="checkbox" checked={hearClipSongs} onChange={(e) => setHearClipSongs(e.target.checked)} /> Hear the
+              sections' songs in the player
+            </label>
+          )}
 
           <SequenceTimeline
             sequence={sequence}
@@ -271,7 +303,7 @@ export function SequenceView({ sequence, setSequence, onJob }) {
             <fieldset>
               <legend>Format</legend>
               {["gif", "webp", "mp4", "webm"].map((f) => {
-                const disabled = (audio || !!music) && !AUDIO_FORMATS.includes(f);
+                const disabled = (audio || !!music || clipMusic) && !AUDIO_FORMATS.includes(f);
                 return (
                   <label key={f} className={disabled ? "disabled" : undefined}>
                     <input
@@ -292,7 +324,7 @@ export function SequenceView({ sequence, setSequence, onJob }) {
                 />
                 Include audio (Opus)
               </label>
-              {(audio || music) && (
+              {(audio || music || clipMusic) && (
                 <p className="hint tiny">
                   GIF and WebP can't carry audio — MP4/WebM only while {audio ? "this is on" : "there is music"}.
                 </p>

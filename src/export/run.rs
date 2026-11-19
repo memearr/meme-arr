@@ -206,6 +206,10 @@ pub struct ResolvedSequenceClip {
     /// The font file for this clip's caption when it chose one; otherwise the
     /// sequence-wide default font is used.
     pub font_path: Option<String>,
+    /// Pictures and shapes over this clip.
+    pub layers: Vec<Layer>,
+    /// A song under this clip only (its `file` filled in before the export runs).
+    pub music: Option<Soundtrack>,
 }
 
 /// What every clip of one sequence is rendered to: the frame rate, the shared
@@ -231,6 +235,7 @@ pub(super) async fn render_sequence_clip(
     clip: &ResolvedSequenceClip,
     look: SequenceLook,
     font_path: &str,
+    media: &(dyn Fn(&str) -> Option<LayerSource> + Sync),
 ) -> Result<PathBuf> {
     let SequenceLook {
         fps,
@@ -249,7 +254,43 @@ pub(super) async fn render_sequence_clip(
     let core = clip_core_chain(width, height, fps, &caption_files.spec(style));
     let out_path = tmp_dir.join(format!("{id}.part.{}", part_ext(audio)));
 
-    let args = if audio {
+    // The sprite files (written for shape layers) go when this does.
+    let mut sprites = SpriteFiles::default();
+    let args = if !clip.layers.is_empty() {
+        let (sources, written) = match resolve_layers(&clip.layers, tmp_dir, id, media) {
+            Ok(r) => r,
+            Err(e) => {
+                caption_files.cleanup();
+                return Err(e);
+            }
+        };
+        sprites = written;
+        // the picture is fitted to the canvas, the layers go on that, and the captions on top
+        let base = clip_core_chain(width, height, fps, &CaptionSpec::none(height));
+        let post = caption_filters(&caption_files.spec(style)).join(",");
+        let plan = plan_layers_on(
+            &clip.layers,
+            &sources,
+            &base,
+            width,
+            clip.end_ms - clip.start_ms,
+            &post,
+        );
+        // as for a clip without layers, a source with no sound of its own is given silence
+        let has_audio = audio
+            && ffmpeg::probe(tools.ffprobe, &clip.file)
+                .await
+                .map(|p| p.has_audio)
+                .unwrap_or(false);
+        sequence_clip_args_with_layers(
+            &clip.file,
+            clip.start_ms,
+            clip.end_ms,
+            &plan,
+            audio.then_some(has_audio),
+            &out_path,
+        )
+    } else if audio {
         // A probe failure just means "treat this clip as silent" rather
         // than failing the whole sequence over it -- the clip still
         // exports fine, just without sound for this one segment.
@@ -280,8 +321,70 @@ pub(super) async fn render_sequence_clip(
 
     let result = ffmpeg::run(tools.ffmpeg, &args).await;
     caption_files.cleanup();
+    drop(sprites);
     result?;
     Ok(out_path)
+}
+
+/// The argv for one sequence clip whose picture is a layer graph. `audio` is `None` for a
+/// silent intermediate, else whether the source has sound (when it has none, silence is
+/// substituted so every part has the same streams, as in [`sequence_clip_args_with_audio`]).
+pub(super) fn sequence_clip_args_with_layers(
+    file: &Path,
+    start_ms: i64,
+    end_ms: i64,
+    plan: &LayerPlan,
+    audio: Option<bool>,
+    out: &Path,
+) -> Vec<String> {
+    let dur = (end_ms - start_ms).max(0);
+    let mut args: Vec<String> = vec![
+        "-y".into(),
+        "-v".into(),
+        "error".into(),
+        "-ss".into(),
+        ms_to_secs(start_ms),
+        "-t".into(),
+        ms_to_secs(dur),
+        "-i".into(),
+        file.to_string_lossy().into_owned(),
+    ];
+    args.extend(plan.input_args.iter().cloned());
+    let layer_inputs = plan.input_args.iter().filter(|a| *a == "-i").count();
+    if audio == Some(false) {
+        // the silent input comes after the layers
+        args.extend([
+            "-f".into(),
+            "lavfi".into(),
+            "-t".into(),
+            ms_to_secs(dur),
+            "-i".into(),
+            "anullsrc=channel_layout=stereo:sample_rate=48000".into(),
+        ]);
+    }
+    args.extend(["-filter_complex".into(), plan.graph.clone()]);
+    args.extend(["-map".into(), "[out]".into()]);
+    match audio {
+        Some(true) => args.extend(["-map".into(), "0:a:0".into()]),
+        Some(false) => args.extend([
+            "-map".into(),
+            format!("{}:a:0", layer_inputs + 1),
+            "-shortest".into(),
+        ]),
+        None => {}
+    }
+    args.extend(codec_args(
+        Format::Mp4,
+        90,
+        if audio.is_some() {
+            AudioMode::Pcm
+        } else {
+            AudioMode::None
+        },
+    ));
+    args.extend(privacy_args(None));
+    args.push(out.to_string_lossy().into_owned());
+    args
 }
 
 /// Intermediates with PCM audio need a container that holds it (MP4 does not
@@ -382,6 +485,19 @@ pub async fn run_sequence_export(
     clips: &[ResolvedSequenceClip],
     font_path: &str,
 ) -> Result<()> {
+    run_sequence_export_with(tools, job, req, clips, font_path, &|_| None).await
+}
+
+/// [`run_sequence_export`], with `media` to find the file behind an uploaded picture's id
+/// (for clips with layers that use one).
+pub async fn run_sequence_export_with(
+    tools: Tools<'_>,
+    job: JobSpec<'_>,
+    req: &SequenceExportRequest,
+    clips: &[ResolvedSequenceClip],
+    font_path: &str,
+    media: &(dyn Fn(&str) -> Option<LayerSource> + Sync),
+) -> Result<()> {
     let SequenceExportRequest {
         format,
         width,
@@ -392,6 +508,14 @@ pub async fn run_sequence_export(
     } = *req;
     let (tmp_dir, job_id, out_path) = (job.tmp_dir, job.id, job.out_path);
     job.prepare_dirs()?;
+    // The songs on the clips are checked before any clip is rendered.
+    let lens: Vec<(Option<&Soundtrack>, i64)> = clips
+        .iter()
+        .map(|c| (c.music.as_ref(), c.end_ms - c.start_ms))
+        .collect();
+    if let Some(why) = validate_clip_music(&lens, format, audio) {
+        anyhow::bail!(why);
+    }
     let canvas = canvas_dims(width);
     let look = SequenceLook { fps, canvas, audio };
 
@@ -400,7 +524,7 @@ pub async fn run_sequence_export(
     for (i, clip) in clips.iter().enumerate() {
         let id = format!("{job_id}-{i}");
         let font = clip.font_path.as_deref().unwrap_or(font_path);
-        match render_sequence_clip(tools, tmp_dir, &id, clip, look, font).await {
+        match render_sequence_clip(tools, tmp_dir, &id, clip, look, font, media).await {
             Ok(path) => parts.push(path),
             Err(e) => {
                 cleanup_paths(&parts);
@@ -465,14 +589,35 @@ pub async fn run_sequence_export(
     let vf = video_filter(format, &core);
     // A song under the whole sequence, and/or the clips' own volume: the same sound graph
     // as for a single clip, over the joined sound.
-    let mix = if req.music.is_some() || (req.clip_volume - 1.0).abs() > f32::EPSILON {
+    // The sequence's own song, then each clip's, placed on the whole sequence's time.
+    let mut songs: Vec<Placed> = Vec::new();
+    if let Some(m) = req.music.as_ref() {
+        songs.push(Placed {
+            music: m,
+            at_ms: m.at_ms,
+            len_ms: total_ms - m.at_ms,
+        });
+    }
+    let mut offset = 0;
+    for c in clips {
+        let len = c.end_ms - c.start_ms;
+        if let Some(m) = c.music.as_ref() {
+            songs.push(Placed {
+                music: m,
+                at_ms: offset + m.at_ms,
+                len_ms: len - m.at_ms,
+            });
+        }
+        offset += len;
+    }
+    let mix = if !songs.is_empty() || (req.clip_volume - 1.0).abs() > f32::EPSILON {
         if let Some(why) =
             validate_music(req.music.as_ref(), req.clip_volume, total_ms, format, audio)
         {
             let _ = std::fs::remove_file(&concat_path);
             anyhow::bail!(why);
         }
-        plan_audio(req.music.as_ref(), req.clip_volume, audio, total_ms, 1)
+        plan_mix(&songs, req.clip_volume, audio, total_ms, 1)
     } else {
         None
     };

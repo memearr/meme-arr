@@ -44,6 +44,13 @@ describe("editorSeed", () => {
     expect(editorSeed({ ...base }).captionMode).toBe("none");
   });
 
+  it("restores the layers laid over the clip, or none", () => {
+    const layers = [{ id: "l1", kind: "shape", shape: "dot", start_ms: 0, end_ms: null }];
+    expect(editorSeed({ ...base, layers }).layers).toBe(layers);
+    expect(editorSeed({ ...base }).layers).toEqual([]);
+    expect(editorSeed({ ...base, layers: "nonsense" }).layers).toEqual([]);
+  });
+
   it("treats lines of an unedited source clip as 'use the indexed ones'", () => {
     expect(editorSeed({ ...base, caption: { mode: "source", cues: null } }).editedCues).toBeNull();
   });
@@ -60,6 +67,13 @@ describe("updatedClip / replaceClip", () => {
     expect(u).toMatchObject({ id: "c1", rating_key: "k1", title: "Pilot", start_ms: 2000, end_ms: 5000 });
     expect(u.subtitle_offset_ms).toBe(0);
     expect(u.caption).toEqual({ mode: "none" });
+  });
+
+  it("keeps the layers the editor now has", () => {
+    const layers = [{ id: "l1", kind: "shape", shape: "ring" }];
+    const u = updatedClip({ ...base, layers: [{ id: "old" }] }, { start: 1, end: 2, caption: { mode: "none" }, subtitleOffsetMs: 0, layers });
+    expect(u.layers).toBe(layers);
+    expect(updatedClip(base, { start: 1, end: 2, caption: { mode: "none" }, subtitleOffsetMs: 0 }).layers).toEqual([]);
   });
 
   it("replaces only the clip with that id, in place", () => {

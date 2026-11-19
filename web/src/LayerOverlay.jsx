@@ -5,8 +5,9 @@ import { isVideoAsset, layerActive, layerSrc, layerStyle, pointToPlace } from ".
  * The layers that are on screen at the playhead, laid over the player's picture the way
  * the export will lay them over the clip. Drag one to move it; click to select it.
  * `pictureBox` is the picture's rectangle inside the player; `relMs` is the playhead in clip time.
+ * `readOnly` only shows them (the sequence player), leaving them where they are.
  */
-export function LayerOverlay({ layers, relMs, pictureBox, selectedId, onSelect, onMove }) {
+export function LayerOverlay({ layers, relMs, pictureBox, selectedId, onSelect, onMove, readOnly = false }) {
   const box = useRef(null);
   const drag = useRef(null);
   if (!pictureBox || !layers?.length) return null;
@@ -33,7 +34,7 @@ export function LayerOverlay({ layers, relMs, pictureBox, selectedId, onSelect, 
   return (
     <div
       ref={box}
-      className="layer-overlay"
+      className={readOnly ? "layer-overlay readonly" : "layer-overlay"}
       style={{ left: pictureBox.left, top: pictureBox.top, width: pictureBox.width, height: pictureBox.height }}
     >
       {visible.map((l) => {

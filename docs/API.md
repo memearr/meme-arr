@@ -398,7 +398,8 @@ Request (`ExportRequest`):
   `path` of keyframes (see `look.path`) that replaces `x` and `y`. They are laid
   over in order and the captions go on top. A GIF, WebP or clip (`motion`) loops while it is on. `400` for a
   layer that cannot be used (bad number, unknown shape, starts outside the clip) or an upload that is gone.
-  Layers apply to this single export, not to a sequence or a `/api/still`.
+  Layers apply to this single export and, per clip, to a sequence (see `POST /api/sequence/export`); not to a
+  `/api/still`.
 - `music` (default none): a song (see `GET /api/music/search`: from Navidrome, the library folder or an upload) laid under the clip, MP4 and
   WebM only: `{"id": "<song id>", "start_ms": 0, "at_ms": 0, "volume": 1, "fade_in_ms": 0, "fade_out_ms": 0, "duck": 0}`.
   `start_ms` is where in the song to start playing, `at_ms` when in the clip it comes in (from the clip's start),
@@ -451,8 +452,17 @@ inconsistent stream layout); see `src/export/`'s
 
 `music` and `clip_volume` are as on `POST /api/export`, for the sequence as a whole: one song (MP4 and WebM
 only) under the joined clips, with its `at_ms` counted from the start of the sequence and the song cut where the
-sequence ends, and `clip_volume` the loudness of the clips' own sound (with `audio: true`). Layers and captions
-stay per clip, as before.
+sequence ends, and `clip_volume` the loudness of the clips' own sound (with `audio: true`). Captions stay per clip,
+as before, and so do layers: each clip may carry `"layers": [...]` as on `POST /api/export` (timed from the start
+of that clip, and placed on the sequence's 16:9 canvas, which the clip's picture is fitted into). They go under
+the clip's captions; a layer that can't be used (as there) or an uploaded picture that is gone is a `400` naming
+the clip.
+
+A clip may also carry its own song, `"music": {...}` as on `POST /api/export`, with its times from the start of
+that clip: it comes in at `at_ms` into the clip, is cut where the clip ends, and plays along with the sequence's
+own `music` and any other clip's. `duck` dips it under that clip's own sound (needs `audio: true`). A song that
+can't be used (a GIF or WebP, a time outside the clip, a duck without sound) is a `400` that begins `clip #N:`;
+the songs are fetched from Navidrome by the job.
 
 The same metadata rules apply, including to the intermediate files, so nothing from any
 clip's source survives into the result. With `credit_source`, the `title` lists each

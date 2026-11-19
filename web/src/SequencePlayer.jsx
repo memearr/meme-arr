@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api.js";
 import { episodeLabel, fmtTime } from "./format.js";
+import { LayerOverlay } from "./LayerOverlay.jsx";
+import { canvasBox } from "./layersModel.js";
 import { layout, locate, previewKey, previewParams, totalMs } from "./sequenceModel.js";
 
 /**
@@ -22,6 +24,28 @@ export default function SequencePlayer({ sequence, width, fps, index, onIndex, o
   const inflight = useRef(new Map()); // key -> promise of an object URL
   const pendingOffset = useRef(0); // ms to jump to once the section loads
   const videoRef = useRef(null);
+  const [canvas, setCanvas] = useState(null); // the 16:9 canvas inside the video, for the layers
+
+  // Keep the canvas where the picture is as the video, or the window, changes size.
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) {
+      setCanvas(null);
+      return undefined;
+    }
+    const measure = () => {
+      const box = canvasBox(v.clientWidth, v.clientHeight);
+      setCanvas(box && { ...box, left: box.left + v.offsetLeft, top: box.top + v.offsetTop });
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    const ro = typeof ResizeObserver === "function" ? new ResizeObserver(measure) : null;
+    ro?.observe(v);
+    return () => {
+      window.removeEventListener("resize", measure);
+      ro?.disconnect();
+    };
+  }, [src]);
 
   useEffect(() => {
     onPlaying?.(playing);
@@ -197,6 +221,14 @@ export default function SequencePlayer({ sequence, width, fps, index, onIndex, o
           />
         ) : (
           <div className="placeholder">{loading ? "Drawing the section…" : "Pick a section"}</div>
+        )}
+        {src && !error && clip?.layers?.length > 0 && spans[index] && (
+          <LayerOverlay
+            layers={clip.layers}
+            relMs={Math.max(0, Math.round(elapsed - spans[index].from))}
+            pictureBox={canvas}
+            readOnly
+          />
         )}
         {loading && src && <span className="player-chip">Drawing section {index + 1}…</span>}
       </div>

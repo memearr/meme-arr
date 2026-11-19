@@ -167,6 +167,11 @@ describe("sequence editing", () => {
     // the stored meme text is what the boxes start with
     expect(html).toContain('value="TOP"');
     expect(html).toContain('value="BOTTOM"');
+    // the clip's own layers can be edited here, unlike the sequence-wide output and music
+    expect(html).toContain("<legend>Layers</legend>");
+    // the clip's own song too (the sequence's song and the clips' sound volume stay on the Sequence tab)
+    expect(html).toContain("<legend>Music</legend>");
+    expect(html).not.toContain("Clip sound volume");
     // the sequence-wide output settings are hidden
     expect(html).not.toContain("<legend>Output</legend>");
     expect(html).not.toContain("<legend>Format</legend>");

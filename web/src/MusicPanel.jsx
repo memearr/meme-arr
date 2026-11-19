@@ -1,17 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "./api.js";
 import {
   MAX_VOLUME,
   adjustMusic,
   coverSrc,
   durationText,
-  musicSrc,
   newMusic,
   percentText,
-  previewState,
   songTimeText,
 } from "./musicModel.js";
 import { secondsText } from "./layersModel.js";
+import { SongPreview } from "./SongPreview.jsx";
 import { Waveform } from "./Waveform.jsx";
 import { browserStorage } from "./editorStorage.js";
 import { clearRecent, forgetSong, loadRecent, rememberSong } from "./recentSongs.js";
@@ -70,7 +69,7 @@ function SongRow({ track, onPick, onRemove }) {
  * in the page alongside the player (up to full volume; the export can go louder).
  * `relMs` is the playhead in clip time and `clipMs` the clip's length.
  */
-export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, setClipVolume, audio, clipMs, relMs, playing, preview = true, what = "clip" }) {
+export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, setClipVolume, audio, clipMs, relMs, playing, preview = true, what = "clip", showClipVolume = true }) {
   const [sources, setSources] = useState(null); // {navidrome, library, uploads} once known
   const [uploads, setUploads] = useState([]); // the songs uploaded to the app
   const [uploading, setUploading] = useState(false);
@@ -80,7 +79,6 @@ export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, set
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [hear, setHear] = useState(true);
-  const player = useRef(null);
   const [recent, setRecent] = useState(() => loadRecent(browserStorage())); // songs picked lately
   const [wave, setWave] = useState(null); // {duration_ms, peaks} of the chosen song
   const [waveError, setWaveError] = useState(null);
@@ -184,30 +182,6 @@ export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, set
       setBusy(false);
     }
   }
-
-  // The song in the page follows the player: on when the clip reaches it, at the right place in
-  // the song, at the right volume (fades included).
-  const state = previewState(music, relMs, clipMs);
-  useEffect(() => {
-    if (player.current) player.current.volume = hear ? state.gain : 0;
-  }, [state.gain, hear, music?.id]);
-  useEffect(() => {
-    const a = player.current;
-    if (!a || !music) return;
-    if (!playing || !state.on || !hear) {
-      a.pause();
-      return;
-    }
-    const want = state.songMs / 1000;
-    if (a.paused || Math.abs(a.currentTime - want) > 0.35) {
-      try {
-        a.currentTime = want;
-      } catch (_) {
-        // not loaded yet: it starts from the beginning of what it has
-      }
-    }
-    if (a.paused) a.play().catch(() => {});
-  }, [playing, state.on, state.songMs, hear, music?.id]);
 
   const set = (changes) => onChange(adjustMusic(music, changes, clipMs));
   const playingMs = music ? Math.max(0, clipMs - music.at_ms) : 0;
@@ -379,12 +353,13 @@ export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, set
               <label className="check">
                 <input type="checkbox" checked={hear} onChange={(e) => setHear(e.target.checked)} /> Hear it in the player
               </label>
-              <audio ref={player} src={musicSrc(music.id)} preload="auto" loop={false} />
+              <SongPreview music={music} relMs={relMs} clipMs={clipMs} playing={playing} hear={hear} />
             </>
           )}
         </div>
       )}
 
+      {showClipVolume && (
       <div className="layer-controls">
         <Slider
           label={what === "clip" ? "Clip sound volume" : "Clips' sound volume"}
@@ -402,6 +377,7 @@ export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, set
           </p>
         )}
       </div>
+      )}
       {music && (
         <p className="hint tiny">
           Music is in MP4 and WebM exports only.

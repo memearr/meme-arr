@@ -276,6 +276,8 @@ fn validate_sequence_rejects_backwards_or_overlong_clip() {
         end_ms: 1000,
         caption: None,
         subtitle_offset_ms: 0,
+        layers: vec![],
+        music: None,
     }];
     assert!(validate_sequence(&backwards).is_err());
 
@@ -285,6 +287,8 @@ fn validate_sequence_rejects_backwards_or_overlong_clip() {
         end_ms: MAX_CLIP_MS + 1,
         caption: None,
         subtitle_offset_ms: 0,
+        layers: vec![],
+        music: None,
     }];
     assert!(validate_sequence(&too_long).is_err());
 }
@@ -299,6 +303,8 @@ fn validate_sequence_rejects_total_over_cap() {
             end_ms: MAX_CLIP_MS,
             caption: None,
             subtitle_offset_ms: 0,
+            layers: vec![],
+            music: None,
         })
         .collect();
     // Five clips at the per-clip cap comfortably exceed the total cap.
@@ -314,6 +320,8 @@ fn validate_sequence_rejects_too_many_clips() {
             end_ms: 100,
             caption: None,
             subtitle_offset_ms: 0,
+            layers: vec![],
+            music: None,
         })
         .collect();
     assert!(validate_sequence(&clips).is_err());
@@ -328,6 +336,8 @@ fn validate_sequence_accepts_reasonable_sequence() {
             end_ms: 3000,
             caption: None,
             subtitle_offset_ms: 0,
+            layers: vec![],
+            music: None,
         },
         SequenceClipSpec {
             rating_key: "b".into(),
@@ -335,6 +345,8 @@ fn validate_sequence_accepts_reasonable_sequence() {
             end_ms: 4000,
             caption: None,
             subtitle_offset_ms: 0,
+            layers: vec![],
+            music: None,
         },
     ];
     assert!(validate_sequence(&clips).is_ok());
@@ -838,4 +850,42 @@ fn a_still_file_name_gets_the_pictures_extension() {
         "My Frame_.png"
     );
     assert_eq!(safe_filename_ext(None, "jpg", "abc123"), "abc123.jpg");
+}
+
+#[test]
+fn a_sequence_clip_with_layers_maps_its_picture_and_the_right_sound() {
+    let plan = LayerPlan {
+        input_args: [
+            "-loop", "1", "-t", "3.000", "-i", "/t/a.png", "-loop", "1", "-t", "3.000", "-i",
+            "/t/b.png",
+        ]
+        .map(String::from)
+        .to_vec(),
+        graph: "[0:v]null[b0];[b0]null[out]".into(),
+    };
+    let out = Path::new("/t/part.mov");
+    let file = Path::new("/media/x.mkv");
+    let pos = |a: &[String], v: &str| a.iter().position(|x| x == v).unwrap();
+
+    // the source has sound: its own is mapped, no silent input
+    let own = sequence_clip_args_with_layers(file, 1000, 4000, &plan, Some(true), out);
+    assert!(has_pair(&own, "-map", "[out]") && has_pair(&own, "-map", "0:a:0"));
+    assert!(!own.iter().any(|a| a.contains("anullsrc")));
+
+    // it has none: silence is the last input (after the clip and both layers), cut with -shortest
+    let quiet = sequence_clip_args_with_layers(file, 1000, 4000, &plan, Some(false), out);
+    assert!(has_pair(&quiet, "-map", "3:a:0"), "{quiet:?}");
+    assert!(quiet.contains(&"-shortest".to_string()));
+    assert!(
+        pos(&quiet, "anullsrc=channel_layout=stereo:sample_rate=48000") > pos(&quiet, "/t/b.png")
+    );
+    assert!(
+        pos(&quiet, "-filter_complex")
+            > pos(&quiet, "anullsrc=channel_layout=stereo:sample_rate=48000")
+    );
+
+    // a silent intermediate maps no sound at all
+    let none = sequence_clip_args_with_layers(file, 1000, 4000, &plan, None, out);
+    assert!(!none.contains(&"0:a:0".to_string()) && !none.iter().any(|a| a.ends_with(":a:0")));
+    assert_eq!(none.last().unwrap(), "/t/part.mov");
 }
