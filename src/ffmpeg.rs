@@ -294,22 +294,56 @@ pub fn preview_args(file: &str, start_ms: i64, end_ms: i64, vf: &str, out: &str)
 }
 
 pub async fn run(ffmpeg_bin: &str, args: &[String]) -> Result<()> {
-    let out = Command::new(ffmpeg_bin)
-        .args(args)
-        // If whoever is waiting for this gives up (a browser that moved on, a
-        // shutdown), stop ffmpeg instead of letting it finish into the void.
-        .kill_on_drop(true)
-        .output()
-        .await
-        .with_context(|| format!("failed to run {ffmpeg_bin}"))?;
-    if !out.status.success() {
+    exec(ffmpeg_bin, args).await.map(|_| ())
+}
+
+/// Stderr text ffmpeg prints when its built-in AV1 decoder (which only works through a graphics
+/// chip) is the one picked, because the build has no software AV1 decoder ahead of it.
+const AV1_HARDWARE_ONLY: &str = "hardware accelerated AV1";
+
+/// `args` with `-c:v <decoder>` put just before the first input (the source video).
+fn with_decoder(args: &[String], decoder: &str) -> Vec<String> {
+    let mut out = args.to_vec();
+    if let Some(i) = out.iter().position(|a| a == "-i") {
+        out.splice(i..i, ["-c:v".to_string(), decoder.to_string()]);
+    }
+    out
+}
+
+/// Run ffmpeg and return its output, or the failure with ffmpeg's own words. An AV1 source on an
+/// ffmpeg whose only AV1 decoder wants a graphics chip is retried with a software decoder
+/// (libdav1d, then libaom); when neither is built in, the error says what to do about it.
+async fn exec(ffmpeg_bin: &str, args: &[String]) -> Result<std::process::Output> {
+    let go = |a: Vec<String>| async move {
+        Command::new(ffmpeg_bin)
+            .args(a)
+            // If whoever is waiting for this gives up (a browser that moved on, a
+            // shutdown), stop ffmpeg instead of letting it finish into the void.
+            .kill_on_drop(true)
+            .output()
+            .await
+            .with_context(|| format!("failed to run {ffmpeg_bin}"))
+    };
+    let out = go(args.to_vec()).await?;
+    if out.status.success() {
+        return Ok(out);
+    }
+    if !String::from_utf8_lossy(&out.stderr).contains(AV1_HARDWARE_ONLY) {
         return Err(anyhow!(
             "ffmpeg failed (exit {}): {}",
             exit_code_display(&out.status),
             stderr_or_fallback(&out.stderr),
         ));
     }
-    Ok(())
+    for decoder in ["libdav1d", "libaom-av1"] {
+        let retry = go(with_decoder(args, decoder)).await?;
+        if retry.status.success() {
+            return Ok(retry);
+        }
+    }
+    Err(anyhow!(
+        "this video is AV1 and your ffmpeg has no software AV1 decoder (libdav1d or libaom), so it          can only decode it with a supported graphics chip. Use an ffmpeg build that includes          libdav1d (most distro and the BtbN/gyan.dev builds do), or the Docker image."
+    ))
 }
 
 /// Map the 1..=100 quality knob to a gifsicle `--lossy` level (0 = least
@@ -521,19 +555,7 @@ pub fn filmstrip_args(
 
 /// Run ffmpeg and return what it wrote to stdout (an image).
 pub async fn run_capture(ffmpeg_bin: &str, args: &[String]) -> Result<Vec<u8>> {
-    let out = Command::new(ffmpeg_bin)
-        .args(args)
-        .kill_on_drop(true)
-        .output()
-        .await
-        .with_context(|| format!("failed to run {ffmpeg_bin}"))?;
-    if !out.status.success() {
-        return Err(anyhow!(
-            "ffmpeg failed (exit {}): {}",
-            exit_code_display(&out.status),
-            stderr_or_fallback(&out.stderr),
-        ));
-    }
+    let out = exec(ffmpeg_bin, args).await?;
     if out.stdout.is_empty() {
         bail!("ffmpeg produced no image (is that time past the end of the file?)");
     }
@@ -542,6 +564,19 @@ pub async fn run_capture(ffmpeg_bin: &str, args: &[String]) -> Result<Vec<u8>> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_software_decoder_goes_before_the_first_input_only() {
+        let args: Vec<String> = ["-ss", "1", "-i", "a.mkv", "-i", "b.png", "o.mp4"]
+            .map(String::from)
+            .to_vec();
+        let got = with_decoder(&args, "libdav1d");
+        assert_eq!(
+            got[..6],
+            ["-ss", "1", "-c:v", "libdav1d", "-i", "a.mkv"].map(String::from)
+        );
+        assert_eq!(got.iter().filter(|a| *a == "-i").count(), 2);
+    }
+
     #[test]
     fn subtitle_conversion_names_the_text_encoding_when_it_is_known() {
         let a = convert_srt_args("x.ass", None);
