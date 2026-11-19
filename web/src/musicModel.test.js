@@ -29,6 +29,7 @@ describe("choosing a song", () => {
       fade_in_ms: 0,
       fade_out_ms: 0,
       duck: 0,
+      curve: [],
     });
   });
   it("keeps the song's cover picture id, for showing it", () => {
@@ -85,6 +86,7 @@ describe("the export request", () => {
       fade_in_ms: 500,
       fade_out_ms: 0,
       duck: 0,
+      curve: [],
     });
   });
   it("sends the ducking only when the clip's own sound is kept", () => {

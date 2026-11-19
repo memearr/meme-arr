@@ -107,6 +107,8 @@ export const api = {
   },
   musicSearch: (q, limit = 20) => json(`/api/music/search?q=${encodeURIComponent(q)}&limit=${limit}`),
   musicPeaks: (id, bins = 600) => json(`/api/music/${encodeURIComponent(id)}/peaks?bins=${bins}`),
+  clipWaveform: (ratingKey, start, end, bins = 400) =>
+    json(`/api/waveform/${encodeURIComponent(ratingKey)}?start=${Math.round(start)}&end=${Math.round(end)}&bins=${bins}`),
   rotateBazarrHook: () => json(`/api/settings/bazarr/rotate-hook`, { method: "POST" }),
   itemBazarr: (id) => json(`/api/media/${encodeURIComponent(id)}/bazarr`),
   bazarrSearch: (id) => json(`/api/media/${encodeURIComponent(id)}/bazarr/search`, { method: "POST" }),

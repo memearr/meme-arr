@@ -89,19 +89,25 @@ pub async fn run_export_with(
         clip_ms,
         req.format,
         req.audio,
-    ) {
+    )
+    .or_else(|| validate_clip_curve(&req.clip_curve, clip_ms, req.audio))
+    {
         anyhow::bail!(why);
     }
     // The sound is mixed when there is a song or the clip's own volume was changed.
-    let mix = if req.music.is_some() || (req.clip_volume - 1.0).abs() > f32::EPSILON {
+    let mix = if req.music.is_some()
+        || !req.clip_curve.is_empty()
+        || (req.clip_volume - 1.0).abs() > f32::EPSILON
+    {
         let own = req.audio
             && ffmpeg::probe(tools.ffprobe, file)
                 .await
                 .map(|p| p.has_audio)
                 .unwrap_or(false);
-        plan_audio(
+        plan_audio_curved(
             req.music.as_ref(),
             req.clip_volume,
+            &req.clip_curve,
             own,
             clip_ms,
             req.layers.len() + 1,

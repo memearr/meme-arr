@@ -68,6 +68,7 @@ describe("a song on one section of a sequence", () => {
       fade_in_ms: 200,
       fade_out_ms: 0,
       duck: 0, // ducking is for the clips' own sound, which isn't kept here
+      curve: [],
     });
     expect(sent.music).toBeUndefined(); // the sequence's own song is separate
   });

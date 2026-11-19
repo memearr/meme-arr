@@ -55,6 +55,7 @@ async fn render(dir: &Path, sample: &Path, name: &str, caption: Caption, cues: &
         layers: vec![],
         music: None,
         clip_volume: 1.0,
+        clip_curve: vec![],
     };
     let out = dir.join(format!("{name}.mp4"));
     export::run_export(

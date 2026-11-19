@@ -60,6 +60,7 @@ fn music(file: &Path) -> Soundtrack {
         fade_in_ms: 0,
         fade_out_ms: 0,
         duck: 0.0,
+        curve: vec![],
         file: Some(file.to_path_buf()),
     }
 }
@@ -81,6 +82,7 @@ fn request(format: Format, audio: bool, m: Option<Soundtrack>, clip_volume: f32)
         layers: vec![],
         music: m,
         clip_volume,
+        clip_curve: vec![],
     }
 }
 
@@ -813,4 +815,145 @@ async fn a_clip_song_is_refused_naming_the_clip_before_anything_is_rendered() {
         .filter(|n| n.contains(".part") || n.starts_with("job-late") || n.starts_with("job-gif"))
         .collect();
     assert!(left.is_empty(), "nothing rendered or left behind: {left:?}");
+}
+
+// ---- the volume over time ---------------------------------------------------------
+
+fn points(p: &[(i64, f32)]) -> Vec<export::VolumePoint> {
+    p.iter()
+        .map(|&(t_ms, gain)| export::VolumePoint { t_ms, gain })
+        .collect()
+}
+
+#[tokio::test]
+async fn the_songs_volume_line_dips_and_comes_back() {
+    need_ffmpeg!();
+    let tmp = tempfile::tempdir().unwrap();
+    let (src, song) = (clip(tmp.path(), false), song_file(tmp.path()));
+    let steady = render(
+        tmp.path(),
+        &src,
+        "steady",
+        request(Format::Mp4, false, Some(music(&song)), 1.0),
+    )
+    .await;
+    let full = level(&steady, 0.5, 1.0);
+
+    // full until 1 s, down to 10% by 2 s, back to full from 3 s to 3.5 s
+    let mut m = music(&song);
+    m.curve = points(&[(1000, 1.0), (2000, 0.1), (3000, 0.1), (3500, 1.0)]);
+    let out = render(
+        tmp.path(),
+        &src,
+        "dip",
+        request(Format::Mp4, false, Some(m), 1.0),
+    )
+    .await;
+    assert!(
+        (level(&out, 0.2, 0.6) - full).abs() < 2.0,
+        "full at the start"
+    );
+    let low = level(&out, 2.2, 0.6);
+    assert!(
+        (low - (full - 20.0)).abs() < 3.0,
+        "a tenth of the volume is 20 dB down: {low} against {full}"
+    );
+    assert!(
+        (level(&out, 3.6, 0.3) - full).abs() < 2.0,
+        "and it comes back"
+    );
+}
+
+#[tokio::test]
+async fn the_volume_line_runs_on_the_clock_of_the_clip_not_the_songs_start() {
+    need_ffmpeg!();
+    let tmp = tempfile::tempdir().unwrap();
+    let (src, song) = (clip(tmp.path(), false), song_file(tmp.path()));
+    let steady = render(
+        tmp.path(),
+        &src,
+        "steady2",
+        request(Format::Mp4, false, Some(music(&song)), 1.0),
+    )
+    .await;
+    let full = level(&steady, 0.5, 1.0);
+
+    // the song comes in at 1 s; its line says silent until 2 s of the clip, full by 2.5 s
+    let mut m = music(&song);
+    m.at_ms = 1000;
+    m.curve = points(&[(1000, 0.0), (2000, 0.0), (2500, 1.0)]);
+    let out = render(
+        tmp.path(),
+        &src,
+        "shifted",
+        request(Format::Mp4, false, Some(m), 1.0),
+    )
+    .await;
+    assert!(
+        level(&out, 1.1, 0.8) < full - 40.0,
+        "silent while the line is at 0"
+    );
+    assert!(
+        (level(&out, 3.0, 0.8) - full).abs() < 2.0,
+        "full after it has risen"
+    );
+}
+
+#[tokio::test]
+async fn the_clips_own_sound_can_have_a_volume_line_too() {
+    need_ffmpeg!();
+    let tmp = tempfile::tempdir().unwrap();
+    let src = clip(tmp.path(), true);
+    let plain = render(
+        tmp.path(),
+        &src,
+        "own-plain",
+        request(Format::Mp4, true, None, 1.0),
+    )
+    .await;
+    let mut req = request(Format::Mp4, true, None, 1.0);
+    req.clip_curve = points(&[(1000, 1.0), (2000, 0.0)]);
+    let out = render(tmp.path(), &src, "own-line", req).await;
+    assert!(
+        (level(&out, 0.2, 0.6) - level(&plain, 0.2, 0.6)).abs() < 2.0,
+        "untouched at the start"
+    );
+    assert!(
+        level(&out, 2.5, 1.0) < level(&plain, 2.5, 1.0) - 40.0,
+        "silent once the line is down"
+    );
+}
+
+#[tokio::test]
+async fn a_bad_volume_line_is_refused() {
+    need_ffmpeg!();
+    let tmp = tempfile::tempdir().unwrap();
+    let (src, song) = (clip(tmp.path(), true), song_file(tmp.path()));
+    for (name, curve) in [
+        ("backwards", points(&[(2000, 0.5), (1000, 0.5)])),
+        ("loud", points(&[(1000, 1.5)])),
+        ("late", points(&[(9000, 0.5)])),
+    ] {
+        let mut m = music(&song);
+        m.curve = curve;
+        let req = request(Format::Mp4, true, Some(m), 1.0);
+        let out = tmp.path().join(format!("{name}.mp4"));
+        let err = export::run_export_with(
+            TOOLS,
+            export::JobSpec {
+                id: "job-bad",
+                tmp_dir: tmp.path(),
+                out_path: &out,
+                source_title: None,
+            },
+            &src,
+            &req,
+            &[],
+            "/nonexistent/font.ttf",
+            &|_: &str| -> Option<LayerSource> { None },
+        )
+        .await
+        .unwrap_err();
+        assert!(err.to_string().contains("volume line"), "{name}: {err}");
+    }
 }

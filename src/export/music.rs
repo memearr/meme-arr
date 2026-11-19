@@ -19,6 +19,79 @@ fn one() -> f32 {
     1.0
 }
 
+/// Most points a volume line may have.
+pub const MAX_CURVE_POINTS: usize = 64;
+
+/// One point of a volume line: at `t_ms` into the clip the sound is at `gain` times its volume
+/// (0 silent .. 1 as set). Between points the volume moves in a straight line; before the first
+/// point it is the first one's, after the last it is the last's.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct VolumePoint {
+    pub t_ms: i64,
+    pub gain: f32,
+}
+
+/// Why a volume line over a `clip_ms` clip can't be used, or `None`. `what` names it.
+pub fn validate_curve(points: &[VolumePoint], clip_ms: i64, what: &str) -> Option<String> {
+    if points.len() > MAX_CURVE_POINTS {
+        return Some(format!("{what} has more than {MAX_CURVE_POINTS} points"));
+    }
+    for (i, p) in points.iter().enumerate() {
+        if !(0..=clip_ms).contains(&p.t_ms) {
+            return Some(format!("{what} has a point outside the clip"));
+        }
+        if !p.gain.is_finite() || !(0.0..=1.0).contains(&p.gain) {
+            return Some(format!("{what} has a point that isn't between 0 and 1"));
+        }
+        if i > 0 && p.t_ms <= points[i - 1].t_ms {
+            return Some(format!(
+                "{what} must have its points in time order, one per moment"
+            ));
+        }
+    }
+    None
+}
+
+/// Why the volume line of the clip's own sound can't be used, or `None`.
+pub fn validate_clip_curve(
+    points: &[VolumePoint],
+    clip_ms: i64,
+    keep_audio: bool,
+) -> Option<String> {
+    if !points.is_empty() && !keep_audio {
+        return Some("the clip's volume line only matters when its sound is kept".into());
+    }
+    validate_curve(points, clip_ms, "the clip's volume line")
+}
+
+/// An ffmpeg `volume` filter that follows `points` (times from the start of the sound it is on,
+/// minus `shift_ms`: a song that comes in at `shift_ms` of the clip has its own clock). Empty when
+/// there are no points.
+pub fn curve_filter(points: &[VolumePoint], shift_ms: i64) -> String {
+    let Some(last) = points.last() else {
+        return String::new();
+    };
+    let t = |p: &VolumePoint| (p.t_ms - shift_ms) as f64 / 1000.0;
+    let mut e = format!("{:.3}", last.gain);
+    for w in points.windows(2).rev() {
+        let (a, b) = (&w[0], &w[1]);
+        e = format!(
+            "if(lt(t,{tb:.3}),{ga:.3}+({gb:.3}-{ga:.3})*(t-{ta:.3})/{span:.3},{e})",
+            tb = t(b),
+            ta = t(a),
+            ga = a.gain,
+            gb = b.gain,
+            span = t(b) - t(a),
+        );
+    }
+    let first = &points[0];
+    format!(
+        "volume=eval=frame:volume='if(lt(t,{:.3}),{:.3},{e})'",
+        t(first),
+        first.gain
+    )
+}
+
 /// A song laid under the clip.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Soundtrack {
@@ -41,6 +114,10 @@ pub struct Soundtrack {
     /// (as far as it goes). Needs the clip's sound kept.
     #[serde(default)]
     pub duck: f32,
+    /// How loud the song is over the clip, as a line (see [`VolumePoint`]); it multiplies
+    /// `volume`. Empty: steady.
+    #[serde(default)]
+    pub curve: Vec<VolumePoint>,
     /// The song's file, filled in by the server before the export runs.
     #[serde(skip)]
     pub file: Option<PathBuf>,
@@ -89,6 +166,9 @@ pub fn validate_music(
     }
     if m.duck > 0.0 && !keep_audio {
         return Some("ducking needs the clip's sound kept (it is what the music ducks for)".into());
+    }
+    if let Some(why) = validate_curve(&m.curve, clip_ms, "the music's volume line") {
+        return Some(why);
     }
     if !crate::music::valid_id(&m.id) {
         return Some("that isn't a song id".into());
@@ -142,6 +222,34 @@ pub fn plan_audio(
     plan_mix(&songs, clip_volume, clip_audio, clip_ms, music_input)
 }
 
+/// `plan_audio` for a single export, with a volume line on the clip's own sound.
+pub fn plan_audio_curved(
+    music: Option<&Soundtrack>,
+    clip_volume: f32,
+    clip_curve: &[VolumePoint],
+    clip_audio: bool,
+    clip_ms: i64,
+    music_input: usize,
+) -> Option<AudioMix> {
+    let songs: Vec<Placed> = music
+        .filter(|m| m.file.is_some())
+        .map(|m| Placed {
+            music: m,
+            at_ms: m.at_ms,
+            len_ms: clip_ms - m.at_ms,
+        })
+        .into_iter()
+        .collect();
+    plan_mix_curved(
+        &songs,
+        clip_volume,
+        clip_curve,
+        clip_audio,
+        clip_ms,
+        music_input,
+    )
+}
+
 /// The mix for `total_ms` of sound: the export's own sound (turned up or down) and any number
 /// of songs, each placed and cut as `Placed` says. The songs are inputs `first_input`,
 /// `first_input + 1`, ... in order. A song with ducking dips while the export's own sound plays.
@@ -152,8 +260,24 @@ pub fn plan_mix(
     total_ms: i64,
     first_input: usize,
 ) -> Option<AudioMix> {
+    plan_mix_curved(songs, clip_volume, &[], clip_audio, total_ms, first_input)
+}
+
+/// `plan_mix`, with a volume line on the export's own sound too (`clip_curve`, times from the
+/// start of the export).
+pub fn plan_mix_curved(
+    songs: &[Placed],
+    clip_volume: f32,
+    clip_curve: &[VolumePoint],
+    clip_audio: bool,
+    total_ms: i64,
+    first_input: usize,
+) -> Option<AudioMix> {
     let songs: Vec<&Placed> = songs.iter().filter(|p| p.music.file.is_some()).collect();
-    let own = clip_audio && (!songs.is_empty() || (clip_volume - 1.0).abs() > f32::EPSILON);
+    let own = clip_audio
+        && (!songs.is_empty()
+            || !clip_curve.is_empty()
+            || (clip_volume - 1.0).abs() > f32::EPSILON);
     if songs.is_empty() && !own {
         return None;
     }
@@ -171,8 +295,14 @@ pub fn plan_mix(
     let mut input_args = Vec::new();
     if own {
         let to = if ducked.is_empty() { "[ca]" } else { "[ca0]" };
+        let line = curve_filter(clip_curve, 0);
+        let line = if line.is_empty() {
+            line
+        } else {
+            format!(",{line}")
+        };
         parts.push(format!(
-            "[0:a:0]aformat=channel_layouts=stereo,volume={clip_volume:.3}{to}"
+            "[0:a:0]aformat=channel_layouts=stereo,volume={clip_volume:.3}{line}{to}"
         ));
         if !ducked.is_empty() {
             // one copy is mixed, the others listen (each at the songs' own rate)
@@ -214,6 +344,10 @@ pub fn plan_mix(
             first_input + i,
             m.volume
         );
+        if !m.curve.is_empty() {
+            // the song's own clock starts when it comes in
+            chain.push_str(&format!(",{}", curve_filter(&m.curve, m.at_ms)));
+        }
         if m.fade_in_ms > 0 {
             chain.push_str(&format!(",afade=t=in:st=0:d={}", secs(m.fade_in_ms)));
         }
