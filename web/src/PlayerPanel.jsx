@@ -1,6 +1,7 @@
 import { fmtTime } from "./format.js";
 import { useRef } from "react";
 import { LayerOverlay } from "./LayerOverlay.jsx";
+import { PathPreview } from "./PathPreview.jsx";
 import { pointToPlace } from "./layersModel.js";
 
 const SPEEDS = [0.25, 0.5, 1];
@@ -43,6 +44,9 @@ export function PlayerPanel({
   setSpeed,
   volume,
   setVolume,
+  paths,
+  showPaths,
+  setShowPaths,
 }) {
   const capLayerRef = useRef(null);
   const textDrag = useRef(false);
@@ -147,6 +151,7 @@ export function PlayerPanel({
                 onSelect={setSelectedLayer}
                 onMove={moveLayer}
               />
+              {showPaths && <PathPreview paths={paths} relMs={relMs} pictureBox={pictureBox} onSeek={(ms) => seekTo(start + ms)} />}
               <span className="player-chip mono">
                 {fmtTime(playhead)}
                 {srcFps ? ` · f${Math.round((playhead * srcFps.num) / (1000 * srcFps.den))}` : ""}
@@ -163,6 +168,12 @@ export function PlayerPanel({
             </p>
           )}
         </div>
+
+        {paths?.length > 0 && (
+          <label className="check path-toggle">
+            <input type="checkbox" checked={!!showPaths} onChange={(e) => setShowPaths?.(e.target.checked)} /> Show motion paths
+          </label>
+        )}
 
         <div className="transport">
           <button type="button" className="tp" onClick={() => seekTo(start)} aria-label="Go to In point" title="Go to In">

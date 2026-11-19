@@ -163,6 +163,11 @@ and WebM only; GIF and WebP can't carry audio). Finished files also land in your
   **remove** it, or **Keyframe at the playhead** to add one without moving it. Keep the keyframes
   close together on a fast-moving subject (a keyframe every half second or so) to make text follow it.
   **Save this frame** puts the text where its path has it at the frame you save.
+  **Show motion paths** (under the player, whenever something is moving) draws each route over the
+  picture: a solid line for the way already gone, a dashed one for the way still to go, and a dot at
+  every keyframe (a ring at the first, a filled square at the last). The selected layer's route is the
+  bold one; click a dot to put the playhead there. Use it to check a route, or the result of
+  **Follow it automatically**, before exporting.
 - **Follow it automatically.** Under **Move over time**, put the layer or text on the thing that moves
   (move the playhead to where it is, and drag the layer or text onto it), choose a **Spot size** (small
   for a face or a hand, large for a whole person) and press **Follow it automatically**. The picture
