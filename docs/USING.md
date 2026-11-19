@@ -160,6 +160,15 @@ and WebM only; GIF and WebP can't carry audio). Finished files also land in your
   **Include audio**). The clip's own volume applies when **Include audio** is ticked (a clip with no sound of its
   own just gets the music). Music is for MP4 and WebM, so picking a song switches a GIF or WebP to MP4. It
   is in the exported clip or sequence, not in a saved frame.
+- **Mix: volume over time.** With a song picked, or **Include audio** ticked, the **Mix** strip under the
+  timeline lays the picture (a filmstrip), the clip's own sound and the song side by side, as wide as the clip
+  is long, with the playhead across all of them. Each sound lane draws its waveform as it will come out. **Click
+  a lane** to put a point on its volume line (the height is the volume, from the top for as set to the bottom
+  for silent), **drag** a point to move it, **double-click** it (or press Delete) to remove it, or focus one and
+  use the arrow keys (Shift for bigger steps); **reset** takes the line off. The volume moves in a straight line
+  between points: put two points close together to cut, spread apart to fade, and dip the song while someone
+  speaks. The line multiplies the fader, so the faders stay the overall level; the player follows the line.
+  In a sequence section the song has a line; the clip's own sound doesn't.
 - **Move over time.** A layer, or the styled caption text, can travel across the picture: tick
   **Move over time** to put a first keyframe where it is now, move the playhead, and drag it on the
   player to where it should be at that moment, which makes the next keyframe. It travels in a straight

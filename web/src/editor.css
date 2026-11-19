@@ -805,3 +805,126 @@
 .music-title {
   margin: 0 0 6px;
 }
+
+/* The mix: the picture and the sound over the clip, with the volume lines */
+.mix-timeline {
+  margin: 10px 0;
+  padding: 8px 10px 6px;
+  border: 1px solid var(--border, rgba(128, 128, 128, 0.3));
+  border-radius: 6px;
+  background: var(--panel, transparent);
+}
+.mix-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+.mix-row {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 8px;
+  align-items: stretch;
+  margin-bottom: 4px;
+}
+.mix-label {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  font-size: 0.85em;
+}
+.mix-label .link {
+  align-self: flex-start;
+  padding: 0;
+  font-size: 0.9em;
+}
+.mix-lane {
+  position: relative;
+  height: 52px;
+  border-radius: 4px;
+  background: var(--panel-2, rgba(128, 128, 128, 0.12));
+  overflow: hidden;
+  touch-action: none;
+}
+.mix-video {
+  height: 44px;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+.mix-curve {
+  cursor: crosshair;
+}
+.mix-curve svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.mix-bars {
+  stroke: currentColor;
+  stroke-width: 2;
+  opacity: 0.5;
+  vector-effect: non-scaling-stroke;
+}
+.mix-line {
+  fill: none;
+  stroke: var(--accent, #7aa2ff);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+.mix-point {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--accent, #7aa2ff);
+  background: var(--panel, #fff);
+  cursor: grab;
+  touch-action: none;
+}
+.mix-point:focus-visible {
+  outline: 2px solid var(--accent, #7aa2ff);
+  outline-offset: 2px;
+}
+.mix-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 2px solid #ff5d5d;
+  pointer-events: none;
+}
+.mix-come-in {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 2px dashed var(--muted, #888);
+  pointer-events: none;
+}
+.mix-note {
+  position: absolute;
+  left: 8px;
+  top: 6px;
+  font-size: 0.8em;
+  opacity: 0.8;
+  pointer-events: none;
+}
+.mix-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-left: 100px;
+  font-size: 0.8em;
+}
+@media (max-width: 600px) {
+  .mix-row {
+    grid-template-columns: 64px 1fr;
+  }
+  .mix-scale {
+    margin-left: 72px;
+  }
+}

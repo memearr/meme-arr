@@ -16,7 +16,9 @@ import { PlayerPanel } from "./PlayerPanel.jsx";
 import { LayersPanel } from "./LayersPanel.jsx";
 import { layerLabel, layersForRequest, moveLayerTo } from "./layersModel.js";
 import { MusicPanel } from "./MusicPanel.jsx";
-import { clipVolumeForRequest, musicForRequest } from "./musicModel.js";
+import { adjustMusic, clipVolumeForRequest, musicForRequest } from "./musicModel.js";
+import { MixTimeline } from "./MixTimeline.jsx";
+import { curveForRequest, fitted, gainAt } from "./volumeCurve.js";
 import { JobResult } from "./JobResult.jsx";
 import { browserStorage, loadVolume, saveVolume, typingInto } from "./editorStorage.js";
 import { captionMetrics, containedRect } from "./captionPreview.js";
@@ -74,6 +76,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   // A song from Navidrome under the clip, and how loud the clip's own sound is (see MusicPanel).
   const [music, setMusic] = useState(seed?.music ?? null);
   const [clipVolume, setClipVolume] = useState(1);
+  const [clipCurve, setClipCurve] = useState([]); // the clip's own sound over the clip, as a volume line
   const [overlayList, setOverlayList] = useState({ overlays: [], shapes: [] });
   const [top, setTop] = useState(seed ? seed.top : "");
   const [bottom, setBottom] = useState(seed ? seed.bottom : item.line || "");
@@ -251,15 +254,21 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
 
   // ---- the working preview: render only when the clip leaves it --------------
 
-  // Volume and mute apply to whichever video element is on screen.
+  // Volume and mute apply to whichever video element is on screen; the clip's volume line shapes it.
+  const lineGain = audio && !sequenceEdit ? gainAt(clipCurve, Math.max(0, Math.round(playhead - start))) : 1;
   useEffect(() => {
     const v = videoRef.current;
     if (v) {
-      v.volume = volume.level;
+      v.volume = Math.min(1, Math.max(0, volume.level * lineGain));
       v.muted = volume.muted;
     }
     saveVolume(browserStorage(), volume);
-  }, [volume, proxy]);
+  }, [volume, proxy, lineGain]);
+
+  // A clip made shorter drops the points of the volume line that are past its end.
+  useEffect(() => {
+    setClipCurve((c) => (c.length && c[c.length - 1].t_ms > clipLength ? fitted(c, clipLength) : c));
+  }, [clipLength]);
 
   // Track where the picture is drawn, as the window or the layout changes.
   function measurePicture() {
@@ -616,6 +625,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
         layers: layersForRequest(layers, clipLength),
         music: musicForRequest(music, clipLength, audio),
         clip_volume: clipVolumeForRequest(clipVolume, audio),
+        clip_curve: audio ? curveForRequest(clipCurve, clipLength) : [],
       });
       pushJob(started);
       pollRef.current = setInterval(async () => {
@@ -850,6 +860,22 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
             onZoom={(factor, center) => setView((v) => zoomView(v || shownView, factor, center, mediaDuration || 0))}
             onFit={() => setView(fitView(start, end, mediaDuration || 0))}
           />
+
+          {(music || (audio && !sequenceEdit)) && (
+            <MixTimeline
+              ratingKey={item.rating_key}
+              start={start}
+              end={end}
+              relMs={Math.max(0, Math.round(playhead - start))}
+              onSeek={(ms) => seekTo(ms)}
+              audio={sequenceEdit ? !!sequenceEdit.output?.audio : audio}
+              clipSound={!sequenceEdit}
+              clipCurve={clipCurve}
+              onClipCurve={setClipCurve}
+              music={music}
+              onMusicCurve={(curve) => setMusic((m) => (m ? adjustMusic(m, { curve }, clipLength) : m))}
+            />
+          )}
 
           {mediaDuration > 0 && (
             <div className="position-seek">

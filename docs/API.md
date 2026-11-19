@@ -310,6 +310,12 @@ at once; others wait.
 60, kept between 24 and 160). The span may be at most 120 seconds (`400`
 beyond that).
 
+### `GET /api/waveform/:rating_key?start=<ms>&end=<ms>&bins=<n>`
+The loudness of the file's own sound over `[start, end)` as bars, for the editor's mix timeline:
+`{"has_audio": true, "peaks": [0.2, 0.9, ...]}` (`bins` default 400, kept between 20 and 2000; each bar is the
+loudest sample in its slice, scaled so the loudest is 1). A file with no sound answers `has_audio: false` and no
+bars. The span may be at most 10 minutes (`400` beyond that); `404` if the media isn't indexed.
+
 ### `POST /api/still`
 One frame as a picture, with its caption drawn on. It takes a moment, so it
 answers with the finished file rather than a job to poll. `400` if `t_ms` is
@@ -409,6 +415,12 @@ Request (`ExportRequest`):
   and kept from clipping. A clip with no sound of its own gets just the music. `400` for a GIF or WebP, a volume or
   time out of range, or when Navidrome isn't set up; `duck` (0 off to 1 fully) turns the song down while the
   clip's own sound is playing and back up in the gaps, and needs `audio: true` (`400` otherwise); if the song can't be fetched the job fails with the reason.
+  `curve` (default none), inside `music`, is the song's volume over the clip as a line of
+  `{"t_ms": 1500, "gain": 0.3}` points (`t_ms` from the clip's start, `gain` 0 silent to 1 as `volume` says): the
+  volume moves in straight lines between the points, before the first it is the first's and after the last it is
+  the last's. At most 64 points, in time order and one per moment (`400` otherwise). `clip_curve` is the same for
+  the clip's own sound (needs `audio: true`) and multiplies `clip_volume`. A sequence clip's `music` takes a
+  `curve` in the clip's own time; the sequence's own `clip_curve` is not accepted.
 - `quality` drives libwebp's `-q:v` and x264/VP9 CRF for webp/mp4/webm, and
   (as of the gifsicle integration) a `gifsicle --lossy=N` post-process pass
   for GIF — ffmpeg's own palette pipeline for GIF has no quality lever of its

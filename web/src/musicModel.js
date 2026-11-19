@@ -1,6 +1,7 @@
 // Music under a clip: the song chosen from Navidrome, where it starts, how loud it and the
 // clip's own sound are, and its fades. Pure logic, no React; the limits are the server's.
 import { withBase } from "./base.js";
+import { curveForRequest, fitted, gainAt } from "./volumeCurve.js";
 
 export const MAX_VOLUME = 2;
 /** The shortest stretch of music worth having, so a clip trimmed short keeps a little. */
@@ -23,6 +24,7 @@ export function newMusic(track) {
     fade_in_ms: 0,
     fade_out_ms: 0,
     duck: 0,
+    curve: [], // the volume over the clip as a line of {t_ms, gain} (see volumeCurve.js)
   };
 }
 
@@ -37,6 +39,7 @@ export function adjustMusic(music, changes, clipMs) {
   const playing = Math.max(0, clipMs - m.at_ms);
   m.fade_in_ms = Math.round(clamp(num(m.fade_in_ms), 0, playing));
   m.fade_out_ms = Math.round(clamp(num(m.fade_out_ms), 0, playing));
+  m.curve = fitted(m.curve, clipMs);
   return m;
 }
 
@@ -54,6 +57,7 @@ export function musicForRequest(music, clipMs, keepAudio = true) {
     fade_out_ms: m.fade_out_ms,
     // ducking is for the clip's own sound, so it only goes when that is kept
     duck: keepAudio ? m.duck : 0,
+    curve: curveForRequest(m.curve, clipMs),
   };
 }
 
@@ -124,5 +128,6 @@ export function previewState(music, relMs, clipMs) {
   if (music.fade_in_ms > 0 && into < music.fade_in_ms) fade = Math.min(fade, into / music.fade_in_ms);
   const left = playing - into;
   if (music.fade_out_ms > 0 && left < music.fade_out_ms) fade = Math.min(fade, Math.max(0, left) / music.fade_out_ms);
-  return { on: true, songMs: music.start_ms + into, gain: clamp(music.volume * fade, 0, 1) };
+  const line = gainAt(music.curve, relMs);
+  return { on: true, songMs: music.start_ms + into, gain: clamp(music.volume * fade * line, 0, 1) };
 }
