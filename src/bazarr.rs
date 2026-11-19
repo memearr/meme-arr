@@ -20,6 +20,9 @@ use std::time::{Duration, Instant};
 
 /// How long a list fetched from Bazarr (all movies, all series) is reused.
 const CACHE_TTL: Duration = Duration::from_secs(60);
+/// How long Bazarr gets to send a whole list (all movies, all series): on a big library it
+/// takes well over the 20 seconds that is enough for everything else.
+const LIST_TIMEOUT: Duration = Duration::from_secs(180);
 
 /// A language Bazarr is missing a subtitle in.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -264,14 +267,35 @@ impl Client {
     }
 
     async fn get(&self, path: &str, query: &[(&str, String)]) -> Result<Value> {
-        let resp = self
+        self.get_within(path, query, None).await
+    }
+
+    /// `get`, with its own time limit instead of the client's (`None`: the client's).
+    async fn get_within(
+        &self,
+        path: &str,
+        query: &[(&str, String)],
+        limit: Option<Duration>,
+    ) -> Result<Value> {
+        let mut req = self
             .http
             .get(self.url(path))
             .header("X-API-KEY", &self.key)
-            .query(query)
-            .send()
-            .await
-            .with_context(|| format!("couldn't reach Bazarr at {}", self.base))?;
+            .query(query);
+        if let Some(limit) = limit {
+            req = req.timeout(limit);
+        }
+        let resp = req.send().await.map_err(|e| {
+            if e.is_timeout() {
+                // it is there, just slow: not the same as not being reachable
+                anyhow::anyhow!(
+                    "Bazarr at {} didn't answer {path} in time (it is reachable, but slow)",
+                    self.base
+                )
+            } else {
+                anyhow::Error::new(e).context(format!("couldn't reach Bazarr at {}", self.base))
+            }
+        })?;
         let resp = self.check(path, resp).await?;
         resp.json::<Value>()
             .await
@@ -287,7 +311,7 @@ impl Client {
                 return Ok(v.clone());
             }
         }
-        let v = self.get(path, query).await?;
+        let v = self.get_within(path, query, Some(LIST_TIMEOUT)).await?;
         cache()
             .lock()
             .unwrap_or_else(|p| p.into_inner())
@@ -825,5 +849,37 @@ mod tests {
                 .unwrap(),
             0
         );
+    }
+
+    /// A stand-in Bazarr that takes a while to send its lists.
+    async fn slow_bazarr(delay_ms: u64) -> String {
+        let app = axum::Router::new().route(
+            "/api/movies",
+            axum::routing::get(move || async move {
+                tokio::time::sleep(Duration::from_millis(delay_ms)).await;
+                axum::Json(json!({ "data": [] }))
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        format!("http://{addr}")
+    }
+
+    #[tokio::test]
+    async fn a_big_list_gets_longer_than_the_usual_limit_and_a_slow_answer_is_said_to_be_slow() {
+        let url = slow_bazarr(400).await;
+        let q = [("start", "0".to_string()), ("length", "-1".to_string())];
+        // the client's own limit is shorter than Bazarr takes ...
+        let quick = Client::new(&url, "k").with_timeout(Duration::from_millis(100));
+        let err = quick.get("movies", &q).await.unwrap_err().to_string();
+        assert!(err.contains("didn't answer movies in time"), "{err}");
+        assert!(!err.contains("couldn't reach"), "{err}");
+        // ... a list is allowed longer
+        let v = quick
+            .get_within("movies", &q, Some(Duration::from_secs(5)))
+            .await
+            .unwrap();
+        assert!(v["data"].is_array());
     }
 }
