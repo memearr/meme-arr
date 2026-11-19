@@ -156,6 +156,60 @@ pub(super) async fn filmstrip(
     Ok(jpeg(bytes))
 }
 
+#[derive(Debug, Deserialize)]
+pub(super) struct WaveformParams {
+    start: i64,
+    end: i64,
+    /// How many bars (default 400).
+    bins: Option<usize>,
+}
+
+/// The longest stretch whose sound is drawn.
+const MAX_WAVEFORM_SPAN_MS: i64 = 600_000;
+
+/// `GET /api/waveform/{rating_key}?start=&end=&bins=`: the loudness of the file's own sound
+/// over `[start, end)` as bars, for the editor's mix timeline. `{"has_audio": true, "peaks": [..]}`;
+/// a file with no sound answers `has_audio: false` and no bars.
+pub(super) async fn clip_waveform(
+    State(st): State<AppState>,
+    Path(rating_key): Path<String>,
+    Query(p): Query<WaveformParams>,
+) -> Result<Response, AppError> {
+    if p.start < 0 || p.end <= p.start {
+        return Ok(bad_request("end must be greater than start"));
+    }
+    if p.end - p.start > MAX_WAVEFORM_SPAN_MS {
+        return Ok(bad_request(
+            "that is too long a stretch to draw the sound of",
+        ));
+    }
+    let (_, file) = match resolve_source(&st, &rating_key).await? {
+        Ok(found) => found,
+        Err(resp) => return Ok(resp),
+    };
+    let silent = !ffmpeg::probe(&st.config.ffprobe_bin, &file)
+        .await
+        .map(|i| i.has_audio)
+        .unwrap_or(false);
+    if silent {
+        return Ok(Json(json!({ "has_audio": false, "peaks": [] })).into_response());
+    }
+    let _slot = still_slots().acquire().await?;
+    match crate::waveform::analyze_span(
+        &st.config.ffmpeg_bin,
+        &file,
+        p.start,
+        p.end - p.start,
+        p.bins.unwrap_or(400),
+    )
+    .await
+    {
+        Ok(w) => Ok(Json(json!({ "has_audio": true, "peaks": w.peaks })).into_response()),
+        // a stretch with nothing in it (past the end of the sound) is just flat
+        Err(_) => Ok(Json(json!({ "has_audio": true, "peaks": [] })).into_response()),
+    }
+}
+
 /// `POST /api/still`: one frame, with its subtitle or meme text drawn on it,
 /// as a PNG, JPEG or GIF. One frame takes a moment, so the answer comes back
 /// with the finished file's download address rather than as a job to poll.

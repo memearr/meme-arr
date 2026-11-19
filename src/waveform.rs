@@ -58,13 +58,31 @@ fn samples_of(bytes: &[u8]) -> Vec<i16> {
 
 /// Decode `file` and summarise it as `bins` bars.
 pub async fn analyze(ffmpeg: &str, file: &Path, bins: usize) -> Result<Wave> {
+    analyze_span(ffmpeg, file, 0, MAX_SECS as i64 * 1000, bins).await
+}
+
+/// `analyze`, for the `len_ms` from `start_ms` only (a clip's sound out of a whole film).
+pub async fn analyze_span(
+    ffmpeg: &str,
+    file: &Path,
+    start_ms: i64,
+    len_ms: i64,
+    bins: usize,
+) -> Result<Wave> {
     let bins = bins.clamp(MIN_BINS, MAX_BINS);
+    let secs = |ms: i64| format!("{:.3}", ms.max(0) as f64 / 1000.0);
     let out = tokio::process::Command::new(ffmpeg)
-        .args(["-v", "error", "-nostdin", "-i"])
+        .args(["-v", "error", "-nostdin", "-ss", &secs(start_ms), "-i"])
         .arg(file)
         .args(["-vn", "-ac", "1", "-ar"])
         .arg(RATE.to_string())
-        .args(["-t", &MAX_SECS.to_string(), "-f", "s16le", "-"])
+        .args([
+            "-t",
+            &secs(len_ms.min(MAX_SECS as i64 * 1000)),
+            "-f",
+            "s16le",
+            "-",
+        ])
         .kill_on_drop(true)
         .output()
         .await
@@ -119,5 +137,37 @@ mod tests {
     #[test]
     fn raw_bytes_are_little_endian_samples() {
         assert_eq!(samples_of(&[1, 0, 0xff, 0xff, 9]), vec![1, -1]);
+    }
+
+    #[tokio::test]
+    async fn a_stretch_of_a_file_is_read_on_its_own() {
+        let ffmpeg = std::process::Command::new("ffmpeg")
+            .arg("-version")
+            .output();
+        if ffmpeg.is_err() {
+            eprintln!("skipping: ffmpeg not found");
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        // 1 s of silence, then 1 s of tone
+        let file = dir.path().join("a.wav");
+        let ok = std::process::Command::new("ffmpeg")
+            .args(["-y", "-v", "error", "-f", "lavfi", "-i"])
+            .arg("sine=frequency=440:duration=1")
+            .args(["-af", "adelay=1000:all=1", "-t", "2"])
+            .arg(&file)
+            .status()
+            .unwrap()
+            .success();
+        assert!(ok);
+        let quiet = analyze_span("ffmpeg", &file, 0, 800, 20).await.unwrap();
+        let loud = analyze_span("ffmpeg", &file, 1100, 800, 20).await.unwrap();
+        assert!(quiet.peaks.iter().all(|&p| p == 0.0), "{:?}", quiet.peaks);
+        assert!(loud.peaks.iter().any(|&p| p > 0.9), "{:?}", loud.peaks);
+        assert!(
+            (700..=900).contains(&loud.duration_ms),
+            "{}",
+            loud.duration_ms
+        );
     }
 }
