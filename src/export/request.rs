@@ -194,6 +194,10 @@ pub struct ExportRequest {
     /// How loud the clip's own sound is, 0..=2 (only when `audio` keeps it).
     #[serde(default = "volume_one")]
     pub clip_volume: f32,
+    /// How that changes over the clip: a line of points (see [`VolumePoint`]) that multiplies
+    /// `clip_volume`. Empty: steady.
+    #[serde(default)]
+    pub clip_curve: Vec<VolumePoint>,
 }
 
 pub(super) fn volume_one() -> f32 {

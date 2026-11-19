@@ -9,6 +9,7 @@ fn song() -> Soundtrack {
         fade_in_ms: 0,
         fade_out_ms: 0,
         duck: 0.0,
+        curve: vec![],
         file: Some(PathBuf::from("/data/music/abc-123.mp3")),
     }
 }
@@ -428,4 +429,70 @@ fn the_songs_of_a_sequences_clips_are_checked_naming_the_clip() {
         validate_clip_music(&[(Some(&duck), 5000)], Format::Mp4, true),
         None
     );
+}
+
+fn pt(t_ms: i64, gain: f32) -> VolumePoint {
+    VolumePoint { t_ms, gain }
+}
+
+#[test]
+fn a_volume_line_is_a_filter_that_runs_straight_between_its_points() {
+    assert_eq!(curve_filter(&[], 0), "");
+    assert_eq!(
+        curve_filter(&[pt(1000, 0.5)], 0),
+        "volume=eval=frame:volume='if(lt(t,1.000),0.500,0.500)'"
+    );
+    assert_eq!(
+        curve_filter(&[pt(1000, 1.0), pt(3000, 0.0)], 0),
+        "volume=eval=frame:volume='if(lt(t,1.000),1.000,if(lt(t,3.000),1.000+(0.000-1.000)*(t-1.000)/2.000,0.000))'"
+    );
+}
+
+#[test]
+fn a_song_that_comes_in_late_has_its_line_on_its_own_clock() {
+    let f = curve_filter(&[pt(1500, 0.0), pt(2500, 1.0)], 1000);
+    assert!(
+        f.contains("lt(t,0.500)") && f.contains("lt(t,1.500)"),
+        "{f}"
+    );
+}
+
+#[test]
+fn volume_lines_are_checked() {
+    assert_eq!(validate_curve(&[], 5000, "x"), None);
+    assert_eq!(
+        validate_curve(&[pt(0, 1.0), pt(5000, 0.0)], 5000, "x"),
+        None
+    );
+    for bad in [
+        vec![pt(-1, 0.5)],
+        vec![pt(5001, 0.5)],
+        vec![pt(1000, 1.2)],
+        vec![pt(1000, -0.1)],
+        vec![pt(1000, f32::NAN)],
+        vec![pt(2000, 0.5), pt(1000, 0.5)],
+        vec![pt(1000, 0.5), pt(1000, 0.4)],
+        (0..65).map(|i| pt(i, 0.5)).collect(),
+    ] {
+        assert!(validate_curve(&bad, 5000, "x").is_some(), "{bad:?}");
+    }
+    assert!(
+        validate_clip_curve(&[pt(0, 1.0)], 5000, false).is_some(),
+        "needs the clip's sound"
+    );
+    assert_eq!(validate_clip_curve(&[pt(0, 1.0)], 5000, true), None);
+}
+
+#[test]
+fn the_clips_own_sound_follows_its_line_and_the_songs_line_is_in_the_graph() {
+    let mix = plan_audio_curved(None, 1.0, &[pt(1000, 1.0), pt(2000, 0.0)], true, 5000, 1).unwrap();
+    assert!(
+        mix.graph.contains("volume=1.000,volume=eval=frame"),
+        "{}",
+        mix.graph
+    );
+    let mut m = song();
+    m.curve = vec![pt(1000, 0.2)];
+    let mix = plan_audio(Some(&m), 1.0, false, 5000, 1).unwrap();
+    assert!(mix.graph.contains("volume=eval=frame"), "{}", mix.graph);
 }
