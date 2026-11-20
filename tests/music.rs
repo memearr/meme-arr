@@ -83,6 +83,7 @@ fn request(format: Format, audio: bool, m: Option<Soundtrack>, clip_volume: f32)
         music: m,
         clip_volume,
         clip_curve: vec![],
+        grade: export::Grade::default(),
     }
 }
 

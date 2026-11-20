@@ -415,6 +415,12 @@ Request (`ExportRequest`):
   and kept from clipping. A clip with no sound of its own gets just the music. `400` for a GIF or WebP, a volume or
   time out of range, or when Navidrome isn't set up; `duck` (0 off to 1 fully) turns the song down while the
   clip's own sound is playing and back up in the gaps, and needs `audio: true` (`400` otherwise); if the song can't be fetched the job fails with the reason.
+  `grade` (default none) is the look of the picture: `{"brightness": 0, "contrast": 1, "saturation": 1,
+  "tone": "none", "mirror": false, "fade_in_ms": 0, "fade_out_ms": 0}`, every field optional. `brightness` is
+  -1 to 1 (added to every pixel), `contrast` 0 to 2, `saturation` 0 to 3, `tone` is `none`, `bw` or `sepia`,
+  `mirror` swaps left and right, and the fades (from and to black, at the start and the end of the clip) are not
+  negative and together no longer than the clip (`400` otherwise). The colour and mirror are applied to the clip's
+  picture before layers and captions, the fades to the finished picture. Not accepted on a sequence or `/api/still`.
   `curve` (default none), inside `music`, is the song's volume over the clip as a line of
   `{"t_ms": 1500, "gain": 0.3}` points (`t_ms` from the clip's start, `gain` 0 silent to 1 as `volume` says): the
   volume moves in straight lines between the points, before the first it is the first's and after the last it is

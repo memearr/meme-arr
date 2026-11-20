@@ -83,6 +83,9 @@ pub async fn run_export_with(
         offset_ms: req.subtitle_offset_ms,
     };
     let clip_ms = req.end_ms - req.start_ms;
+    if let Some(why) = validate_grade(&req.grade, clip_ms) {
+        anyhow::bail!(why);
+    }
     if let Some(why) = validate_music(
         req.music.as_ref(),
         req.clip_volume,
@@ -126,8 +129,15 @@ pub async fn run_export_with(
     // The sprite files (written for shape layers) go when this does.
     let mut sprites = SpriteFiles::default();
     let (args, caption_files) = if req.layers.is_empty() {
-        let (core, caption_files) =
-            prepare_captions(job.tmp_dir, job.id, (req.width, req.fps), style, &window)?;
+        let caption_files =
+            write_caption_files(job.tmp_dir, job.id, style.caption, &window, style.font_path)?;
+        let core = core_chain_graded(
+            req.width,
+            req.fps,
+            &caption_files.spec(style),
+            &req.grade,
+            clip_ms,
+        );
         let vf = video_filter(req.format, &core);
         let args = export_args(
             &file.to_string_lossy(),
@@ -147,11 +157,11 @@ pub async fn run_export_with(
             write_caption_files(job.tmp_dir, job.id, style.caption, &window, style.font_path)?;
         let (sources, written) = resolve_layers(&req.layers, job.tmp_dir, job.id, media)?;
         sprites = written;
-        let after = finishing_filter(
-            req.format,
-            &caption_filters(&caption_files.spec(style)).join(","),
-        );
-        let plan = plan_layers(&req.layers, &sources, req.width, req.fps, clip_ms, &after);
+        let mut after_chain = caption_filters(&caption_files.spec(style));
+        after_chain.extend(req.grade.fade_filters(clip_ms));
+        let after = finishing_filter(req.format, &after_chain.join(","));
+        let base = layers_base_graded(req.width, req.fps, &req.grade);
+        let plan = plan_layers_on(&req.layers, &sources, &base, req.width, clip_ms, &after);
         let args = export_args_with_layers(
             &file.to_string_lossy(),
             req.start_ms,

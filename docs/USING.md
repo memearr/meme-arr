@@ -169,6 +169,16 @@ and WebM only; GIF and WebP can't carry audio). Finished files also land in your
   between points: put two points close together to cut, spread apart to fade, and dip the song while someone
   speaks. The line multiplies the fader, so the faders stay the overall level; the player follows the line.
   In a sequence section the song has a line; the clip's own sound doesn't.
+- **Picture: colour, mirror and fades.** The **Picture** box gives the clip a look. **Brightness**, **Contrast**
+  and **Saturation** are sliders, **Tone** turns it black and white or sepia, and four starting looks (Vivid,
+  Faded, Noir, Old photo) set them all at once (**Reset** puts it back). **Mirror** swaps left and right. **Fade in
+  from black** and **Fade out to black** bring the picture up at the start and down at the end of the clip. The
+  player shows the look as you go (a close match, not exact). In the export the colour and the mirror are applied
+  to the clip's picture before layers and captions go on, so those keep their own colours and don't flip; the
+  fades are applied last, so they take the layers and captions with them. Fade the sound with its volume line in
+  the Mix. It works in every format (a GIF is made plain RGB first so a fade doesn't leave holes). It is on a
+  single clip, not on the sections of a sequence. **Follow it automatically** looks at the original picture, so
+  turn Mirror off while you track.
 - **Move over time.** A layer, or the styled caption text, can travel across the picture: tick
   **Move over time** to put a first keyframe where it is now, move the playhead, and drag it on the
   player to where it should be at that moment, which makes the next keyframe. It travels in a straight

@@ -145,6 +145,7 @@ async fn extract_parse_and_export() {
         music: None,
         clip_volume: 1.0,
         clip_curve: vec![],
+        grade: export::Grade::default(),
     };
     let out = tmp.path().join("whistles.gif");
     export::run_export(
@@ -193,6 +194,7 @@ async fn export_with_audio_produces_an_opus_track() {
         music: None,
         clip_volume: 1.0,
         clip_curve: vec![],
+        grade: export::Grade::default(),
     };
     let out = tmp.path().join("with-audio.mp4");
     export::run_export(
@@ -492,6 +494,7 @@ async fn exports_keep_nothing_from_the_source_but_the_credited_title() {
             music: None,
             clip_volume: 1.0,
             clip_curve: vec![],
+            grade: export::Grade::default(),
         };
         let out = tmp.path().join(name);
         export::run_export(
@@ -549,6 +552,7 @@ async fn exports_keep_nothing_from_the_source_but_the_credited_title() {
         music: None,
         clip_volume: 1.0,
         clip_curve: vec![],
+        grade: export::Grade::default(),
     };
     let out = tmp.path().join("plain.mp4");
     export::run_export(
@@ -715,6 +719,7 @@ async fn webm_export_with_audio_is_vp9_plus_opus_with_real_sound() {
         music: None,
         clip_volume: 1.0,
         clip_curve: vec![],
+        grade: export::Grade::default(),
     };
     let out = tmp.path().join("clip.webm");
     export::run_export(
@@ -884,6 +889,7 @@ async fn burned_subtitles_over_a_window_with_no_lines_export_without_captions() 
             music: None,
             clip_volume: 1.0,
             clip_curve: vec![],
+            grade: export::Grade::default(),
         };
         let out = tmp.path().join(name);
         export::run_export(
@@ -974,6 +980,7 @@ async fn a_chosen_font_and_size_are_used_for_both_kinds_of_caption() {
             music: None,
             clip_volume: 1.0,
             clip_curve: vec![],
+            grade: export::Grade::default(),
         };
         let out = tmp.path().join(format!("{name}.mp4"));
         export::run_export(
@@ -1012,6 +1019,7 @@ async fn a_chosen_font_and_size_are_used_for_both_kinds_of_caption() {
         music: None,
         clip_volume: 1.0,
         clip_curve: vec![],
+        grade: export::Grade::default(),
     };
     let out = tmp.path().join("plain.mp4");
     export::run_export(

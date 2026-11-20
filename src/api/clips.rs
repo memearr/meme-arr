@@ -216,6 +216,9 @@ pub(super) async fn export_start(
     if let Some(msg) = export::validate_layers(&req.layers, req.end_ms - req.start_ms) {
         return Ok(bad_request(msg));
     }
+    if let Some(msg) = export::validate_grade(&req.grade, req.end_ms - req.start_ms) {
+        return Ok(bad_request(msg));
+    }
     if let Some(msg) = export::validate_music(
         req.music.as_ref(),
         req.clip_volume,
