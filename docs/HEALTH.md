@@ -33,6 +33,15 @@ media files' streams and nothing new gets indexed. Same fix as above.
 **Warning.** `gifsicle` (`GIFSICLE_BIN`) can't be run. GIF exports still
 work — they just skip the extra lossy compression pass, so they're bigger.
 
+### `av1_decoder_missing`
+**Warning.** This `ffmpeg` has no software AV1 decoder (`libdav1d` or
+`libaom`). Its built-in AV1 decoder only works through a supported graphics
+chip, so any video encoded as AV1 fails to preview or export with "Your
+platform doesn't support hardware accelerated AV1 decoding". Use an ffmpeg
+build that includes `libdav1d` (the Docker image does) or point `FFMPEG_BIN` at
+one. Other codecs are unaffected. `ffmpeg -decoders | grep -i av1` shows what
+your build has.
+
 ### `server_not_configured`
 **Warning.** The selected media server (Plex or Jellyfin) has no URL or
 credentials yet. Open Settings, enter them, and use **Test** before saving.

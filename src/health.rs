@@ -85,6 +85,7 @@ pub async fn run(st: &AppState) -> Vec<Issue> {
         &cfg.gifsicle_bin,
     )
     .await;
+    av1_check(&mut out, &cfg.ffmpeg_bin).await;
 
     let settings = st.settings();
     let label = settings.server.label();
@@ -255,6 +256,35 @@ async fn tool_checks(out: &mut Issues, ffmpeg: &str, ffprobe: &str, gifsicle: &s
     }
 }
 
+/// Whether an `ffmpeg -decoders` listing names a software AV1 decoder. ffmpeg's own `av1`
+/// decoder only works through a supported graphics chip, so without libdav1d or libaom an AV1
+/// source can't be previewed or exported.
+fn has_software_av1(listing: &str) -> bool {
+    listing
+        .lines()
+        .filter_map(|l| l.split_whitespace().nth(1))
+        .any(|name| name == "libdav1d" || name == "libaom-av1")
+}
+
+/// Warn when this ffmpeg can't decode AV1 in software. Quiet when ffmpeg itself can't be run
+/// (`tool_checks` already says so).
+async fn av1_check(out: &mut Issues, ffmpeg: &str) {
+    let run = tokio::process::Command::new(ffmpeg)
+        .args(["-hide_banner", "-decoders"])
+        .output();
+    let Ok(Ok(o)) = tokio::time::timeout(TOOL_TIMEOUT, run).await else {
+        return;
+    };
+    if o.status.success() && !has_software_av1(&String::from_utf8_lossy(&o.stdout)) {
+        out.push(
+            "av1_decoder_missing",
+            Level::Warning,
+            format!("`{ffmpeg}` has no software AV1 decoder (libdav1d or libaom), so videos encoded as AV1 can't be previewed or exported."),
+            "Use an ffmpeg build that includes libdav1d (the Docker image does), or set FFMPEG_BIN to one.",
+        );
+    }
+}
+
 /// Run `bin flag` and check it exits successfully.
 async fn probe_tool(bin: &str, flag: &str) -> Result<(), String> {
     let run = tokio::process::Command::new(bin).arg(flag).output();
@@ -375,6 +405,24 @@ mod tests {
         assert_eq!(out.list.len(), 1);
         assert_eq!(out.list[0].level, Level::Error);
         assert!(out.list[0].message.contains("/b"));
+    }
+
+    #[test]
+    fn only_a_software_decoder_counts_for_av1() {
+        let hardware_only = " V....D av1                  Alliance for Open Media AV1
+ V..... av1_cuvid            Nvidia CUVID AV1 decoder (codec av1)
+ V....D h264                 H.264 / AVC
+";
+        assert!(!has_software_av1(hardware_only));
+        assert!(has_software_av1(&format!(
+            "{hardware_only} V....D libdav1d             dav1d AV1 decoder by VideoLAN (codec av1)
+"
+        )));
+        assert!(has_software_av1(
+            " V....D libaom-av1           libaom AV1 (codec av1)
+"
+        ));
+        assert!(!has_software_av1(""));
     }
 
     #[test]
