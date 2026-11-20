@@ -4,6 +4,7 @@ import { gainAt, gainText, linePath, addPoint, movePoint, removePoint, MIN_GAP_M
 import { secondsText } from "./layersModel.js";
 import { LevelMeter } from "./LevelMeter.jsx";
 import { MAX_VOLUME } from "./musicModel.js";
+import { panText } from "./mixModel.js";
 
 const W = 1000; // the lanes' drawing width; they stretch to the page
 const STRIP_FRAMES = 12;
@@ -63,8 +64,9 @@ export function songBars(wave, startMs, lenMs) {
 }
 
 /**
- * The mixing controls of one sound: mute, solo, its level, and a meter of what is coming out. `track`
- * is `{muted, solo, level, onMute, onSolo, onLevel, getEl, active}`; nothing is drawn without one.
+ * The mixing controls of one sound: mute, solo, its level, its pan and a meter of what is coming out.
+ * `track` is `{muted, solo, level, pan, onMute, onSolo, onLevel, onPan, getEl, active}`; nothing is drawn
+ * without one. Double-click the pan to put it back in the middle.
  */
 function TrackControls({ name, track }) {
   if (!track) return null;
@@ -102,7 +104,48 @@ function TrackControls({ name, track }) {
           onChange={(e) => track.onLevel(Number(e.target.value))}
         />
       </div>
+      <label className="mix-pan" title={`${name} pan: ${panText(track.pan)} (double-click for the middle)`}>
+        <span aria-hidden="true">L</span>
+        <input
+          type="range"
+          min={-1}
+          max={1}
+          step={0.05}
+          value={track.pan ?? 0}
+          aria-label={`${name} pan`}
+          aria-valuetext={panText(track.pan)}
+          onChange={(e) => track.onPan(Number(e.target.value))}
+          onDoubleClick={() => track.onPan(0)}
+        />
+        <span aria-hidden="true">R</span>
+      </label>
       <LevelMeter getEl={track.getEl} active={!!track.active} label={name} />
+    </div>
+  );
+}
+
+/** The master: one fader for the whole mix and a meter as wide as the clip. `master` is `{level, onLevel, active}`. */
+function MasterRow({ master }) {
+  if (!master) return null;
+  return (
+    <div className="mix-row mix-master">
+      <div className="mix-label">
+        <b>Master</b>
+        <input
+          type="range"
+          min={0}
+          max={MAX_VOLUME}
+          step={0.05}
+          value={master.level}
+          aria-label="Master level"
+          title={`Master level: ${Math.round(master.level * 100)}%`}
+          onChange={(e) => master.onLevel(Number(e.target.value))}
+          onDoubleClick={() => master.onLevel(1)}
+        />
+      </div>
+      <div className="mix-master-meter">
+        <LevelMeter master active={!!master.active} label="Master" />
+      </div>
     </div>
   );
 }
@@ -213,7 +256,8 @@ function CurveLane({ label, what, bars, clipMs, relMs, points, onChange, track, 
  * The picture and the sound side by side over the clip, so the volume can be shaped against what is
  * on screen: the filmstrip, the clip's own sound and the song, each as wide as the clip is long, with
  * the playhead across all of them. The sound lanes carry a volume line you edit by clicking and dragging,
- * and (given `clipTrack` / `songTrack`) mute, solo, a level and a meter.
+ * and (given `clipTrack` / `songTrack`) mute, solo, a level, a pan and a meter; `master` adds the fader and
+ * the meter of the whole mix.
  */
 export function MixTimeline({
   ratingKey,
@@ -229,6 +273,7 @@ export function MixTimeline({
   clipSound = true,
   clipTrack,
   songTrack,
+  master,
 }) {
   const clipMs = Math.max(0, end - start);
   const [own, setOwn] = useState(null); // {has_audio, peaks} of the clip's own sound
@@ -310,6 +355,7 @@ export function MixTimeline({
           {music.at_ms > 0 && <span className="mix-come-in" style={{ left: `${(music.at_ms / clipMs) * 100}%` }} title="The song comes in here" />}
         </CurveLane>
       )}
+      <MasterRow master={master} />
       <div className="mix-scale muted" aria-hidden="true">
         <span>0</span>
         <span>{secondsText(clipMs)} s</span>

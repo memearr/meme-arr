@@ -115,6 +115,12 @@ describe("the level meter", () => {
       wired.push("source");
       return { connect: vi.fn() };
     }
+    createGain() {
+      return { gain: { value: 1 }, connect: vi.fn() };
+    }
+    createStereoPanner() {
+      return { pan: { value: 0 }, connect: vi.fn() };
+    }
     createAnalyser() {
       return {
         fftSize: 0,

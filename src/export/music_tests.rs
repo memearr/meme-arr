@@ -10,6 +10,7 @@ fn song() -> Soundtrack {
         fade_out_ms: 0,
         duck: 0.0,
         curve: vec![],
+        pan: 0.0,
         file: Some(PathBuf::from("/data/music/abc-123.mp3")),
     }
 }
@@ -495,4 +496,96 @@ fn the_clips_own_sound_follows_its_line_and_the_songs_line_is_in_the_graph() {
     m.curve = vec![pt(1000, 0.2)];
     let mix = plan_audio(Some(&m), 1.0, false, 5000, 1).unwrap();
     assert!(mix.graph.contains("volume=eval=frame"), "{}", mix.graph);
+}
+
+#[test]
+fn a_pan_filter_follows_the_web_audio_panner_and_is_empty_in_the_middle() {
+    assert_eq!(pan_filter(0.0), "");
+    assert_eq!(pan_filter(0.0002), "");
+    assert_eq!(pan_filter(f32::NAN), "");
+    // hard left: the right channel folds into the left, and nothing is left on the right
+    assert_eq!(pan_filter(-1.0), "pan=stereo|c0=c0+1.0000*c1|c1=0.0000*c1");
+    // hard right: the left folds into the right
+    assert_eq!(pan_filter(1.0), "pan=stereo|c0=0.0000*c0|c1=c1+1.0000*c0");
+    // half left
+    assert_eq!(pan_filter(-0.5), "pan=stereo|c0=c0+0.7071*c1|c1=0.7071*c1");
+}
+
+#[test]
+fn pan_and_master_are_checked() {
+    let ok = |clip_pan, master, audio| validate_mixdown(&Mixdown { clip_pan, master }, audio);
+    assert_eq!(ok(0.0, 1.0, false), None);
+    assert_eq!(ok(-1.0, 2.0, true), None);
+    assert!(ok(1.1, 1.0, true).is_some());
+    assert!(ok(f32::NAN, 1.0, true).is_some());
+    assert!(ok(0.5, 1.0, false).unwrap().contains("sound is kept"));
+    assert!(ok(0.0, 2.5, true).is_some());
+    assert!(ok(0.0, -0.1, true).is_some());
+    assert!(Mixdown::default().is_plain());
+    assert!(!Mixdown {
+        clip_pan: 0.0,
+        master: 0.9
+    }
+    .is_plain());
+    let mut m = song();
+    m.pan = 1.2;
+    assert!(check(Some(&m), 1.0, Format::Mp4, true)
+        .unwrap()
+        .contains("pan"));
+    m.pan = -1.0;
+    assert_eq!(check(Some(&m), 1.0, Format::Mp4, true), None);
+}
+
+#[test]
+fn the_mix_pans_each_sound_and_scales_the_whole_at_the_end() {
+    let mut m = song();
+    m.pan = 0.5;
+    let md = Mixdown {
+        clip_pan: -1.0,
+        master: 0.5,
+    };
+    let mix = plan_audio_mixed(Some(&m), 1.0, &[], &md, true, 5000, 1).unwrap();
+    assert!(
+        mix.graph.contains("[0:a:0]aformat=channel_layouts=stereo,pan=stereo|c0=c0+1.0000*c1|c1=0.0000*c1,volume=1.000"),
+        "{}",
+        mix.graph
+    );
+    assert!(
+        mix.graph.contains(
+            "aformat=channel_layouts=stereo,pan=stereo|c0=0.7071*c0|c1=c1+0.7071*c0,volume=0.500"
+        ),
+        "{}",
+        mix.graph
+    );
+    assert!(
+        mix.graph.contains(
+            "amix=inputs=2:duration=longest:normalize=0,volume=0.500,atrim=end=5.000,alimiter"
+        ),
+        "{}",
+        mix.graph
+    );
+    // a plain mixdown changes nothing about the graph
+    let plain = plan_audio_mixed(Some(&song()), 1.0, &[], &Mixdown::default(), true, 5000, 1);
+    assert_eq!(
+        plain,
+        plan_audio_curved(Some(&song()), 1.0, &[], true, 5000, 1)
+    );
+    assert!(!plain.unwrap().graph.contains("pan="));
+}
+
+#[test]
+fn a_panned_clip_sound_or_a_master_volume_is_a_mix_on_its_own() {
+    let panned = Mixdown {
+        clip_pan: 0.4,
+        master: 1.0,
+    };
+    assert!(plan_audio_mixed(None, 1.0, &[], &panned, true, 5000, 1).is_some());
+    let quieter = Mixdown {
+        clip_pan: 0.0,
+        master: 0.7,
+    };
+    let mix = plan_audio_mixed(None, 1.0, &[], &quieter, true, 5000, 1).unwrap();
+    assert!(mix.graph.contains("volume=0.700,atrim"), "{}", mix.graph);
+    // with no sound at all there is nothing to scale
+    assert!(plan_audio_mixed(None, 1.0, &[], &quieter, false, 5000, 1).is_none());
 }

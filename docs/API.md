@@ -426,7 +426,12 @@ Request (`ExportRequest`):
   volume moves in straight lines between the points, before the first it is the first's and after the last it is
   the last's. At most 64 points, in time order and one per moment (`400` otherwise). `clip_curve` is the same for
   the clip's own sound (needs `audio: true`) and multiplies `clip_volume`. A sequence clip's `music` takes a
-  `curve` in the clip's own time; the sequence's own `clip_curve` is not accepted.
+  `curve` in the clip's own time; the sequence's own `clip_curve` is not accepted. `pan` (default 0, -1 left
+  to 1 right), inside `music`, places the song between the speakers. `mixdown` (default none) is
+  `{"clip_pan": 0, "master": 1}`: `clip_pan` places the clip's own sound the same way (needs `audio: true`) and
+  `master` (0 to 2) scales the whole mix just before the limiter. A pan is the Web Audio stereo panner's law: the
+  sound moves toward a side and the other side folds into it, never louder; mono sound is spread to both sides
+  first. All three are `400` outside their range.
 - `quality` drives libwebp's `-q:v` and x264/VP9 CRF for webp/mp4/webm, and
   (as of the gifsicle integration) a `gifsicle --lossy=N` post-process pass
   for GIF — ffmpeg's own palette pipeline for GIF has no quality lever of its

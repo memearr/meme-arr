@@ -94,12 +94,14 @@ pub async fn run_export_with(
         req.audio,
     )
     .or_else(|| validate_clip_curve(&req.clip_curve, clip_ms, req.audio))
+    .or_else(|| validate_mixdown(&req.mixdown, req.audio))
     {
         anyhow::bail!(why);
     }
     // The sound is mixed when there is a song or the clip's own volume was changed.
     let mix = if req.music.is_some()
         || !req.clip_curve.is_empty()
+        || !req.mixdown.is_plain()
         || (req.clip_volume - 1.0).abs() > f32::EPSILON
     {
         let own = req.audio
@@ -107,10 +109,11 @@ pub async fn run_export_with(
                 .await
                 .map(|p| p.has_audio)
                 .unwrap_or(false);
-        plan_audio_curved(
+        plan_audio_mixed(
             req.music.as_ref(),
             req.clip_volume,
             &req.clip_curve,
+            &req.mixdown,
             own,
             clip_ms,
             req.layers.len() + 1,

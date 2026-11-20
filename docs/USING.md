@@ -150,9 +150,9 @@ and WebM only; GIF and WebP can't carry audio). Finished files also land in your
   from you: **Upload a song…** takes an MP3, FLAC, Ogg, WAV, M4A or WebM file and keeps it in the app (listed
   under **Your uploads**, with a **remove** link). Search looks in all of them (uploads and library songs are
   marked; a Navidrome song shows its album cover), you pick one, and the player plays it with the clip. Before
-  you search, the box lists the songs you picked lately (kept in this browser, **Clear** forgets them). **Music volume** and **Clip sound
-  volume** are separate faders, from silent to 200% (the player plays at most 100%; the export goes up
-  to 200% and is kept from clipping). **Start the song at** picks where in the song to begin: click or drag on the waveform to put the stretch that
+  you search, the box lists the songs you picked lately (kept in this browser, **Clear** forgets them). The song's and the clip's sound's
+  levels (silent to 200%: the player plays at most 100%; the export goes up to 200% and is kept from
+  clipping), pan, mute and solo are in the **Mix** under the timeline, not in this box. **Start the song at** picks where in the song to begin: click or drag on the waveform to put the stretch that
   plays (highlighted) where the song is at its best, use the arrow keys to nudge it, or use the slider, **Comes in at**
   when in the clip it arrives, and **Fade in** and **Fade out** soften its edges; the song stops where the
   clip does. **Duck under the clip's sound** turns the song down while the clip itself is making sound and
@@ -169,13 +169,20 @@ and WebM only; GIF and WebP can't carry audio). Finished files also land in your
   between points: put two points close together to cut, spread apart to fade, and dip the song while someone
   speaks. The line multiplies the fader, so the faders stay the overall level; the player follows the line.
   In a sequence section the song has a line; the clip's own sound doesn't.
-  Next to each sound's name are its mixing controls: **M** mutes it, **S** solos it (you hear only that sound;
-  press it again to bring the other back), a **level** fader (the same as the one in the Music box) and a **level
-  meter**. While the player plays, the meter shows how loud that sound is coming out, in dB below full scale: the
-  bar is the loudness now, the thin mark is the recent peak (it falls slowly), and the meter's edge turns red when
-  a peak reaches the top. It reads the sound after the fader, the volume line and the fades, so you see what you
-  hear. A muted sound (or one that isn't soloed) is silent in the export too. Mute and solo are for the clip
-  editor and aren't kept in a saved sequence; meters need a browser with Web Audio (all current ones).
+  Next to each sound's name are its mixing controls, the one place for its level: **M** mutes it, **S** solos
+  it (you hear only that sound; press it again to bring the other back), a **level** fader (silent to 200%),
+  a **pan** (L to R; **double-click** it to put the sound back in the middle) and a **level meter**. Under the
+  lanes the **Master** fader (**double-click** to put it back at 100%) sets the loudness of the whole mix, the
+  clip's sound and the song together, and its meter shows the mix. While the player plays, a meter shows how loud
+  that sound is coming out, in dB below full scale: the bar is the loudness now, the thin mark is the recent
+  peak (it falls slowly), and the meter's edge turns red when a peak reaches the top. It reads the sound after
+  the fader, the volume line, the pan and the fades, so you see what you hear. A muted sound (or one that isn't
+  soloed) is silent in the export too. A pan moves the sound toward one speaker and folds the other side into it,
+  the way a browser's stereo panner does, so it is never louder; the export does the same. The player's own
+  speaker button and volume slider (under the video) are only for your listening: they are not in the export,
+  where the **Master** is. Mute and solo are for the clip editor and aren't kept in a saved sequence (a song's
+  pan is); there is no Master in a sequence section. Meters and pan in the player need a browser with Web Audio
+  (all current ones); the export doesn't.
 - **Picture: colour, mirror and fades.** The **Picture** box gives the clip a look. **Brightness**, **Contrast**
   and **Saturation** are sliders, **Tone** turns it black and white or sepia, and four starting looks (Vivid,
   Faded, Noir, Old photo) set them all at once (**Reset** puts it back). **Mirror** swaps left and right. **Fade in

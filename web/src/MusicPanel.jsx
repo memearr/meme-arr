@@ -69,7 +69,7 @@ function SongRow({ track, onPick, onRemove }) {
  * in the page alongside the player (up to full volume; the export can go louder).
  * `relMs` is the playhead in clip time and `clipMs` the clip's length.
  */
-export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, setClipVolume, audio, clipMs, relMs, playing, preview = true, what = "clip", showClipVolume = true, songRef, silenced = false }) {
+export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, setClipVolume, audio, clipMs, relMs, playing, preview = true, what = "clip", showClipVolume = true, songRef, silenced = false, master = 1, levelsInMix = false }) {
   const [sources, setSources] = useState(null); // {navidrome, library, uploads} once known
   const [uploads, setUploads] = useState([]); // the songs uploaded to the app
   const [uploading, setUploading] = useState(false);
@@ -281,15 +281,21 @@ export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, set
               Remove
             </button>
           </p>
-          <Slider
-            label="Music volume"
-            value={music.volume}
-            min={0}
-            max={MAX_VOLUME}
-            step={0.05}
-            text={percentText}
-            onChange={(v) => set({ volume: v })}
-          />
+          {levelsInMix ? (
+            <p className="hint tiny">
+              The song's level, pan, mute and solo are in the <b>Mix</b> under the timeline, next to its volume line.
+            </p>
+          ) : (
+            <Slider
+              label="Music volume"
+              value={music.volume}
+              min={0}
+              max={MAX_VOLUME}
+              step={0.05}
+              text={percentText}
+              onChange={(v) => set({ volume: v })}
+            />
+          )}
           <Waveform
             peaks={wave?.peaks}
             songMs={songMs}
@@ -350,16 +356,26 @@ export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, set
           </p>
           {preview && (
             <>
-              <label className="check">
-                <input type="checkbox" checked={hear} onChange={(e) => setHear(e.target.checked)} /> Hear it in the player
-              </label>
-              <SongPreview music={music} relMs={relMs} clipMs={clipMs} playing={playing} hear={hear && !silenced} audioRef={songRef} />
+              {!levelsInMix && (
+                <label className="check">
+                  <input type="checkbox" checked={hear} onChange={(e) => setHear(e.target.checked)} /> Hear it in the player
+                </label>
+              )}
+              <SongPreview
+                music={music}
+                relMs={relMs}
+                clipMs={clipMs}
+                playing={playing}
+                hear={(levelsInMix || hear) && !silenced}
+                audioRef={songRef}
+                master={master}
+              />
             </>
           )}
         </div>
       )}
 
-      {showClipVolume && (
+      {showClipVolume && !levelsInMix && (
       <div className="layer-controls">
         <Slider
           label={what === "clip" ? "Clip sound volume" : "Clips' sound volume"}
