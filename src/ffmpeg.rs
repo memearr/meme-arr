@@ -9,6 +9,7 @@
 use anyhow::{anyhow, bail, Context, Result};
 use serde::Deserialize;
 use std::path::Path;
+use std::time::Duration;
 use tokio::process::Command;
 
 /// A subtitle track discovered by ffprobe.
@@ -297,6 +298,28 @@ pub async fn run(ffmpeg_bin: &str, args: &[String]) -> Result<()> {
     exec(ffmpeg_bin, args).await.map(|_| ())
 }
 
+/// How long one ffmpeg run may take before it is stopped: 15 minutes, or the number of seconds
+/// in `MEMEARR_FFMPEG_TIMEOUT_SECS` (CI sets it low so a hung test fails fast).
+const DEFAULT_RUN_LIMIT: Duration = Duration::from_secs(15 * 60);
+
+fn run_limit() -> Duration {
+    std::env::var("MEMEARR_FFMPEG_TIMEOUT_SECS")
+        .ok()
+        .and_then(|v| v.trim().parse::<u64>().ok())
+        .filter(|s| *s > 0)
+        .map_or(DEFAULT_RUN_LIMIT, Duration::from_secs)
+}
+
+/// `fut`'s result, or an error saying it ran out of time (and `fut` is dropped, which stops it).
+async fn within<T>(limit: Duration, fut: impl std::future::Future<Output = T>) -> Result<T> {
+    tokio::time::timeout(limit, fut).await.map_err(|_| {
+        anyhow!(
+            "ffmpeg didn't finish within {} s and was stopped (set MEMEARR_FFMPEG_TIMEOUT_SECS to change the limit)",
+            limit.as_secs()
+        )
+    })
+}
+
 /// Stderr text ffmpeg prints when its built-in AV1 decoder (which only works through a graphics
 /// chip) is the one picked, because the build has no software AV1 decoder ahead of it.
 const AV1_HARDWARE_ONLY: &str = "hardware accelerated AV1";
@@ -314,14 +337,18 @@ fn with_decoder(args: &[String], decoder: &str) -> Vec<String> {
 /// ffmpeg whose only AV1 decoder wants a graphics chip is retried with a software decoder
 /// (libdav1d, then libaom); when neither is built in, the error says what to do about it.
 async fn exec(ffmpeg_bin: &str, args: &[String]) -> Result<std::process::Output> {
+    let limit = run_limit();
     let go = |a: Vec<String>| async move {
-        Command::new(ffmpeg_bin)
+        let run = Command::new(ffmpeg_bin)
             .args(a)
             // If whoever is waiting for this gives up (a browser that moved on, a
             // shutdown), stop ffmpeg instead of letting it finish into the void.
             .kill_on_drop(true)
-            .output()
-            .await
+            .output();
+        // A wedged ffmpeg is stopped (dropping the future kills it) instead of holding a job,
+        // a worker and a temp file forever.
+        within(limit, run)
+            .await?
             .with_context(|| format!("failed to run {ffmpeg_bin}"))
     };
     let out = go(args.to_vec()).await?;
@@ -564,6 +591,18 @@ pub async fn run_capture(ffmpeg_bin: &str, args: &[String]) -> Result<Vec<u8>> {
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn a_run_that_never_ends_is_stopped_with_a_clear_error() {
+        let e = within(Duration::from_millis(30), std::future::pending::<()>())
+            .await
+            .unwrap_err();
+        assert!(e.to_string().contains("didn't finish within"), "{e}");
+        assert_eq!(
+            within(Duration::from_secs(5), async { 7 }).await.unwrap(),
+            7
+        );
+    }
+
     #[test]
     fn a_software_decoder_goes_before_the_first_input_only() {
         let args: Vec<String> = ["-ss", "1", "-i", "a.mkv", "-i", "b.png", "o.mp4"]

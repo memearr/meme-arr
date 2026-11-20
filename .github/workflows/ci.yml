@@ -61,6 +61,10 @@ jobs:
       - name: Clippy
         run: cargo clippy --all-targets -- -D warnings
       - name: Test
+        # One ffmpeg run in these tests takes seconds; if one hangs, stop it after two minutes
+        # with an error that names the test, instead of the job dying silently at 20.
+        env:
+          MEMEARR_FFMPEG_TIMEOUT_SECS: "120"
         run: cargo test --all
 
   # Fails the build on any known-vulnerable crate in Cargo.lock, so an advisory
