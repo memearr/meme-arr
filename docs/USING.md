@@ -169,6 +169,13 @@ and WebM only; GIF and WebP can't carry audio). Finished files also land in your
   between points: put two points close together to cut, spread apart to fade, and dip the song while someone
   speaks. The line multiplies the fader, so the faders stay the overall level; the player follows the line.
   In a sequence section the song has a line; the clip's own sound doesn't.
+  Next to each sound's name are its mixing controls: **M** mutes it, **S** solos it (you hear only that sound;
+  press it again to bring the other back), a **level** fader (the same as the one in the Music box) and a **level
+  meter**. While the player plays, the meter shows how loud that sound is coming out, in dB below full scale: the
+  bar is the loudness now, the thin mark is the recent peak (it falls slowly), and the meter's edge turns red when
+  a peak reaches the top. It reads the sound after the fader, the volume line and the fades, so you see what you
+  hear. A muted sound (or one that isn't soloed) is silent in the export too. Mute and solo are for the clip
+  editor and aren't kept in a saved sequence; meters need a browser with Web Audio (all current ones).
 - **Picture: colour, mirror and fades.** The **Picture** box gives the clip a look. **Brightness**, **Contrast**
   and **Saturation** are sliders, **Tone** turns it black and white or sepia, and four starting looks (Vivid,
   Faded, Noir, Old photo) set them all at once (**Reset** puts it back). **Mirror** swaps left and right. **Fade in

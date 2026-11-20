@@ -17,6 +17,7 @@ import { LayersPanel } from "./LayersPanel.jsx";
 import { layerLabel, layersForRequest, moveLayerTo } from "./layersModel.js";
 import { MusicPanel } from "./MusicPanel.jsx";
 import { adjustMusic, clipVolumeForRequest, musicForRequest } from "./musicModel.js";
+import { QUIET, audible, soundForExport, toggleMute, toggleSolo } from "./mixModel.js";
 import { MixTimeline } from "./MixTimeline.jsx";
 import { GradePanel } from "./GradePanel.jsx";
 import { PLAIN, fadeLevel, gradeForRequest, previewStyle } from "./gradeModel.js";
@@ -80,6 +81,8 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   const [clipVolume, setClipVolume] = useState(1);
   const [grade, setGrade] = useState(PLAIN); // the look of the picture: colour, mirror, fades
   const [clipCurve, setClipCurve] = useState([]); // the clip's own sound over the clip, as a volume line
+  const [mix, setMix] = useState(QUIET); // mute and solo of the clip's sound and the song (see mixModel)
+  const songEl = useRef(null); // the page's audio element for the song, for its level meter
   const [overlayList, setOverlayList] = useState({ overlays: [], shapes: [] });
   const [top, setTop] = useState(seed ? seed.top : "");
   const [bottom, setBottom] = useState(seed ? seed.bottom : item.line || "");
@@ -259,14 +262,16 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
 
   // Volume and mute apply to whichever video element is on screen; the clip's volume line shapes it.
   const lineGain = audio && !sequenceEdit ? gainAt(clipCurve, Math.max(0, Math.round(playhead - start))) : 1;
+  // Who is heard: mute and solo of the clip's sound and the song, in the player and in the export.
+  const heard = audible(mix, { hasClip: !!audio && !sequenceEdit, hasSong: !!music });
   useEffect(() => {
     const v = videoRef.current;
     if (v) {
       v.volume = Math.min(1, Math.max(0, volume.level * lineGain));
-      v.muted = volume.muted;
+      v.muted = volume.muted || !heard.clip;
     }
     saveVolume(browserStorage(), volume);
-  }, [volume, proxy, lineGain]);
+  }, [volume, proxy, lineGain, heard.clip]);
 
   // A clip made shorter drops the points of the volume line that are past its end.
   useEffect(() => {
@@ -611,6 +616,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   async function doExport() {
     setError(null);
     const caption = buildCaption();
+    const mixed = soundForExport(heard, clipVolume, music); // mute and solo, as the player played them
     try {
       const started = await api.startExport({
         rating_key: item.rating_key,
@@ -626,8 +632,8 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
         credit_source: creditSource,
         filename: filename || null,
         layers: layersForRequest(layers, clipLength),
-        music: musicForRequest(music, clipLength, audio),
-        clip_volume: clipVolumeForRequest(clipVolume, audio),
+        music: musicForRequest(mixed.music, clipLength, audio),
+        clip_volume: clipVolumeForRequest(mixed.clipVolume, audio),
         clip_curve: audio ? curveForRequest(clipCurve, clipLength) : [],
         grade: gradeForRequest(grade, clipLength),
       });
@@ -880,6 +886,34 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
               onClipCurve={setClipCurve}
               music={music}
               onMusicCurve={(curve) => setMusic((m) => (m ? adjustMusic(m, { curve }, clipLength) : m))}
+              clipTrack={
+                sequenceEdit
+                  ? undefined
+                  : {
+                      muted: mix.clipMuted,
+                      solo: mix.solo === "clip",
+                      level: clipVolume,
+                      onMute: () => setMix((m) => toggleMute(m, "clip")),
+                      onSolo: () => setMix((m) => toggleSolo(m, "clip")),
+                      onLevel: setClipVolume,
+                      getEl: () => videoRef.current,
+                      active: playing,
+                    }
+              }
+              songTrack={
+                music
+                  ? {
+                      muted: mix.songMuted,
+                      solo: mix.solo === "song",
+                      level: music.volume,
+                      onMute: () => setMix((m) => toggleMute(m, "song")),
+                      onSolo: () => setMix((m) => toggleSolo(m, "song")),
+                      onLevel: (v) => setMusic((m) => (m ? adjustMusic(m, { volume: v }, clipLength) : m)),
+                      getEl: () => songEl.current,
+                      active: playing && heard.song,
+                    }
+                  : undefined
+              }
             />
           )}
 
@@ -985,6 +1019,8 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
               relMs={Math.max(0, Math.round(playhead - start))}
               playing={playing}
               showClipVolume={!sequenceEdit}
+              songRef={songEl}
+              silenced={!heard.song}
             />
 
             {!sequenceEdit && <GradePanel grade={grade} onChange={setGrade} clipMs={clipLength} />}
