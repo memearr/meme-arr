@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api.js";
 import { gainAt, gainText, linePath, addPoint, movePoint, removePoint, MIN_GAP_MS } from "./volumeCurve.js";
 import { secondsText } from "./layersModel.js";
+import { LevelMeter } from "./LevelMeter.jsx";
+import { MAX_VOLUME } from "./musicModel.js";
 
 const W = 1000; // the lanes' drawing width; they stretch to the page
 const STRIP_FRAMES = 12;
@@ -61,11 +63,56 @@ export function songBars(wave, startMs, lenMs) {
 }
 
 /**
+ * The mixing controls of one sound: mute, solo, its level, and a meter of what is coming out. `track`
+ * is `{muted, solo, level, onMute, onSolo, onLevel, getEl, active}`; nothing is drawn without one.
+ */
+function TrackControls({ name, track }) {
+  if (!track) return null;
+  return (
+    <div className="mix-track">
+      <div className="mix-buttons">
+        <button
+          type="button"
+          className={"mix-btn" + (track.muted ? " on" : "")}
+          aria-pressed={!!track.muted}
+          aria-label={`Mute ${name}`}
+          title={`Mute the ${name.toLowerCase()}`}
+          onClick={track.onMute}
+        >
+          M
+        </button>
+        <button
+          type="button"
+          className={"mix-btn solo" + (track.solo ? " on" : "")}
+          aria-pressed={!!track.solo}
+          aria-label={`Solo ${name}`}
+          title={`Hear only the ${name.toLowerCase()}`}
+          onClick={track.onSolo}
+        >
+          S
+        </button>
+        <input
+          type="range"
+          min={0}
+          max={MAX_VOLUME}
+          step={0.05}
+          value={track.level}
+          aria-label={`${name} level`}
+          title={`${name} level: ${Math.round(track.level * 100)}%`}
+          onChange={(e) => track.onLevel(Number(e.target.value))}
+        />
+      </div>
+      <LevelMeter getEl={track.getEl} active={!!track.active} label={name} />
+    </div>
+  );
+}
+
+/**
  * One lane that has a volume line: the sound's bars as they come out (the line applied), the line
  * itself and its points. Click on the lane to put a point on the line, drag a point to move it,
  * double-click it (or press Delete) to take it off; the arrow keys nudge a focused point.
  */
-function CurveLane({ label, what, bars, clipMs, relMs, points, onChange, children }) {
+function CurveLane({ label, what, bars, clipMs, relMs, points, onChange, track, children }) {
   const lane = useRef(null);
   const drag = useRef(null);
   const where = (e) => {
@@ -127,6 +174,7 @@ function CurveLane({ label, what, bars, clipMs, relMs, points, onChange, childre
             reset
           </button>
         )}
+        <TrackControls name={label} track={track} />
       </div>
       <div
         ref={lane}
@@ -164,7 +212,8 @@ function CurveLane({ label, what, bars, clipMs, relMs, points, onChange, childre
 /**
  * The picture and the sound side by side over the clip, so the volume can be shaped against what is
  * on screen: the filmstrip, the clip's own sound and the song, each as wide as the clip is long, with
- * the playhead across all of them. The sound lanes carry a volume line you edit by clicking and dragging.
+ * the playhead across all of them. The sound lanes carry a volume line you edit by clicking and dragging,
+ * and (given `clipTrack` / `songTrack`) mute, solo, a level and a meter.
  */
 export function MixTimeline({
   ratingKey,
@@ -178,6 +227,8 @@ export function MixTimeline({
   music,
   onMusicCurve,
   clipSound = true,
+  clipTrack,
+  songTrack,
 }) {
   const clipMs = Math.max(0, end - start);
   const [own, setOwn] = useState(null); // {has_audio, peaks} of the clip's own sound
@@ -239,6 +290,7 @@ export function MixTimeline({
           relMs={relMs}
           points={clipCurve}
           onChange={onClipCurve}
+          track={clipTrack}
           bars={barsPath(own?.peaks, 0, clipMs, clipMs, clipCurve)}
         >
           {own && !own.has_audio && <span className="mix-note">This video has no sound.</span>}
@@ -252,6 +304,7 @@ export function MixTimeline({
           relMs={relMs}
           points={music.curve || []}
           onChange={onMusicCurve}
+          track={songTrack}
           bars={barsPath(songPart, music.at_ms, clipMs, clipMs, music.curve || [])}
         >
           {music.at_ms > 0 && <span className="mix-come-in" style={{ left: `${(music.at_ms / clipMs) * 100}%` }} title="The song comes in here" />}

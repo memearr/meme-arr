@@ -69,7 +69,7 @@ function SongRow({ track, onPick, onRemove }) {
  * in the page alongside the player (up to full volume; the export can go louder).
  * `relMs` is the playhead in clip time and `clipMs` the clip's length.
  */
-export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, setClipVolume, audio, clipMs, relMs, playing, preview = true, what = "clip", showClipVolume = true }) {
+export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, setClipVolume, audio, clipMs, relMs, playing, preview = true, what = "clip", showClipVolume = true, songRef, silenced = false }) {
   const [sources, setSources] = useState(null); // {navidrome, library, uploads} once known
   const [uploads, setUploads] = useState([]); // the songs uploaded to the app
   const [uploading, setUploading] = useState(false);
@@ -353,7 +353,7 @@ export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, set
               <label className="check">
                 <input type="checkbox" checked={hear} onChange={(e) => setHear(e.target.checked)} /> Hear it in the player
               </label>
-              <SongPreview music={music} relMs={relMs} clipMs={clipMs} playing={playing} hear={hear} />
+              <SongPreview music={music} relMs={relMs} clipMs={clipMs} playing={playing} hear={hear && !silenced} audioRef={songRef} />
             </>
           )}
         </div>

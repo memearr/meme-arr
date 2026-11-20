@@ -823,7 +823,7 @@
 }
 .mix-row {
   display: grid;
-  grid-template-columns: 92px 1fr;
+  grid-template-columns: 150px 1fr;
   gap: 8px;
   align-items: stretch;
   margin-bottom: 4px;
@@ -917,16 +917,81 @@
 .mix-scale {
   display: flex;
   justify-content: space-between;
-  margin-left: 100px;
+  margin-left: 158px;
   font-size: 0.8em;
 }
 @media (max-width: 600px) {
   .mix-row {
-    grid-template-columns: 64px 1fr;
+    grid-template-columns: 112px 1fr;
   }
   .mix-scale {
-    margin-left: 72px;
+    margin-left: 120px;
   }
+}
+
+/* Mute, solo, level and meter of one sound in the mix */
+.mix-track {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 3px;
+}
+.mix-buttons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.mix-buttons input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+.mix-btn {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 4px;
+  border: 1px solid var(--border, rgba(128, 128, 128, 0.5));
+  background: transparent;
+  color: inherit;
+  font-size: 0.75em;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+.mix-btn.on {
+  background: #d9534f;
+  border-color: #d9534f;
+  color: #fff;
+}
+.mix-btn.solo.on {
+  background: #e0a800;
+  border-color: #e0a800;
+  color: #000;
+}
+.level-meter {
+  position: relative;
+  height: 7px;
+  border-radius: 3px;
+  background: var(--panel-2, rgba(128, 128, 128, 0.2));
+  overflow: hidden;
+}
+.level-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3fb950 0%, #3fb950 70%, #e0a800 88%, #d9534f 100%);
+  background-size: 100% 100%;
+}
+.level-peak {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -2px;
+  background: currentColor;
+  opacity: 0.8;
+}
+.level-meter.clip {
+  outline: 1px solid #d9534f;
 }
 
 /* The Picture box and the player's fade */

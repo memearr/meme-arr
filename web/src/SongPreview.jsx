@@ -6,9 +6,10 @@ import { musicSrc, previewState } from "./musicModel.js";
  * place in the song, at the right volume (fades included; the page tops out at full volume).
  * `relMs` is the player's position in the clip the song belongs to, `clipMs` that clip's length,
  * `playing` whether the player is playing, and `hear` whether to make any sound.
- * It draws only the (hidden) audio element.
+ * It draws only the (hidden) audio element; `audioRef`, when given, is where the element is kept so a
+ * level meter can listen to it.
  */
-export function SongPreview({ music, relMs, clipMs, playing, hear = true }) {
+export function SongPreview({ music, relMs, clipMs, playing, hear = true, audioRef }) {
   const player = useRef(null);
   const state = previewState(music, relMs, clipMs);
   // in a sequence the playhead goes on past the end of this clip: the song stops there
@@ -37,5 +38,9 @@ export function SongPreview({ music, relMs, clipMs, playing, hear = true }) {
   }, [playing, on, state.songMs, hear, music?.id]);
 
   if (!music) return null;
-  return <audio ref={player} src={musicSrc(music.id)} preload="auto" loop={false} />;
+  const keep = (node) => {
+    player.current = node;
+    if (audioRef) audioRef.current = node;
+  };
+  return <audio ref={keep} src={musicSrc(music.id)} preload="auto" loop={false} />;
 }
