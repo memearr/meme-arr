@@ -61,6 +61,7 @@ fn music(file: &Path) -> Soundtrack {
         fade_out_ms: 0,
         duck: 0.0,
         curve: vec![],
+        pan: 0.0,
         file: Some(file.to_path_buf()),
     }
 }
@@ -83,6 +84,7 @@ fn request(format: Format, audio: bool, m: Option<Soundtrack>, clip_volume: f32)
         music: m,
         clip_volume,
         clip_curve: vec![],
+        mixdown: Default::default(),
         grade: export::Grade::default(),
     }
 }
@@ -956,5 +958,163 @@ async fn a_bad_volume_line_is_refused() {
         .await
         .unwrap_err();
         assert!(err.to_string().contains("volume line"), "{name}: {err}");
+    }
+}
+
+/// The mean volume (dB) of one channel (0 left, 1 right) of the file's sound.
+fn channel_level(file: &Path, ch: usize) -> f64 {
+    let out = Command::new("ffmpeg")
+        .args(["-v", "info", "-i"])
+        .arg(file)
+        .args(["-vn", "-af", &format!("pan=mono|c0=c{ch},volumedetect")])
+        .args(["-f", "null", "-"])
+        .output()
+        .expect("spawn ffmpeg");
+    let text = String::from_utf8_lossy(&out.stderr).to_string();
+    text.lines()
+        .find_map(|l| l.split("mean_volume:").nth(1))
+        .and_then(|v| v.trim().trim_end_matches(" dB").parse().ok())
+        .unwrap_or(-120.0)
+}
+
+fn mixed(clip_pan: f32, master: f32) -> export::Mixdown {
+    export::Mixdown { clip_pan, master }
+}
+
+#[tokio::test]
+async fn the_clips_own_sound_can_be_panned() {
+    need_ffmpeg!();
+    let tmp = tempfile::tempdir().unwrap();
+    let src = clip(tmp.path(), true);
+    let plain = render(
+        tmp.path(),
+        &src,
+        "pan-plain",
+        request(Format::Mp4, true, None, 1.0),
+    )
+    .await;
+    let (pl, pr) = (channel_level(&plain, 0), channel_level(&plain, 1));
+    assert!(
+        (pl - pr).abs() < 1.0,
+        "a plain mono tone is in both: {pl} {pr}"
+    );
+
+    for (name, pan) in [("left", -1.0f32), ("right", 1.0)] {
+        let mut req = request(Format::Mp4, true, None, 1.0);
+        req.mixdown = mixed(pan, 1.0);
+        let out = render(tmp.path(), &src, &format!("pan-{name}"), req).await;
+        let (l, r) = (channel_level(&out, 0), channel_level(&out, 1));
+        let (loud, quiet) = if pan < 0.0 { (l, r) } else { (r, l) };
+        assert!(quiet < -50.0, "{name}: the other side is silent ({quiet})");
+        assert!(
+            loud > pl - 1.0,
+            "{name}: this side is as loud as before ({loud} vs {pl})"
+        );
+    }
+
+    let mut req = request(Format::Mp4, true, None, 1.0);
+    req.mixdown = mixed(-0.5, 1.0);
+    let out = render(tmp.path(), &src, "pan-half", req).await;
+    let (l, r) = (channel_level(&out, 0), channel_level(&out, 1));
+    assert!(l > r + 5.0, "half left is left-heavy ({l} vs {r})");
+    assert!(r > -50.0, "but not gone on the right ({r})");
+}
+
+#[tokio::test]
+async fn a_song_can_be_panned_on_its_own() {
+    need_ffmpeg!();
+    let tmp = tempfile::tempdir().unwrap();
+    let (src, song) = (clip(tmp.path(), true), song_file(tmp.path()));
+    let mut m = music(&song);
+    m.pan = 1.0;
+    let out = render(
+        tmp.path(),
+        &src,
+        "song-pan",
+        request(Format::Mp4, true, Some(m), 0.0),
+    )
+    .await;
+    // the clip's own sound is off (volume 0), so what is left is the song, all on the right
+    let (l, r) = (channel_level(&out, 0), channel_level(&out, 1));
+    assert!(l < -50.0 && r > -30.0, "the song is on the right ({l} {r})");
+}
+
+#[tokio::test]
+async fn the_master_volume_scales_the_whole_mix() {
+    need_ffmpeg!();
+    let tmp = tempfile::tempdir().unwrap();
+    let (src, song) = (clip(tmp.path(), true), song_file(tmp.path()));
+    let make = |master: f32| {
+        let mut req = request(Format::Mp4, true, Some(music(&song)), 0.5);
+        req.mixdown = mixed(0.0, master);
+        req
+    };
+    let full = render(tmp.path(), &src, "master-1", make(1.0)).await;
+    let half = render(tmp.path(), &src, "master-half", make(0.5)).await;
+    let off = render(tmp.path(), &src, "master-0", make(0.0)).await;
+    let (a, b) = (level(&full, 0.5, 3.0), level(&half, 0.5, 3.0));
+    assert!(
+        (a - b - 6.0).abs() < 1.5,
+        "half the master is about 6 dB down ({a} vs {b})"
+    );
+    assert!(level(&off, 0.5, 3.0) < -60.0, "master 0 is silence");
+}
+
+#[tokio::test]
+async fn the_master_volume_alone_changes_the_clips_sound() {
+    need_ffmpeg!();
+    let tmp = tempfile::tempdir().unwrap();
+    let src = clip(tmp.path(), true);
+    let plain = render(
+        tmp.path(),
+        &src,
+        "m-plain",
+        request(Format::Mp4, true, None, 1.0),
+    )
+    .await;
+    let mut req = request(Format::Mp4, true, None, 1.0);
+    req.mixdown = mixed(0.0, 0.5);
+    let quiet = render(tmp.path(), &src, "m-quiet", req).await;
+    let (a, b) = (level(&plain, 0.5, 3.0), level(&quiet, 0.5, 3.0));
+    assert!((a - b - 6.0).abs() < 1.5, "{a} vs {b}");
+}
+
+#[tokio::test]
+async fn a_bad_pan_or_master_is_refused() {
+    need_ffmpeg!();
+    let tmp = tempfile::tempdir().unwrap();
+    let (src, song) = (clip(tmp.path(), true), song_file(tmp.path()));
+    for (name, audio, md, song_pan) in [
+        ("pan-high", true, mixed(2.0, 1.0), 0.0f32),
+        ("master-high", true, mixed(0.0, 3.0), 0.0),
+        ("master-neg", true, mixed(0.0, -1.0), 0.0),
+        ("pan-no-sound", false, mixed(0.5, 1.0), 0.0),
+        ("song-pan", true, mixed(0.0, 1.0), 1.5),
+    ] {
+        let mut m = music(&song);
+        m.pan = song_pan;
+        let mut req = request(Format::Mp4, audio, Some(m), 1.0);
+        req.mixdown = md;
+        let out = tmp.path().join(format!("{name}.mp4"));
+        let err = export::run_export_with(
+            TOOLS,
+            export::JobSpec {
+                id: "job-bad",
+                tmp_dir: tmp.path(),
+                out_path: &out,
+                source_title: None,
+            },
+            &src,
+            &req,
+            &[],
+            "/nonexistent/font.ttf",
+            &|_: &str| -> Option<LayerSource> { None },
+        )
+        .await
+        .unwrap_err();
+        assert!(
+            err.to_string().contains("pan") || err.to_string().contains("master"),
+            "{name}: {err}"
+        );
     }
 }

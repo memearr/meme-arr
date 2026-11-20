@@ -80,3 +80,16 @@ export function soundForExport(heard, clipVolume, music) {
     music: music && !heard.song ? { ...music, volume: 0 } : music,
   };
 }
+
+/** Where a pan sits, in words: "Centre", "Left 30%", "Right 100%". */
+export function panText(pan) {
+  const p = Number.isFinite(pan) ? Math.min(1, Math.max(-1, pan)) : 0;
+  const pct = Math.round(Math.abs(p) * 100);
+  if (pct === 0) return "Centre";
+  return `${p < 0 ? "Left" : "Right"} ${pct}%`;
+}
+
+/** The master level the page's own sound can follow: the player tops out at full volume. */
+export function previewMaster(master) {
+  return Number.isFinite(master) ? Math.min(1, Math.max(0, master)) : 1;
+}

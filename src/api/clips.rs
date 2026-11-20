@@ -227,6 +227,7 @@ pub(super) async fn export_start(
         req.audio,
     )
     .or_else(|| export::validate_clip_curve(&req.clip_curve, req.end_ms - req.start_ms, req.audio))
+    .or_else(|| export::validate_mixdown(&req.mixdown, req.audio))
     {
         return Ok(bad_request(msg));
     }

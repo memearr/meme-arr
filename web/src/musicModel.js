@@ -24,6 +24,7 @@ export function newMusic(track) {
     fade_in_ms: 0,
     fade_out_ms: 0,
     duck: 0,
+    pan: 0, // -1 left .. 1 right
     curve: [], // the volume over the clip as a line of {t_ms, gain} (see volumeCurve.js)
   };
 }
@@ -34,6 +35,7 @@ export function adjustMusic(music, changes, clipMs) {
   const songMs = m.duration_s > 0 ? Math.max(0, Math.round(m.duration_s * 1000) - 1000) : 6 * 3600 * 1000;
   m.volume = clamp(num(m.volume, 1), 0, MAX_VOLUME);
   m.duck = clamp(num(m.duck), 0, 1);
+  m.pan = Math.round(clamp(num(m.pan), -1, 1) * 100) / 100;
   m.start_ms = Math.round(clamp(num(m.start_ms), 0, songMs));
   m.at_ms = Math.round(clamp(num(m.at_ms), 0, Math.max(0, clipMs - MIN_PLAY_MS)));
   const playing = Math.max(0, clipMs - m.at_ms);
@@ -57,6 +59,7 @@ export function musicForRequest(music, clipMs, keepAudio = true) {
     fade_out_ms: m.fade_out_ms,
     // ducking is for the clip's own sound, so it only goes when that is kept
     duck: keepAudio ? m.duck : 0,
+    pan: m.pan,
     curve: curveForRequest(m.curve, clipMs),
   };
 }

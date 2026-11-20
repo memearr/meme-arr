@@ -17,7 +17,8 @@ import { LayersPanel } from "./LayersPanel.jsx";
 import { layerLabel, layersForRequest, moveLayerTo } from "./layersModel.js";
 import { MusicPanel } from "./MusicPanel.jsx";
 import { adjustMusic, clipVolumeForRequest, musicForRequest } from "./musicModel.js";
-import { QUIET, audible, soundForExport, toggleMute, toggleSolo } from "./mixModel.js";
+import { QUIET, audible, previewMaster, soundForExport, toggleMute, toggleSolo } from "./mixModel.js";
+import { setPan } from "./audioGraph.js";
 import { MixTimeline } from "./MixTimeline.jsx";
 import { GradePanel } from "./GradePanel.jsx";
 import { PLAIN, fadeLevel, gradeForRequest, previewStyle } from "./gradeModel.js";
@@ -82,6 +83,8 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   const [grade, setGrade] = useState(PLAIN); // the look of the picture: colour, mirror, fades
   const [clipCurve, setClipCurve] = useState([]); // the clip's own sound over the clip, as a volume line
   const [mix, setMix] = useState(QUIET); // mute and solo of the clip's sound and the song (see mixModel)
+  const [clipPan, setClipPan] = useState(0); // -1 left .. 1 right
+  const [master, setMaster] = useState(1); // the whole mix, 0..2
   const songEl = useRef(null); // the page's audio element for the song, for its level meter
   const [overlayList, setOverlayList] = useState({ overlays: [], shapes: [] });
   const [top, setTop] = useState(seed ? seed.top : "");
@@ -267,11 +270,17 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   useEffect(() => {
     const v = videoRef.current;
     if (v) {
-      v.volume = Math.min(1, Math.max(0, volume.level * lineGain));
+      v.volume = Math.min(1, Math.max(0, volume.level * lineGain * previewMaster(master)));
       v.muted = volume.muted || !heard.clip;
     }
     saveVolume(browserStorage(), volume);
-  }, [volume, proxy, lineGain, heard.clip]);
+  }, [volume, proxy, lineGain, heard.clip, master]);
+
+  // Each sound's pan, in the player (the export does it again from the request).
+  useEffect(() => {
+    setPan(videoRef.current, clipPan);
+    setPan(songEl.current, music?.pan ?? 0);
+  }, [clipPan, music?.pan, music?.id, proxy, playing]);
 
   // A clip made shorter drops the points of the volume line that are past its end.
   useEffect(() => {
@@ -634,6 +643,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
         layers: layersForRequest(layers, clipLength),
         music: musicForRequest(mixed.music, clipLength, audio),
         clip_volume: clipVolumeForRequest(mixed.clipVolume, audio),
+        mixdown: { clip_pan: audio ? clipPan : 0, master },
         clip_curve: audio ? curveForRequest(clipCurve, clipLength) : [],
         grade: gradeForRequest(grade, clipLength),
       });
@@ -886,6 +896,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
               onClipCurve={setClipCurve}
               music={music}
               onMusicCurve={(curve) => setMusic((m) => (m ? adjustMusic(m, { curve }, clipLength) : m))}
+              master={sequenceEdit ? undefined : { level: master, onLevel: setMaster, active: playing }}
               clipTrack={
                 sequenceEdit
                   ? undefined
@@ -893,9 +904,11 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
                       muted: mix.clipMuted,
                       solo: mix.solo === "clip",
                       level: clipVolume,
+                      pan: clipPan,
                       onMute: () => setMix((m) => toggleMute(m, "clip")),
                       onSolo: () => setMix((m) => toggleSolo(m, "clip")),
                       onLevel: setClipVolume,
+                      onPan: setClipPan,
                       getEl: () => videoRef.current,
                       active: playing,
                     }
@@ -906,9 +919,11 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
                       muted: mix.songMuted,
                       solo: mix.solo === "song",
                       level: music.volume,
+                      pan: music.pan ?? 0,
                       onMute: () => setMix((m) => toggleMute(m, "song")),
                       onSolo: () => setMix((m) => toggleSolo(m, "song")),
                       onLevel: (v) => setMusic((m) => (m ? adjustMusic(m, { volume: v }, clipLength) : m)),
+                      onPan: (v) => setMusic((m) => (m ? adjustMusic(m, { pan: v }, clipLength) : m)),
                       getEl: () => songEl.current,
                       active: playing && heard.song,
                     }
@@ -1021,6 +1036,8 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
               showClipVolume={!sequenceEdit}
               songRef={songEl}
               silenced={!heard.song}
+              master={previewMaster(master)}
+              levelsInMix
             />
 
             {!sequenceEdit && <GradePanel grade={grade} onChange={setGrade} clipMs={clipLength} />}

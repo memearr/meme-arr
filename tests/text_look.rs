@@ -56,6 +56,7 @@ async fn render(dir: &Path, sample: &Path, name: &str, caption: Caption, cues: &
         music: None,
         clip_volume: 1.0,
         clip_curve: vec![],
+        mixdown: Default::default(),
         grade: export::Grade::default(),
     };
     let out = dir.join(format!("{name}.mp4"));

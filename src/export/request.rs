@@ -198,6 +198,9 @@ pub struct ExportRequest {
     /// `clip_volume`. Empty: steady.
     #[serde(default)]
     pub clip_curve: Vec<VolumePoint>,
+    /// The clip's pan and the master volume (see [`Mixdown`]).
+    #[serde(default)]
+    pub mixdown: Mixdown,
     /// The look of the picture: colour, mirror, fades (see [`Grade`]).
     #[serde(default)]
     pub grade: Grade,

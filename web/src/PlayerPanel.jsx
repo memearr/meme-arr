@@ -219,7 +219,11 @@ export function PlayerPanel({
               onClick={() => setVolume((v) => ({ ...v, muted: !v.muted }))}
               aria-label={volume.muted || volume.level === 0 ? "Turn sound on" : "Mute"}
               aria-pressed={volume.muted}
-              title={volume.muted ? "Sound is off (click to turn on)" : "Sound is on (click to mute)"}
+              title={
+                volume.muted
+                  ? "Listening: sound is off (click to turn on). This is only for you; it isn't in the export."
+                  : "Listening: sound is on (click to mute). This is only for you; it isn't in the export."
+              }
             >
               {volume.muted || volume.level === 0 ? "🔇" : volume.level < 0.4 ? "🔈" : "🔊"}
             </button>

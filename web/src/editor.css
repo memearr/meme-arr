@@ -841,7 +841,7 @@
 }
 .mix-lane {
   position: relative;
-  height: 52px;
+  min-height: 52px;
   border-radius: 4px;
   background: var(--panel-2, rgba(128, 128, 128, 0.12));
   overflow: hidden;
@@ -968,6 +968,35 @@
   background: #e0a800;
   border-color: #e0a800;
   color: #000;
+}
+.mix-pan {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7em;
+  opacity: 0.85;
+}
+.mix-pan input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+.mix-master {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border, rgba(128, 128, 128, 0.3));
+}
+.mix-master .mix-label input[type="range"] {
+  width: 100%;
+  margin: 3px 0 0;
+}
+.mix-master-meter {
+  display: flex;
+  align-items: center;
+}
+.mix-master-meter .level-meter {
+  flex: 1;
+  height: 12px;
 }
 .level-meter {
   position: relative;

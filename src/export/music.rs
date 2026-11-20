@@ -19,6 +19,70 @@ fn one() -> f32 {
     1.0
 }
 
+/// Where a sound sits between the speakers, -1 (all left) .. 0 (as it is) .. 1 (all right), and how
+/// loud the whole mix is.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Mixdown {
+    /// The clip's own sound.
+    #[serde(default)]
+    pub clip_pan: f32,
+    /// The whole mix, 0..=2 (the clip's sound and the song together, before the limiter).
+    #[serde(default = "one")]
+    pub master: f32,
+}
+
+impl Default for Mixdown {
+    fn default() -> Self {
+        Self {
+            clip_pan: 0.0,
+            master: 1.0,
+        }
+    }
+}
+
+impl Mixdown {
+    /// Whether this leaves the mix as it is.
+    pub fn is_plain(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
+/// Why a mixdown can't be used, or `None`. Panning the clip's sound needs it kept.
+pub fn validate_mixdown(m: &Mixdown, keep_audio: bool) -> Option<String> {
+    if !m.clip_pan.is_finite() || !(-1.0..=1.0).contains(&m.clip_pan) {
+        return Some("the clip's pan must be between -1 (left) and 1 (right)".into());
+    }
+    if m.clip_pan != 0.0 && !keep_audio {
+        return Some("the clip's pan only matters when its sound is kept".into());
+    }
+    if !m.master.is_finite() || !(0.0..=MAX_VOLUME).contains(&m.master) {
+        return Some(format!(
+            "the master volume must be between 0 and {MAX_VOLUME}"
+        ));
+    }
+    None
+}
+
+/// The `pan` filter that places a stereo sound at `pan` (-1 left .. 1 right), or "" for the middle.
+/// It is the Web Audio stereo panner's law, so the player's pan and the export's agree: moving a
+/// sound toward a side folds the other channel into it as it goes, and the sound is never louder.
+pub fn pan_filter(pan: f32) -> String {
+    if !pan.is_finite() || pan.abs() < 0.0005 {
+        return String::new();
+    }
+    let p = pan.clamp(-1.0, 1.0) as f64;
+    let x = if p <= 0.0 { p + 1.0 } else { p };
+    let (gl, gr) = (
+        (x * std::f64::consts::FRAC_PI_2).cos(),
+        (x * std::f64::consts::FRAC_PI_2).sin(),
+    );
+    if p <= 0.0 {
+        format!("pan=stereo|c0=c0+{gl:.4}*c1|c1={gr:.4}*c1")
+    } else {
+        format!("pan=stereo|c0={gl:.4}*c0|c1=c1+{gr:.4}*c0")
+    }
+}
+
 /// Most points a volume line may have.
 pub const MAX_CURVE_POINTS: usize = 64;
 
@@ -118,6 +182,9 @@ pub struct Soundtrack {
     /// `volume`. Empty: steady.
     #[serde(default)]
     pub curve: Vec<VolumePoint>,
+    /// Where the song sits between the speakers, -1 (left) .. 1 (right); 0 leaves it be.
+    #[serde(default)]
+    pub pan: f32,
     /// The song's file, filled in by the server before the export runs.
     #[serde(skip)]
     pub file: Option<PathBuf>,
@@ -160,6 +227,9 @@ pub fn validate_music(
     let len = clip_ms - m.at_ms;
     if m.fade_in_ms < 0 || m.fade_out_ms < 0 || m.fade_in_ms > len || m.fade_out_ms > len {
         return Some("a fade can't be longer than the music is playing".into());
+    }
+    if !m.pan.is_finite() || !(-1.0..=1.0).contains(&m.pan) {
+        return Some("the music's pan must be between -1 (left) and 1 (right)".into());
     }
     if !m.duck.is_finite() || !(0.0..=1.0).contains(&m.duck) {
         return Some("the ducking must be between 0 and 1".into());
@@ -231,6 +301,27 @@ pub fn plan_audio_curved(
     clip_ms: i64,
     music_input: usize,
 ) -> Option<AudioMix> {
+    plan_audio_mixed(
+        music,
+        clip_volume,
+        clip_curve,
+        &Mixdown::default(),
+        clip_audio,
+        clip_ms,
+        music_input,
+    )
+}
+
+/// `plan_audio_curved`, with the clip's pan and the master volume.
+pub fn plan_audio_mixed(
+    music: Option<&Soundtrack>,
+    clip_volume: f32,
+    clip_curve: &[VolumePoint],
+    mixdown: &Mixdown,
+    clip_audio: bool,
+    clip_ms: i64,
+    music_input: usize,
+) -> Option<AudioMix> {
     let songs: Vec<Placed> = music
         .filter(|m| m.file.is_some())
         .map(|m| Placed {
@@ -240,10 +331,11 @@ pub fn plan_audio_curved(
         })
         .into_iter()
         .collect();
-    plan_mix_curved(
+    plan_mix_mixed(
         &songs,
         clip_volume,
         clip_curve,
+        mixdown,
         clip_audio,
         clip_ms,
         music_input,
@@ -273,10 +365,32 @@ pub fn plan_mix_curved(
     total_ms: i64,
     first_input: usize,
 ) -> Option<AudioMix> {
+    plan_mix_mixed(
+        songs,
+        clip_volume,
+        clip_curve,
+        &Mixdown::default(),
+        clip_audio,
+        total_ms,
+        first_input,
+    )
+}
+
+/// `plan_mix_curved`, with the export's own sound panned and the whole mix at the master volume.
+pub fn plan_mix_mixed(
+    songs: &[Placed],
+    clip_volume: f32,
+    clip_curve: &[VolumePoint],
+    mixdown: &Mixdown,
+    clip_audio: bool,
+    total_ms: i64,
+    first_input: usize,
+) -> Option<AudioMix> {
     let songs: Vec<&Placed> = songs.iter().filter(|p| p.music.file.is_some()).collect();
     let own = clip_audio
         && (!songs.is_empty()
             || !clip_curve.is_empty()
+            || !mixdown.is_plain()
             || (clip_volume - 1.0).abs() > f32::EPSILON);
     if songs.is_empty() && !own {
         return None;
@@ -301,8 +415,14 @@ pub fn plan_mix_curved(
         } else {
             format!(",{line}")
         };
+        let pan = pan_filter(mixdown.clip_pan);
+        let pan = if pan.is_empty() {
+            pan
+        } else {
+            format!(",{pan}")
+        };
         parts.push(format!(
-            "[0:a:0]aformat=channel_layouts=stereo,volume={clip_volume:.3}{line}{to}"
+            "[0:a:0]aformat=channel_layouts=stereo{pan},volume={clip_volume:.3}{line}{to}"
         ));
         if !ducked.is_empty() {
             // one copy is mixed, the others listen (each at the songs' own rate)
@@ -339,8 +459,14 @@ pub fn plan_mix_curved(
                 .map(|f| f.to_string_lossy().into_owned())
                 .unwrap_or_default(),
         ]);
+        let song_pan = pan_filter(m.pan);
+        let song_pan = if song_pan.is_empty() {
+            song_pan
+        } else {
+            format!(",{song_pan}")
+        };
         let mut chain = format!(
-            "[{}:a:0]aresample=48000,aformat=channel_layouts=stereo,volume={:.3}",
+            "[{}:a:0]aresample=48000,aformat=channel_layouts=stereo{song_pan},volume={:.3}",
             first_input + i,
             m.volume
         );
@@ -384,7 +510,15 @@ pub fn plan_mix_curved(
         }
         labels.push(format!("[{out}]"));
     }
-    let tail = format!("atrim=end={},alimiter=limit=0.95[aout]", secs(total_ms));
+    let master = if (mixdown.master - 1.0).abs() > f32::EPSILON {
+        format!("volume={:.3},", mixdown.master)
+    } else {
+        String::new()
+    };
+    let tail = format!(
+        "{master}atrim=end={},alimiter=limit=0.95[aout]",
+        secs(total_ms)
+    );
     parts.push(if labels.len() == 1 {
         format!("{}{tail}", labels[0])
     } else {

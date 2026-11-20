@@ -5,19 +5,20 @@ import { musicSrc, previewState } from "./musicModel.js";
  * A song playing in the page alongside a player: on when the player reaches it, at the right
  * place in the song, at the right volume (fades included; the page tops out at full volume).
  * `relMs` is the player's position in the clip the song belongs to, `clipMs` that clip's length,
- * `playing` whether the player is playing, and `hear` whether to make any sound.
+ * `playing` whether the player is playing, `hear` whether to make any sound and `master` the master
+ * level that scales it (the page still tops out at full volume).
  * It draws only the (hidden) audio element; `audioRef`, when given, is where the element is kept so a
  * level meter can listen to it.
  */
-export function SongPreview({ music, relMs, clipMs, playing, hear = true, audioRef }) {
+export function SongPreview({ music, relMs, clipMs, playing, hear = true, audioRef, master = 1 }) {
   const player = useRef(null);
   const state = previewState(music, relMs, clipMs);
   // in a sequence the playhead goes on past the end of this clip: the song stops there
   const on = state.on && relMs < clipMs;
 
   useEffect(() => {
-    if (player.current) player.current.volume = hear ? state.gain : 0;
-  }, [state.gain, hear, music?.id]);
+    if (player.current) player.current.volume = hear ? Math.min(1, state.gain * master) : 0;
+  }, [state.gain, master, hear, music?.id]);
 
   useEffect(() => {
     const a = player.current;

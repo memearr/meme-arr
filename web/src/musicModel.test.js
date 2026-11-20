@@ -29,6 +29,7 @@ describe("choosing a song", () => {
       fade_in_ms: 0,
       fade_out_ms: 0,
       duck: 0,
+      pan: 0,
       curve: [],
     });
   });
@@ -86,6 +87,7 @@ describe("the export request", () => {
       fade_in_ms: 500,
       fade_out_ms: 0,
       duck: 0,
+      pan: 0,
       curve: [],
     });
   });
