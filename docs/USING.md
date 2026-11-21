@@ -193,6 +193,14 @@ and WebM only; GIF and WebP can't carry audio). Finished files also land in your
   streaming, **-14** is loud); and **Measure the clip's loudness**, which reads how loud the clip's own sound is
   over the stretch you cut, in LUFS, with its peak and how much it varies. The player doesn't play the cuts or
   the normalising; the export has them.
+  **Advanced picture** (in the side panel, with the Picture box) has the **speed** of the export, from a quarter
+  to four times normal (the sound goes with it, keeping its pitch, and the player plays at that speed so you see
+  it), and **Reframe**, which keeps a window of the picture: a square, a vertical 9:16 or portrait 4:5 one for a
+  phone, or a wide one. The player darkens what is cropped away; **Frame across** (or **down**) slides the window
+  over the picture (double-click to centre it). The export is the size you chose, for the window. The captions
+  and layers are placed on the whole picture and cropped with it, so keep them inside the lit window. Speed and
+  reframe are the last things done to the finished clip, so a caption stays with the speech it was timed to.
+  In a sequence, **Advanced** also shows the **Picture** box (colour, mirror and fades) when you open a section.
 - **Picture: colour, mirror and fades.** The **Picture** box gives the clip a look. **Brightness**, **Contrast**
   and **Saturation** are sliders, **Tone** turns it black and white or sepia, and four starting looks (Vivid,
   Faded, Noir, Old photo) set them all at once (**Reset** puts it back). **Mirror** swaps left and right. **Fade in
@@ -201,7 +209,7 @@ and WebM only; GIF and WebP can't carry audio). Finished files also land in your
   to the clip's picture before layers and captions go on, so those keep their own colours and don't flip; the
   fades are applied last, so they take the layers and captions with them. Fade the sound with its volume line in
   the Mix. It works in every format (a GIF is made plain RGB first so a fade doesn't leave holes). It is on a
-  single clip, not on the sections of a sequence. **Follow it automatically** looks at the original picture, so
+  single clip; a section of a sequence has it behind **Advanced**. **Follow it automatically** looks at the original picture, so
   turn Mirror off while you track.
 - **Move over time.** A layer, or the styled caption text, can travel across the picture: tick
   **Move over time** to put a first keyframe where it is now, move the playhead, and drag it on the

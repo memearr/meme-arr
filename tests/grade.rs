@@ -65,6 +65,8 @@ fn request(format: Format, grade: Grade, layers: Vec<Layer>) -> ExportRequest {
         clip_volume: 1.0,
         clip_curve: vec![],
         mixdown: Default::default(),
+        speed: 1.0,
+        crop: None,
         grade,
     }
 }

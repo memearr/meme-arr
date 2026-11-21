@@ -69,7 +69,7 @@ function SongRow({ track, onPick, onRemove }) {
  * in the page alongside the player (up to full volume; the export can go louder).
  * `relMs` is the playhead in clip time and `clipMs` the clip's length.
  */
-export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, setClipVolume, audio, clipMs, relMs, playing, preview = true, what = "clip", showClipVolume = true, songRef, silenced = false, master = 1, levelsInMix = false }) {
+export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, setClipVolume, audio, clipMs, relMs, playing, preview = true, what = "clip", showClipVolume = true, songRef, silenced = false, master = 1, rate = 1, levelsInMix = false }) {
   const [sources, setSources] = useState(null); // {navidrome, library, uploads} once known
   const [uploads, setUploads] = useState([]); // the songs uploaded to the app
   const [uploading, setUploading] = useState(false);
@@ -369,6 +369,7 @@ export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, set
                 hear={(levelsInMix || hear) && !silenced}
                 audioRef={songRef}
                 master={master}
+                rate={rate}
               />
             </>
           )}

@@ -156,6 +156,34 @@ pub fn core_chain_graded(
     parts.join(",")
 }
 
+/// [`clip_core_chain`] for a graded clip of a sequence: the colour and mirror once the picture is
+/// fitted (so the black bars stay black), then the padding, the captions and the fades.
+pub fn clip_core_chain_graded(
+    (width, height): (u32, u32),
+    fps: u32,
+    spec: &CaptionSpec,
+    grade: &Grade,
+    clip_ms: i64,
+) -> String {
+    let mut parts = vec![
+        format!("fps={fps}"),
+        format!("scale={width}:{height}:force_original_aspect_ratio=decrease:flags=lanczos"),
+    ];
+    parts.extend(grade.picture_filters());
+    parts.push(format!(
+        "pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black"
+    ));
+    parts.extend(caption_filters(spec));
+    parts.extend(grade.fade_filters(clip_ms));
+    parts.join(",")
+}
+
+/// The base of a layered sequence clip's graph: fitted and graded, padded to the canvas (the
+/// captions and fades go after the layers).
+pub fn clip_base_graded((width, height): (u32, u32), fps: u32, grade: &Grade) -> String {
+    clip_core_chain_graded((width, height), fps, &CaptionSpec::none(height), grade, 0)
+}
+
 /// The base of a layered export's graph (see `plan_layers_on`): sizing, then the colour and mirror.
 pub fn layers_base_graded(width: u32, fps: u32, grade: &Grade) -> String {
     let mut parts = vec![

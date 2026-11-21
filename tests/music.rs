@@ -87,6 +87,8 @@ fn request(format: Format, audio: bool, m: Option<Soundtrack>, clip_volume: f32)
         clip_volume,
         clip_curve: vec![],
         mixdown: Default::default(),
+        speed: 1.0,
+        crop: None,
         grade: export::Grade::default(),
     }
 }
@@ -415,6 +417,7 @@ fn seq_clip(file: PathBuf, secs: i64) -> export::ResolvedSequenceClip {
         font_path: None,
         layers: vec![],
         music: None,
+        grade: Default::default(),
     }
 }
 

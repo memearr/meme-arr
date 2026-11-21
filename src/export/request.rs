@@ -204,6 +204,12 @@ pub struct ExportRequest {
     /// The look of the picture: colour, mirror, fades (see [`Grade`]).
     #[serde(default)]
     pub grade: Grade,
+    /// How fast the finished clip plays, 0.25 to 4 times (see `reframe`). The sound goes with it.
+    #[serde(default = "volume_one")]
+    pub speed: f32,
+    /// The window of the finished picture to keep (see [`Crop`]); `None` keeps all of it.
+    #[serde(default)]
+    pub crop: Option<Crop>,
 }
 
 pub(super) fn volume_one() -> f32 {
@@ -253,6 +259,9 @@ pub struct SequenceClipSpec {
     /// clip, and it stops where the clip does. It plays along with the sequence's own song.
     #[serde(default)]
     pub music: Option<Soundtrack>,
+    /// The look of this clip's picture: colour, mirror, fades (see [`Grade`]).
+    #[serde(default)]
+    pub grade: Grade,
 }
 
 /// Export several clips — possibly from different source files — back to
@@ -368,6 +377,9 @@ pub fn validate_sequence(clips: &[SequenceClipSpec]) -> std::result::Result<(), 
             return Err(format!("clip {} (#{i}): {why}", c.rating_key));
         }
         if let Some(why) = validate_layers(&c.layers, len) {
+            return Err(format!("clip {} (#{i}): {why}", c.rating_key));
+        }
+        if let Some(why) = validate_grade(&c.grade, len) {
             return Err(format!("clip {} (#{i}): {why}", c.rating_key));
         }
         if len > MAX_CLIP_MS {

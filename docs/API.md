@@ -426,7 +426,16 @@ Request (`ExportRequest`):
   -1 to 1 (added to every pixel), `contrast` 0 to 2, `saturation` 0 to 3, `tone` is `none`, `bw` or `sepia`,
   `mirror` swaps left and right, and the fades (from and to black, at the start and the end of the clip) are not
   negative and together no longer than the clip (`400` otherwise). The colour and mirror are applied to the clip's
-  picture before layers and captions, the fades to the finished picture. Not accepted on a sequence or `/api/still`.
+  picture before layers and captions, the fades to the finished picture. Not accepted on `/api/still`; each clip
+  of a sequence takes its own `grade`, the same way (the colour and mirror go on the picture inside the canvas, so
+  the black bars stay black).
+  `speed` (default 1) is how fast the finished clip plays, 0.25 to 4 (`400` outside it): the output is that much
+  shorter or longer, and the sound (the clip's own and the song) is sped up with its pitch kept. `crop` (default
+  none) is a window of the finished picture, `{"x": 0.34, "y": 0, "w": 0.32, "h": 1}` as fractions of it (the top-left
+  corner, then the size; each size at least 0.2 and the window inside the picture, `400` otherwise): the output has
+  the window's shape at the export's `width`. Captions, layers and fades are drawn on the whole picture first and
+  the crop and the speed are applied last, so a layer's or a caption's times are still the clip's own. Neither is
+  accepted on a sequence or `/api/still`.
   `curve` (default none), inside `music`, is the song's volume over the clip as a line of
   `{"t_ms": 1500, "gain": 0.3}` points (`t_ms` from the clip's start, `gain` 0 silent to 1 as `volume` says): the
   volume moves in straight lines between the points, before the first it is the first's and after the last it is

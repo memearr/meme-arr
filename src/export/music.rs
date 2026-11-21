@@ -39,6 +39,9 @@ pub struct Mixdown {
     /// Cut the clip's own sound above this many Hz (0: off). Takes the hiss off.
     #[serde(default)]
     pub clip_lowpass_hz: f32,
+    /// How fast the export plays (set by the server from the request's own `speed`).
+    #[serde(skip, default = "one")]
+    pub speed: f32,
 }
 
 impl Default for Mixdown {
@@ -49,6 +52,7 @@ impl Default for Mixdown {
             normalize_lufs: None,
             clip_highpass_hz: 0.0,
             clip_lowpass_hz: 0.0,
+            speed: 1.0,
         }
     }
 }
@@ -594,9 +598,11 @@ pub fn plan_mix_mixed(
     } else {
         normalize
     };
+    // The speed is the last thing: the sound is cut to the clip, then played faster or slower.
     let tail = format!(
-        "{master}atrim=end={},alimiter=limit=0.95[aout]",
-        secs(total_ms)
+        "{master}atrim=end={},alimiter=limit=0.95{}[aout]",
+        secs(total_ms),
+        tempo_filter(mixdown.speed)
     );
     parts.push(if labels.len() == 1 {
         format!("{}{tail}", labels[0])

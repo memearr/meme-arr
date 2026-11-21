@@ -36,6 +36,7 @@ export function PlayerPanel({
   playhead,
   gradeStyle,
   fade = 0,
+  cropBox = null,
   srcFps,
   seekTo,
   start,
@@ -155,6 +156,15 @@ export function PlayerPanel({
                 onMove={moveLayer}
               />
               {fade > 0 && <div className="fade-veil" style={{ opacity: fade }} aria-hidden="true" />}
+              {cropBox && pictureBox && (
+                <div className="crop-guide" aria-label="The window that is kept" role="img">
+                  <div className="crop-veil" style={{ left: pictureBox.left, top: pictureBox.top, width: pictureBox.width, height: Math.max(0, cropBox.top - pictureBox.top) }} />
+                  <div className="crop-veil" style={{ left: pictureBox.left, top: cropBox.top + cropBox.height, width: pictureBox.width, height: Math.max(0, pictureBox.top + pictureBox.height - cropBox.top - cropBox.height) }} />
+                  <div className="crop-veil" style={{ left: pictureBox.left, top: cropBox.top, width: Math.max(0, cropBox.left - pictureBox.left), height: cropBox.height }} />
+                  <div className="crop-veil" style={{ left: cropBox.left + cropBox.width, top: cropBox.top, width: Math.max(0, pictureBox.left + pictureBox.width - cropBox.left - cropBox.width), height: cropBox.height }} />
+                  <div className="crop-edge" style={{ left: cropBox.left, top: cropBox.top, width: cropBox.width, height: cropBox.height }} />
+                </div>
+              )}
               {showPaths && <PathPreview paths={paths} relMs={relMs} pictureBox={pictureBox} onSeek={(ms) => seekTo(start + ms)} />}
               <span className="player-chip mono">
                 {fmtTime(playhead)}

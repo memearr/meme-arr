@@ -2,8 +2,10 @@
 //
 // A sequence clip is what "Add to sequence" stored: the item's identity, the
 // trim, the caption settings (including lines edited in the editor), the
-// subtitle sync, the layers laid over it and the song under it. These two functions convert between that and the editor's
+// subtitle sync, the layers laid over it, the song under it and the look of its picture. These two functions convert between that and the editor's
 // own state, so editing a clip starts exactly where it was left.
+
+import { PLAIN, isPlain } from "./gradeModel.js";
 
 /** The editor's starting state for a stored clip. */
 export function editorSeed(clip) {
@@ -21,11 +23,12 @@ export function editorSeed(clip) {
     subtitleOffsetMs: clip.subtitle_offset_ms || 0,
     layers: Array.isArray(clip.layers) ? clip.layers : [],
     music: clip.music && typeof clip.music.id === "string" ? clip.music : null,
+    grade: clip.grade && typeof clip.grade === "object" ? { ...PLAIN, ...clip.grade } : PLAIN,
   };
 }
 
 /** The stored clip with what the editor now says; its identity and place are kept. */
-export function updatedClip(clip, { start, end, caption, subtitleOffsetMs, layers, music }) {
+export function updatedClip(clip, { start, end, caption, subtitleOffsetMs, layers, music, grade }) {
   return {
     ...clip,
     start_ms: start,
@@ -34,6 +37,7 @@ export function updatedClip(clip, { start, end, caption, subtitleOffsetMs, layer
     subtitle_offset_ms: subtitleOffsetMs,
     layers: layers || [],
     music: music || null,
+    grade: grade && !isPlain(grade) ? grade : undefined,
   };
 }
 

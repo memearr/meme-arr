@@ -5,6 +5,7 @@ import { MusicPanel } from "./MusicPanel.jsx";
 import { layersForRequest } from "./layersModel.js";
 import { clipVolumeForRequest, musicForRequest } from "./musicModel.js";
 import { loadAdvanced } from "./advanced.js";
+import { gradeForRequest } from "./gradeModel.js";
 import { songCuts } from "./advancedAudio.js";
 import { browserStorage } from "./editorStorage.js";
 import { SectionEditor } from "./SectionEditor.jsx";
@@ -180,6 +181,7 @@ export function SequenceView({ sequence, setSequence, onJob }) {
           subtitle_offset_ms: c.subtitle_offset_ms || 0,
           layers: layersForRequest(c.layers, c.end_ms - c.start_ms),
           music: musicForRequest(songCuts(c.music, loadAdvanced(browserStorage())), c.end_ms - c.start_ms, audio),
+          grade: loadAdvanced(browserStorage()) ? gradeForRequest(c.grade, c.end_ms - c.start_ms) : undefined,
         })),
         format,
         width,

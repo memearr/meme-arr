@@ -83,9 +83,20 @@ pub async fn run_export_with(
         offset_ms: req.subtitle_offset_ms,
     };
     let clip_ms = req.end_ms - req.start_ms;
-    if let Some(why) = validate_grade(&req.grade, clip_ms) {
+    if let Some(why) = validate_grade(&req.grade, clip_ms)
+        .or_else(|| validate_speed(req.speed))
+        .or_else(|| validate_crop(req.crop.as_ref()))
+    {
         anyhow::bail!(why);
     }
+    // Everything is laid out on the whole picture, wide enough that the cropped window comes out the
+    // width asked for; the crop and the speed are the last things done to it.
+    let compose = compose_width(req.width, req.crop.as_ref());
+    let finishing = finishing_filters(req.width, req.fps, req.crop.as_ref(), req.speed);
+    let mixdown = Mixdown {
+        speed: req.speed,
+        ..req.mixdown
+    };
     if let Some(why) = validate_music(
         req.music.as_ref(),
         req.clip_volume,
@@ -94,14 +105,14 @@ pub async fn run_export_with(
         req.audio,
     )
     .or_else(|| validate_clip_curve(&req.clip_curve, clip_ms, req.audio))
-    .or_else(|| validate_mixdown(&req.mixdown, req.audio))
+    .or_else(|| validate_mixdown(&mixdown, req.audio))
     {
         anyhow::bail!(why);
     }
     // The sound is mixed when there is a song or the clip's own volume was changed.
     let mix = if req.music.is_some()
         || !req.clip_curve.is_empty()
-        || !req.mixdown.is_plain()
+        || !mixdown.is_plain()
         || (req.clip_volume - 1.0).abs() > f32::EPSILON
     {
         let own = req.audio
@@ -113,7 +124,7 @@ pub async fn run_export_with(
             req.music.as_ref(),
             req.clip_volume,
             &req.clip_curve,
-            &req.mixdown,
+            &mixdown,
             own,
             clip_ms,
             req.layers.len() + 1,
@@ -134,13 +145,17 @@ pub async fn run_export_with(
     let (args, caption_files) = if req.layers.is_empty() {
         let caption_files =
             write_caption_files(job.tmp_dir, job.id, style.caption, &window, style.font_path)?;
-        let core = core_chain_graded(
-            req.width,
+        let mut core = core_chain_graded(
+            compose,
             req.fps,
             &caption_files.spec(style),
             &req.grade,
             clip_ms,
         );
+        for f in &finishing {
+            core.push(',');
+            core.push_str(f);
+        }
         let vf = video_filter(req.format, &core);
         let args = export_args(
             &file.to_string_lossy(),
@@ -162,9 +177,10 @@ pub async fn run_export_with(
         sprites = written;
         let mut after_chain = caption_filters(&caption_files.spec(style));
         after_chain.extend(req.grade.fade_filters(clip_ms));
+        after_chain.extend(finishing.clone());
         let after = finishing_filter(req.format, &after_chain.join(","));
-        let base = layers_base_graded(req.width, req.fps, &req.grade);
-        let plan = plan_layers_on(&req.layers, &sources, &base, req.width, clip_ms, &after);
+        let base = layers_base_graded(compose, req.fps, &req.grade);
+        let plan = plan_layers_on(&req.layers, &sources, &base, compose, clip_ms, &after);
         let args = export_args_with_layers(
             &file.to_string_lossy(),
             req.start_ms,
@@ -229,6 +245,8 @@ pub struct ResolvedSequenceClip {
     pub layers: Vec<Layer>,
     /// A song under this clip only (its `file` filled in before the export runs).
     pub music: Option<Soundtrack>,
+    /// The look of this clip's picture.
+    pub grade: Grade,
 }
 
 /// What every clip of one sequence is rendered to: the frame rate, the shared
@@ -270,7 +288,14 @@ pub(super) async fn render_sequence_clip(
     let caption_files =
         write_caption_files(tmp_dir, id, clip.caption.as_ref(), &window, font_path)?;
     let style = CaptionStyle::new(clip.caption.as_ref(), font_path, height);
-    let core = clip_core_chain(width, height, fps, &caption_files.spec(style));
+    let clip_ms = clip.end_ms - clip.start_ms;
+    let core = clip_core_chain_graded(
+        (width, height),
+        fps,
+        &caption_files.spec(style),
+        &clip.grade,
+        clip_ms,
+    );
     let out_path = tmp_dir.join(format!("{id}.part.{}", part_ext(audio)));
 
     // The sprite files (written for shape layers) go when this does.
@@ -285,16 +310,11 @@ pub(super) async fn render_sequence_clip(
         };
         sprites = written;
         // the picture is fitted to the canvas, the layers go on that, and the captions on top
-        let base = clip_core_chain(width, height, fps, &CaptionSpec::none(height));
-        let post = caption_filters(&caption_files.spec(style)).join(",");
-        let plan = plan_layers_on(
-            &clip.layers,
-            &sources,
-            &base,
-            width,
-            clip.end_ms - clip.start_ms,
-            &post,
-        );
+        let base = clip_base_graded((width, height), fps, &clip.grade);
+        let mut post = caption_filters(&caption_files.spec(style));
+        post.extend(clip.grade.fade_filters(clip_ms));
+        let post = post.join(",");
+        let plan = plan_layers_on(&clip.layers, &sources, &base, width, clip_ms, &post);
         // as for a clip without layers, a source with no sound of its own is given silence
         let has_audio = audio
             && ffmpeg::probe(tools.ffprobe, &clip.file)

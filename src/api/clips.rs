@@ -216,7 +216,10 @@ pub(super) async fn export_start(
     if let Some(msg) = export::validate_layers(&req.layers, req.end_ms - req.start_ms) {
         return Ok(bad_request(msg));
     }
-    if let Some(msg) = export::validate_grade(&req.grade, req.end_ms - req.start_ms) {
+    if let Some(msg) = export::validate_grade(&req.grade, req.end_ms - req.start_ms)
+        .or_else(|| export::validate_speed(req.speed))
+        .or_else(|| export::validate_crop(req.crop.as_ref()))
+    {
         return Ok(bad_request(msg));
     }
     if let Some(msg) = export::validate_music(
@@ -371,6 +374,7 @@ fn resolve_sequence(
             font_path,
             layers: spec.layers.clone(),
             music: spec.music.clone(),
+            grade: spec.grade,
             file,
             start_ms: spec.start_ms,
             end_ms: spec.end_ms,

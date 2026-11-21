@@ -1093,3 +1093,22 @@
   flex-basis: 100%;
   font-size: 0.85em;
 }
+
+.crop-guide {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.crop-veil {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.6);
+}
+.crop-edge {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px dashed rgba(255, 255, 255, 0.85);
+}
+.advanced-picture label {
+  display: block;
+  margin-top: 4px;
+}
