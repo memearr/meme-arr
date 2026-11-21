@@ -81,6 +81,8 @@ fn request(format: Format, layers: Vec<Layer>, audio: bool) -> ExportRequest {
         clip_volume: 1.0,
         clip_curve: vec![],
         mixdown: Default::default(),
+        speed: 1.0,
+        crop: None,
         grade: export::Grade::default(),
     }
 }

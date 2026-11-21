@@ -71,6 +71,7 @@ describe("a song on one section of a sequence", () => {
       pan: 0,
       highpass_hz: 0,
       lowpass_hz: 0,
+      eq: { low_db: 0, mid_db: 0, high_db: 0 },
       curve: [],
     });
     expect(sent.music).toBeUndefined(); // the sequence's own song is separate

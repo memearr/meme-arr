@@ -156,6 +156,66 @@ pub fn core_chain_graded(
     parts.join(",")
 }
 
+/// [`clip_core_chain`] for a graded clip of a sequence: the colour and mirror once the picture is
+/// fitted (so the black bars stay black), then the padding, the captions and the fades.
+pub fn clip_core_chain_graded(
+    (width, height): (u32, u32),
+    fps: u32,
+    spec: &CaptionSpec,
+    grade: &Grade,
+    clip_ms: i64,
+    reframe: Reframe,
+) -> String {
+    let mut parts = vec![format!("fps={fps}")];
+    // the window of the source to keep comes first: what is left is fitted into the canvas
+    parts.extend(reframe.crop.map(crop_filter));
+    parts.push(format!(
+        "scale={width}:{height}:force_original_aspect_ratio=decrease:flags=lanczos"
+    ));
+    parts.extend(grade.picture_filters());
+    parts.push(format!(
+        "pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black"
+    ));
+    parts.extend(caption_filters(spec));
+    parts.extend(grade.fade_filters(clip_ms));
+    parts.extend(speed_filters(fps, reframe.speed));
+    parts.join(",")
+}
+
+/// What is done to a sequence clip's picture besides its look: the window of the source kept, and
+/// how fast it plays (the sound is sped up separately).
+#[derive(Debug, Clone, Copy)]
+pub struct Reframe<'a> {
+    pub crop: Option<&'a Crop>,
+    pub speed: f32,
+}
+
+impl Reframe<'_> {
+    /// Neither a crop nor a change of speed.
+    pub const NONE: Reframe<'static> = Reframe {
+        crop: None,
+        speed: 1.0,
+    };
+}
+
+/// The base of a layered sequence clip's graph: fitted and graded, padded to the canvas (the
+/// captions and fades go after the layers).
+pub fn clip_base_graded(
+    (width, height): (u32, u32),
+    fps: u32,
+    grade: &Grade,
+    crop: Option<&Crop>,
+) -> String {
+    clip_core_chain_graded(
+        (width, height),
+        fps,
+        &CaptionSpec::none(height),
+        grade,
+        0,
+        Reframe { crop, speed: 1.0 },
+    )
+}
+
 /// The base of a layered export's graph (see `plan_layers_on`): sizing, then the colour and mirror.
 pub fn layers_base_graded(width: u32, fps: u32, grade: &Grade) -> String {
     let mut parts = vec![

@@ -39,6 +39,12 @@ pub struct Mixdown {
     /// Cut the clip's own sound above this many Hz (0: off). Takes the hiss off.
     #[serde(default)]
     pub clip_lowpass_hz: f32,
+    /// The clip's own sound through a three-band equaliser (see [`Equaliser`]).
+    #[serde(default)]
+    pub clip_eq: Equaliser,
+    /// How fast the export plays (set by the server from the request's own `speed`).
+    #[serde(skip, default = "one")]
+    pub speed: f32,
 }
 
 impl Default for Mixdown {
@@ -49,8 +55,60 @@ impl Default for Mixdown {
             normalize_lufs: None,
             clip_highpass_hz: 0.0,
             clip_lowpass_hz: 0.0,
+            clip_eq: Equaliser::default(),
+            speed: 1.0,
         }
     }
+}
+
+/// A three-band tone control, each band in dB (0 leaves it be): a low shelf below 120 Hz, a bell around
+/// 1 kHz and a high shelf above 6 kHz.
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
+pub struct Equaliser {
+    #[serde(default)]
+    pub low_db: f32,
+    #[serde(default)]
+    pub mid_db: f32,
+    #[serde(default)]
+    pub high_db: f32,
+}
+
+/// The most a band may be turned up or down, in dB.
+pub const MAX_EQ_DB: f32 = 12.0;
+
+impl Equaliser {
+    /// Whether this leaves the sound as it is.
+    pub fn is_flat(&self) -> bool {
+        [self.low_db, self.mid_db, self.high_db]
+            .iter()
+            .all(|g| g.abs() < 0.05)
+    }
+}
+
+/// Why an equaliser (`what` names the sound) can't be used, or `None`.
+pub fn validate_eq(eq: &Equaliser, what: &str) -> Option<String> {
+    let ok = |g: f32| g.is_finite() && (-MAX_EQ_DB..=MAX_EQ_DB).contains(&g);
+    if ok(eq.low_db) && ok(eq.mid_db) && ok(eq.high_db) {
+        return None;
+    }
+    Some(format!(
+        "each band of the {what} equaliser must be between -{MAX_EQ_DB} and {MAX_EQ_DB} dB"
+    ))
+}
+
+/// The filters for an equaliser, each with a comma in front, or "" for a flat one.
+pub fn eq_filters(eq: &Equaliser) -> String {
+    let mut s = String::new();
+    if eq.low_db.abs() >= 0.05 {
+        s.push_str(&format!(",bass=g={:.1}:f=120:w=0.7", eq.low_db));
+    }
+    if eq.mid_db.abs() >= 0.05 {
+        s.push_str(&format!(",equalizer=f=1000:t=q:w=0.8:g={:.1}", eq.mid_db));
+    }
+    if eq.high_db.abs() >= 0.05 {
+        s.push_str(&format!(",treble=g={:.1}:f=6000:w=0.7", eq.high_db));
+    }
+    s
 }
 
 /// Lowest and highest loudness target, in LUFS.
@@ -123,7 +181,11 @@ pub fn validate_mixdown(m: &Mixdown, keep_audio: bool) -> Option<String> {
     if (m.clip_highpass_hz != 0.0 || m.clip_lowpass_hz != 0.0) && !keep_audio {
         return Some("the clip's cuts only matter when its sound is kept".into());
     }
+    if !m.clip_eq.is_flat() && !keep_audio {
+        return Some("the clip's equaliser only matters when its sound is kept".into());
+    }
     validate_cuts(m.clip_highpass_hz, m.clip_lowpass_hz, "clip's")
+        .or_else(|| validate_eq(&m.clip_eq, "clip's"))
 }
 
 /// The `pan` filter that places a stereo sound at `pan` (-1 left .. 1 right), or "" for the middle.
@@ -254,6 +316,9 @@ pub struct Soundtrack {
     /// Cut the song above this many Hz (0: off).
     #[serde(default)]
     pub lowpass_hz: f32,
+    /// The song through a three-band equaliser (see [`Equaliser`]).
+    #[serde(default)]
+    pub eq: Equaliser,
     /// The song's file, filled in by the server before the export runs.
     #[serde(skip)]
     pub file: Option<PathBuf>,
@@ -300,7 +365,9 @@ pub fn validate_music(
     if !m.pan.is_finite() || !(-1.0..=1.0).contains(&m.pan) {
         return Some("the music's pan must be between -1 (left) and 1 (right)".into());
     }
-    if let Some(why) = validate_cuts(m.highpass_hz, m.lowpass_hz, "music's") {
+    if let Some(why) = validate_cuts(m.highpass_hz, m.lowpass_hz, "music's")
+        .or_else(|| validate_eq(&m.eq, "music's"))
+    {
         return Some(why);
     }
     if !m.duck.is_finite() || !(0.0..=1.0).contains(&m.duck) {
@@ -493,7 +560,11 @@ pub fn plan_mix_mixed(
         } else {
             format!(",{pan}")
         };
-        let cuts = cut_filters(mixdown.clip_highpass_hz, mixdown.clip_lowpass_hz);
+        let cuts = format!(
+            "{}{}",
+            cut_filters(mixdown.clip_highpass_hz, mixdown.clip_lowpass_hz),
+            eq_filters(&mixdown.clip_eq)
+        );
         parts.push(format!(
             "[0:a:0]aformat=channel_layouts=stereo{pan}{cuts},volume={clip_volume:.3}{line}{to}"
         ));
@@ -538,7 +609,11 @@ pub fn plan_mix_mixed(
         } else {
             format!(",{song_pan}")
         };
-        let song_cuts = cut_filters(m.highpass_hz, m.lowpass_hz);
+        let song_cuts = format!(
+            "{}{}",
+            cut_filters(m.highpass_hz, m.lowpass_hz),
+            eq_filters(&m.eq)
+        );
         let mut chain = format!(
             "[{}:a:0]aresample=48000,aformat=channel_layouts=stereo{song_pan}{song_cuts},volume={:.3}",
             first_input + i,
@@ -594,9 +669,11 @@ pub fn plan_mix_mixed(
     } else {
         normalize
     };
+    // The speed is the last thing: the sound is cut to the clip, then played faster or slower.
     let tail = format!(
-        "{master}atrim=end={},alimiter=limit=0.95[aout]",
-        secs(total_ms)
+        "{master}atrim=end={},alimiter=limit=0.95{}[aout]",
+        secs(total_ms),
+        tempo_filter(mixdown.speed)
     );
     parts.push(if labels.len() == 1 {
         format!("{}{tail}", labels[0])

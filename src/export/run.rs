@@ -83,9 +83,20 @@ pub async fn run_export_with(
         offset_ms: req.subtitle_offset_ms,
     };
     let clip_ms = req.end_ms - req.start_ms;
-    if let Some(why) = validate_grade(&req.grade, clip_ms) {
+    if let Some(why) = validate_grade(&req.grade, clip_ms)
+        .or_else(|| validate_speed(req.speed))
+        .or_else(|| validate_crop(req.crop.as_ref()))
+    {
         anyhow::bail!(why);
     }
+    // Everything is laid out on the whole picture, wide enough that the cropped window comes out the
+    // width asked for; the crop and the speed are the last things done to it.
+    let compose = compose_width(req.width, req.crop.as_ref());
+    let finishing = finishing_filters(req.width, req.fps, req.crop.as_ref(), req.speed);
+    let mixdown = Mixdown {
+        speed: req.speed,
+        ..req.mixdown
+    };
     if let Some(why) = validate_music(
         req.music.as_ref(),
         req.clip_volume,
@@ -94,14 +105,14 @@ pub async fn run_export_with(
         req.audio,
     )
     .or_else(|| validate_clip_curve(&req.clip_curve, clip_ms, req.audio))
-    .or_else(|| validate_mixdown(&req.mixdown, req.audio))
+    .or_else(|| validate_mixdown(&mixdown, req.audio))
     {
         anyhow::bail!(why);
     }
     // The sound is mixed when there is a song or the clip's own volume was changed.
     let mix = if req.music.is_some()
         || !req.clip_curve.is_empty()
-        || !req.mixdown.is_plain()
+        || !mixdown.is_plain()
         || (req.clip_volume - 1.0).abs() > f32::EPSILON
     {
         let own = req.audio
@@ -113,7 +124,7 @@ pub async fn run_export_with(
             req.music.as_ref(),
             req.clip_volume,
             &req.clip_curve,
-            &req.mixdown,
+            &mixdown,
             own,
             clip_ms,
             req.layers.len() + 1,
@@ -134,13 +145,17 @@ pub async fn run_export_with(
     let (args, caption_files) = if req.layers.is_empty() {
         let caption_files =
             write_caption_files(job.tmp_dir, job.id, style.caption, &window, style.font_path)?;
-        let core = core_chain_graded(
-            req.width,
+        let mut core = core_chain_graded(
+            compose,
             req.fps,
             &caption_files.spec(style),
             &req.grade,
             clip_ms,
         );
+        for f in &finishing {
+            core.push(',');
+            core.push_str(f);
+        }
         let vf = video_filter(req.format, &core);
         let args = export_args(
             &file.to_string_lossy(),
@@ -162,9 +177,10 @@ pub async fn run_export_with(
         sprites = written;
         let mut after_chain = caption_filters(&caption_files.spec(style));
         after_chain.extend(req.grade.fade_filters(clip_ms));
+        after_chain.extend(finishing.clone());
         let after = finishing_filter(req.format, &after_chain.join(","));
-        let base = layers_base_graded(req.width, req.fps, &req.grade);
-        let plan = plan_layers_on(&req.layers, &sources, &base, req.width, clip_ms, &after);
+        let base = layers_base_graded(compose, req.fps, &req.grade);
+        let plan = plan_layers_on(&req.layers, &sources, &base, compose, clip_ms, &after);
         let args = export_args_with_layers(
             &file.to_string_lossy(),
             req.start_ms,
@@ -229,6 +245,14 @@ pub struct ResolvedSequenceClip {
     pub layers: Vec<Layer>,
     /// A song under this clip only (its `file` filled in before the export runs).
     pub music: Option<Soundtrack>,
+    /// The look of this clip's picture.
+    pub grade: Grade,
+    /// How this clip comes in over the one before it.
+    pub transition: Option<Transition>,
+    /// How fast this clip plays.
+    pub speed: f32,
+    /// The window of its picture to keep.
+    pub crop: Option<Crop>,
 }
 
 /// What every clip of one sequence is rendered to: the frame rate, the shared
@@ -270,7 +294,19 @@ pub(super) async fn render_sequence_clip(
     let caption_files =
         write_caption_files(tmp_dir, id, clip.caption.as_ref(), &window, font_path)?;
     let style = CaptionStyle::new(clip.caption.as_ref(), font_path, height);
-    let core = clip_core_chain(width, height, fps, &caption_files.spec(style));
+    let clip_ms = clip.end_ms - clip.start_ms;
+    let reframe = Reframe {
+        crop: clip.crop.as_ref(),
+        speed: clip.speed,
+    };
+    let core = clip_core_chain_graded(
+        (width, height),
+        fps,
+        &caption_files.spec(style),
+        &clip.grade,
+        clip_ms,
+        reframe,
+    );
     let out_path = tmp_dir.join(format!("{id}.part.{}", part_ext(audio)));
 
     // The sprite files (written for shape layers) go when this does.
@@ -285,16 +321,12 @@ pub(super) async fn render_sequence_clip(
         };
         sprites = written;
         // the picture is fitted to the canvas, the layers go on that, and the captions on top
-        let base = clip_core_chain(width, height, fps, &CaptionSpec::none(height));
-        let post = caption_filters(&caption_files.spec(style)).join(",");
-        let plan = plan_layers_on(
-            &clip.layers,
-            &sources,
-            &base,
-            width,
-            clip.end_ms - clip.start_ms,
-            &post,
-        );
+        let base = clip_base_graded((width, height), fps, &clip.grade, clip.crop.as_ref());
+        let mut post = caption_filters(&caption_files.spec(style));
+        post.extend(clip.grade.fade_filters(clip_ms));
+        post.extend(speed_filters(fps, clip.speed));
+        let post = post.join(",");
+        let plan = plan_layers_on(&clip.layers, &sources, &base, width, clip_ms, &post);
         // as for a clip without layers, a source with no sound of its own is given silence
         let has_audio = audio
             && ffmpeg::probe(tools.ffprobe, &clip.file)
@@ -338,11 +370,28 @@ pub(super) async fn render_sequence_clip(
         )
     };
 
+    // the sound plays at the clip's speed too (the picture's is in its filters)
+    let args = if audio && !is_normal_speed(clip.speed) {
+        speed_audio_args(args, clip.speed)
+    } else {
+        args
+    };
     let result = ffmpeg::run(tools.ffmpeg, &args).await;
     caption_files.cleanup();
     drop(sprites);
     result?;
     Ok(out_path)
+}
+
+/// `args` (ending in the output file) with the sound played at `speed` times: `-af` just before the output.
+pub(super) fn speed_audio_args(mut args: Vec<String>, speed: f32) -> Vec<String> {
+    let tempo = tempo_filter(speed);
+    let tempo = tempo.trim_start_matches(',');
+    if !tempo.is_empty() {
+        let at = args.len().saturating_sub(1);
+        args.splice(at..at, ["-af".to_string(), tempo.to_string()]);
+    }
+    args
 }
 
 /// The argv for one sequence clip whose picture is a layer graph. `audio` is `None` for a
@@ -556,10 +605,15 @@ pub async fn run_sequence_export_with(
     // not stream-copied, so we're not relying on every part's container
     // metadata lining up exactly; audio -- when present -- is a straight
     // stream copy, valid because phase 1 gave every part the same PCM params).
+    // When clips come in with transitions they are blended instead (see `join_args`).
+    let transitions: Vec<Option<Transition>> = clips.iter().map(|c| c.transition).collect();
+    let blended = has_transitions(&transitions);
     let list_path = tmp_dir.join(format!("{job_id}-list.txt"));
-    if let Err(e) = std::fs::write(&list_path, concat_list(&parts)) {
-        cleanup_paths(&parts);
-        return Err(e.into());
+    if !blended {
+        if let Err(e) = std::fs::write(&list_path, concat_list(&parts)) {
+            cleanup_paths(&parts);
+            return Err(e.into());
+        }
     }
     let concat_path = tmp_dir.join(format!("{job_id}-concat.{}", part_ext(audio)));
     let mut concat_args = vec![
@@ -586,6 +640,24 @@ pub async fn run_sequence_export_with(
     }));
     concat_args.extend(privacy_args(None));
     concat_args.push(concat_path.to_string_lossy().into_owned());
+    if blended {
+        // the parts' real lengths (a part is a frame or so off its nominal length), so each
+        // transition starts where the clip before it really ends
+        let mut lens = Vec::with_capacity(parts.len());
+        for (part, clip) in parts.iter().zip(clips) {
+            let nominal = played_ms(clip.end_ms - clip.start_ms, clip.speed);
+            let real = ffmpeg::probe(tools.ffprobe, part)
+                .await
+                .map(|p| p.duration_ms)
+                .unwrap_or(0);
+            lens.push(if (real - nominal).abs() < 500 && real > 0 {
+                real
+            } else {
+                nominal
+            });
+        }
+        concat_args = join_args(&parts, &lens, &transitions, fps, audio, &concat_path);
+    }
     if let Err(e) = ffmpeg::run(tools.ffmpeg, &concat_args).await {
         cleanup_paths(&parts);
         let _ = std::fs::remove_file(&list_path);
@@ -617,8 +689,14 @@ pub async fn run_sequence_export_with(
             len_ms: total_ms - m.at_ms,
         });
     }
-    let mut offset = 0;
-    for c in clips {
+    // each clip's own song starts where its clip starts in the joined sequence (a transition
+    // pulls a clip back over the one before it)
+    let lens: Vec<i64> = clips
+        .iter()
+        .map(|c| played_ms(c.end_ms - c.start_ms, c.speed))
+        .collect();
+    let starts = clip_starts(&lens, &transitions);
+    for (c, offset) in clips.iter().zip(starts) {
         let len = c.end_ms - c.start_ms;
         if let Some(m) = c.music.as_ref() {
             songs.push(Placed {
@@ -627,7 +705,6 @@ pub async fn run_sequence_export_with(
                 len_ms: len - m.at_ms,
             });
         }
-        offset += len;
     }
     let mix = if !songs.is_empty() || (req.clip_volume - 1.0).abs() > f32::EPSILON {
         if let Some(why) =

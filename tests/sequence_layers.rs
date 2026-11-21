@@ -84,6 +84,10 @@ fn clip(file: &Path, layers: Vec<Layer>, caption: Option<Caption>) -> ResolvedSe
         font_path: None,
         layers,
         music: None,
+        grade: Default::default(),
+        transition: None,
+        speed: 1.0,
+        crop: None,
     }
 }
 
@@ -316,6 +320,10 @@ fn a_bad_layer_on_one_clip_is_refused_naming_the_clip() {
         subtitle_offset_ms: 0,
         layers,
         music: None,
+        grade: Default::default(),
+        transition: None,
+        speed: 1.0,
+        crop: None,
     };
     let mut late = shape("dot", 0.5, 0.5);
     late.start_ms = 9000; // outside a 4 s clip

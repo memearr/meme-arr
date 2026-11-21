@@ -21,6 +21,8 @@ import { QUIET, audible, previewMaster, soundForExport, toggleMute, toggleSolo }
 import { setPan } from "./audioGraph.js";
 import { MixTimeline } from "./MixTimeline.jsx";
 import { AdvancedAudio } from "./AdvancedAudio.jsx";
+import { AdvancedPicture } from "./AdvancedPicture.jsx";
+import { WHOLE, cropBox, cropForRequest, cropWindow, playbackRate, speedForRequest } from "./advancedPicture.js";
 import { useAdvanced } from "./advanced.js";
 import { PLAIN_SOUND, songCuts, soundForMixdown } from "./advancedAudio.js";
 import { GradePanel } from "./GradePanel.jsx";
@@ -83,13 +85,15 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   // A song from Navidrome under the clip, and how loud the clip's own sound is (see MusicPanel).
   const [music, setMusic] = useState(seed?.music ?? null);
   const [clipVolume, setClipVolume] = useState(1);
-  const [grade, setGrade] = useState(PLAIN); // the look of the picture: colour, mirror, fades
+  const [grade, setGrade] = useState(seed?.grade ?? PLAIN); // the look of the picture: colour, mirror, fades
   const [clipCurve, setClipCurve] = useState([]); // the clip's own sound over the clip, as a volume line
   const [mix, setMix] = useState(QUIET); // mute and solo of the clip's sound and the song (see mixModel)
   const [clipPan, setClipPan] = useState(0); // -1 left .. 1 right
   const [master, setMaster] = useState(1); // the whole mix, 0..2
   const [advanced, setAdvanced] = useAdvanced(); // the Advanced tick box (kept between visits)
   const [sound, setSound] = useState(PLAIN_SOUND); // advanced sound: cuts on the clip, loudness target
+  const [clipSpeed, setClipSpeed] = useState(seed?.speed ?? 1); // advanced picture: how fast the export plays
+  const [reframe, setReframe] = useState(seed?.reframe ?? WHOLE); // advanced picture: the window of the picture to keep
   const songEl = useRef(null); // the page's audio element for the song, for its level meter
   const [overlayList, setOverlayList] = useState({ overlays: [], shapes: [] });
   const [top, setTop] = useState(seed ? seed.top : "");
@@ -138,6 +142,13 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   // Where the picture sits inside the player (it is letterboxed), so the caption
   // overlay can be sized and placed like the export.
   const [pictureBox, setPictureBox] = useState(null);
+  // The advanced picture settings that count: they are left out with Advanced off. A section of a
+  // sequence that has a song of its own plays at normal speed.
+  const advancedPicture = advanced;
+  const speedLocked = !!sequenceEdit && !!music;
+  const exportSpeed = advancedPicture && !speedLocked ? speedForRequest(clipSpeed) : 1;
+  const cropWin = advancedPicture ? cropWindow(reframe, pictureBox ? pictureBox.width / pictureBox.height : 16 / 9) : null;
+  const rate = playbackRate(speed, exportSpeed); // the player plays at the export speed too
 
   // Media-wide context: total runtime + every subtitle line, so the user can
   // jump to a specific moment instead of only nudging by fixed increments.
@@ -452,8 +463,8 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   }, [playing, start, end]);
 
   useEffect(() => {
-    if (videoRef.current) videoRef.current.playbackRate = speed;
-  }, [speed, proxy]);
+    if (videoRef.current) videoRef.current.playbackRate = rate;
+  }, [rate, proxy]);
 
   // A new render: go to the clip's start and play it.
   function proxyLoaded() {
@@ -462,7 +473,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
     const v = videoRef.current;
     const p = proxyRef.current;
     if (!v || !p) return;
-    v.playbackRate = speed;
+    v.playbackRate = rate;
     v.currentTime = Math.max(0, (Math.max(start, p.from) - p.from) / 1000);
     setPlayhead(Math.max(start, p.from));
     v.play().catch(() => {});
@@ -590,6 +601,11 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
         subtitleOffsetMs: captionMode === "source" ? subtitleOffsetMs : 0,
         layers,
         music,
+        grade,
+        // with Advanced off the section keeps the speed and window it had
+        speed: advanced ? exportSpeed : sequenceEdit.clip.speed,
+        reframe: advanced ? reframe : sequenceEdit.clip.reframe,
+        crop: advanced ? cropForRequest(cropWin) : sequenceEdit.clip.crop,
       }),
       andNext
     );
@@ -649,6 +665,8 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
         music: musicForRequest(songCuts(mixed.music, advanced), clipLength, audio),
         clip_volume: clipVolumeForRequest(mixed.clipVolume, audio),
         mixdown: { clip_pan: audio ? clipPan : 0, master, ...soundForMixdown(sound, { advanced, audio }) },
+        speed: exportSpeed,
+        crop: cropForRequest(cropWin),
         clip_curve: audio ? curveForRequest(clipCurve, clipLength) : [],
         grade: gradeForRequest(grade, clipLength),
       });
@@ -844,8 +862,9 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
             top={top}
             bottom={bottom}
             playhead={playhead}
-            gradeStyle={sequenceEdit ? undefined : previewStyle(grade)}
-            fade={sequenceEdit ? 0 : fadeLevel(grade, Math.max(0, Math.round(playhead - start)), clipLength)}
+            gradeStyle={sequenceEdit && !advanced ? undefined : previewStyle(grade)}
+            fade={sequenceEdit && !advanced ? 0 : fadeLevel(grade, Math.max(0, Math.round(playhead - start)), clipLength)}
+            cropBox={cropBox(cropWin, pictureBox)}
             srcFps={srcFps}
             seekTo={seekTo}
             start={start}
@@ -904,7 +923,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
               onClipCurve={setClipCurve}
               music={music}
               onMusicCurve={(curve) => setMusic((m) => (m ? adjustMusic(m, { curve }, clipLength) : m))}
-              master={sequenceEdit ? undefined : { level: master, onLevel: setMaster, active: playing }}
+              master={sequenceEdit ? undefined : { level: master, onLevel: setMaster, active: playing, loudness: advanced }}
               clipTrack={
                 sequenceEdit
                   ? undefined
@@ -1058,10 +1077,22 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
               songRef={songEl}
               silenced={!heard.song}
               master={previewMaster(master)}
+              rate={rate}
               levelsInMix
             />
 
-            {!sequenceEdit && <GradePanel grade={grade} onChange={setGrade} clipMs={clipLength} />}
+            {(!sequenceEdit || advanced) && <GradePanel grade={grade} onChange={setGrade} clipMs={clipLength} />}
+
+            {advanced && (
+              <AdvancedPicture
+                speedLocked={speedLocked}
+                speed={speedLocked ? 1 : clipSpeed}
+                onSpeed={setClipSpeed}
+                view={reframe}
+                onView={setReframe}
+                srcAspect={pictureBox ? pictureBox.width / pictureBox.height : 16 / 9}
+              />
+            )}
 
             {!sequenceEdit && (
               <ExportSettings

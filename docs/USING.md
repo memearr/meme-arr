@@ -188,11 +188,28 @@ and WebM only; GIF and WebP can't carry audio). Finished files also land in your
   hidden and left out of the export (the settings are kept for when you turn it on again). The first of them is
   **Advanced sound**, under the Mix: a **high-pass** (takes out rumble and wind: sound below the pitch is cut) and
   a **low-pass** (takes off hiss: sound above it is cut) for the clip's sound and for the song, each with a
-  slider that is off at the left (double-click for off); **Normalise the mix**, which brings the whole mix to a
+  slider that is off at the left (double-click for off); **bass**, **middle** and **treble** sliders for each (a
+  low shelf below 120 Hz, a bell around 1 kHz and a high shelf above 6 kHz, up or down by as much as 12 dB, and
+  double-click for 0); **Normalise the mix**, which brings the whole mix to a
   loudness target before the master and the limiter (**-23** is the broadcast level, **-16** the usual for
   streaming, **-14** is loud); and **Measure the clip's loudness**, which reads how loud the clip's own sound is
-  over the stretch you cut, in LUFS, with its peak and how much it varies. The player doesn't play the cuts or
-  the normalising; the export has them.
+  over the stretch you cut, in LUFS, with its peak and how much it varies. The player doesn't play the cuts,
+  the equaliser or the normalising; the export has them. With Advanced on, the **Master** row also has a live
+  **loudness readout** while the player plays: the **momentary** loudness (the last 0.4 seconds) and the
+  **integrated** loudness (everything since you pressed **reset**, with quiet stretches left out as broadcast
+  meters do), in LUFS. It listens to what the page plays, through the standard's filter, so it is close to a
+  broadcast meter's reading but not calibrated: use **Measure** for the exact figure.
+  **Advanced picture** (in the side panel, with the Picture box) has the **speed** of the export, from a quarter
+  to four times normal (the sound goes with it, keeping its pitch, and the player plays at that speed so you see
+  it), and **Reframe**, which keeps a window of the picture: a square, a vertical 9:16 or portrait 4:5 one for a
+  phone, or a wide one. The player darkens what is cropped away; **Frame across** (or **down**) slides the window
+  over the picture (double-click to centre it). The export is the size you chose, for the window. The captions
+  and layers are placed on the whole picture and cropped with it, so keep them inside the lit window. Speed and
+  reframe are the last things done to the finished clip, so a caption stays with the speech it was timed to.
+  In a sequence, **Advanced** also shows the **Picture** box (colour, mirror and fades), the speed and the
+  reframe when you open a section (**Detailed edit**). A section's window is cut from its source picture and the
+  rest is fitted into the sequence's frame; its speed changes how long it lasts, and the transitions and the
+  total follow. A section with a song of its own plays at normal speed.
 - **Picture: colour, mirror and fades.** The **Picture** box gives the clip a look. **Brightness**, **Contrast**
   and **Saturation** are sliders, **Tone** turns it black and white or sepia, and four starting looks (Vivid,
   Faded, Noir, Old photo) set them all at once (**Reset** puts it back). **Mirror** swaps left and right. **Fade in
@@ -201,7 +218,7 @@ and WebM only; GIF and WebP can't carry audio). Finished files also land in your
   to the clip's picture before layers and captions go on, so those keep their own colours and don't flip; the
   fades are applied last, so they take the layers and captions with them. Fade the sound with its volume line in
   the Mix. It works in every format (a GIF is made plain RGB first so a fade doesn't leave holes). It is on a
-  single clip, not on the sections of a sequence. **Follow it automatically** looks at the original picture, so
+  single clip; a section of a sequence has it behind **Advanced**. **Follow it automatically** looks at the original picture, so
   turn Mirror off while you track.
 - **Move over time.** A layer, or the styled caption text, can travel across the picture: tick
   **Move over time** to put a first keyframe where it is now, move the playhead, and drag it on the
@@ -280,6 +297,14 @@ any shows or movies, into one back-to-back GIF, WebP, MP4 or WebM (up to 20 sect
   **Layers** box as in the editor: they are timed from the start of that section and placed on the
   sequence's 16:9 canvas (the picture is fitted into it, so on a 16:9 source it's the same place). They
   are kept with the section, drawn over the player here, and burned in by the export under the captions.
+- **Transitions** (with **Advanced** ticked, which is also on the Sequence tab). A section after the first has a
+  **Coming in** box: **Cut** (the default), a **cross-fade**, **dissolve**, **through black** or **white**, a
+  **wipe** or **slide** in any direction, a **circle** opening or closing, a **radial** sweep or a **pixelate**,
+  and how long it takes (up to 3 seconds, and never more than the sections around it have room for). The section
+  comes in over the end of the one before it, so the two overlap for that long: the sequence is that much
+  shorter, the sound of the two is cross-faded the same way, and a song on a section starts where its section
+  does. The player here plays the sections back to back; only the export blends them. Advanced also shows a
+  section's **Picture** look, speed and reframe in its Detailed edit and the cuts and equaliser on its song.
 - **Undo and redo** step back through every change made here (typing a time or dragging a
   slider counts as one step).
 

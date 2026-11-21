@@ -2,7 +2,7 @@
 // clip's own sound are, and its fades. Pure logic, no React; the limits are the server's.
 import { withBase } from "./base.js";
 import { curveForRequest, fitted, gainAt } from "./volumeCurve.js";
-import { cutHz } from "./advancedAudio.js";
+import { adjustEq, cutHz } from "./advancedAudio.js";
 
 export const MAX_VOLUME = 2;
 /** The shortest stretch of music worth having, so a clip trimmed short keeps a little. */
@@ -28,6 +28,7 @@ export function newMusic(track) {
     pan: 0, // -1 left .. 1 right
     highpass_hz: 0, // cut below this (0: off)
     lowpass_hz: 0, // cut above this (0: off)
+    eq: { low_db: 0, mid_db: 0, high_db: 0 }, // bass, middle and treble, in dB
     curve: [], // the volume over the clip as a line of {t_ms, gain} (see volumeCurve.js)
   };
 }
@@ -41,6 +42,7 @@ export function adjustMusic(music, changes, clipMs) {
   m.pan = Math.round(clamp(num(m.pan), -1, 1) * 100) / 100;
   m.highpass_hz = cutHz(m.highpass_hz, 20, 2000);
   m.lowpass_hz = cutHz(m.lowpass_hz, 1000, 20000);
+  m.eq = adjustEq(m.eq);
   m.start_ms = Math.round(clamp(num(m.start_ms), 0, songMs));
   m.at_ms = Math.round(clamp(num(m.at_ms), 0, Math.max(0, clipMs - MIN_PLAY_MS)));
   const playing = Math.max(0, clipMs - m.at_ms);
@@ -67,6 +69,7 @@ export function musicForRequest(music, clipMs, keepAudio = true) {
     pan: m.pan,
     highpass_hz: m.highpass_hz || 0,
     lowpass_hz: m.lowpass_hz || 0,
+    eq: adjustEq(m.eq),
     curve: curveForRequest(m.curve, clipMs),
   };
 }

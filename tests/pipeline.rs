@@ -146,6 +146,8 @@ async fn extract_parse_and_export() {
         clip_volume: 1.0,
         clip_curve: vec![],
         mixdown: Default::default(),
+        speed: 1.0,
+        crop: None,
         grade: export::Grade::default(),
     };
     let out = tmp.path().join("whistles.gif");
@@ -196,6 +198,8 @@ async fn export_with_audio_produces_an_opus_track() {
         clip_volume: 1.0,
         clip_curve: vec![],
         mixdown: Default::default(),
+        speed: 1.0,
+        crop: None,
         grade: export::Grade::default(),
     };
     let out = tmp.path().join("with-audio.mp4");
@@ -246,6 +250,10 @@ async fn sequence_export_with_audio_handles_a_mute_clip() {
             font_path: None,
             layers: vec![],
             music: None,
+            grade: Default::default(),
+            transition: None,
+            speed: 1.0,
+            crop: None,
         },
         export::ResolvedSequenceClip {
             file: without_audio,
@@ -258,6 +266,10 @@ async fn sequence_export_with_audio_handles_a_mute_clip() {
             font_path: None,
             layers: vec![],
             music: None,
+            grade: Default::default(),
+            transition: None,
+            speed: 1.0,
+            crop: None,
         },
     ];
 
@@ -497,6 +509,8 @@ async fn exports_keep_nothing_from_the_source_but_the_credited_title() {
             clip_volume: 1.0,
             clip_curve: vec![],
             mixdown: Default::default(),
+            speed: 1.0,
+            crop: None,
             grade: export::Grade::default(),
         };
         let out = tmp.path().join(name);
@@ -556,6 +570,8 @@ async fn exports_keep_nothing_from_the_source_but_the_credited_title() {
         clip_volume: 1.0,
         clip_curve: vec![],
         mixdown: Default::default(),
+        speed: 1.0,
+        crop: None,
         grade: export::Grade::default(),
     };
     let out = tmp.path().join("plain.mp4");
@@ -602,6 +618,10 @@ async fn sequence_exports_keep_nothing_from_their_sources_either() {
         font_path: None,
         layers: vec![],
         music: None,
+        grade: Default::default(),
+        transition: None,
+        speed: 1.0,
+        crop: None,
     };
     let clips = vec![clip(a, "A (2019)"), clip(b, "B - S01E02 - X")];
     for (format, name, audio) in [
@@ -724,6 +744,8 @@ async fn webm_export_with_audio_is_vp9_plus_opus_with_real_sound() {
         clip_volume: 1.0,
         clip_curve: vec![],
         mixdown: Default::default(),
+        speed: 1.0,
+        crop: None,
         grade: export::Grade::default(),
     };
     let out = tmp.path().join("clip.webm");
@@ -781,6 +803,10 @@ async fn webm_sequence_with_audio_keeps_sound_across_a_silent_clip() {
         font_path: None,
         layers: vec![],
         music: None,
+        grade: Default::default(),
+        transition: None,
+        speed: 1.0,
+        crop: None,
     };
     let clips = vec![clip(loud.clone()), clip(mute), clip(loud)];
     let out = tmp.path().join("seq.webm");
@@ -895,6 +921,8 @@ async fn burned_subtitles_over_a_window_with_no_lines_export_without_captions() 
             clip_volume: 1.0,
             clip_curve: vec![],
             mixdown: Default::default(),
+            speed: 1.0,
+            crop: None,
             grade: export::Grade::default(),
         };
         let out = tmp.path().join(name);
@@ -987,6 +1015,8 @@ async fn a_chosen_font_and_size_are_used_for_both_kinds_of_caption() {
             clip_volume: 1.0,
             clip_curve: vec![],
             mixdown: Default::default(),
+            speed: 1.0,
+            crop: None,
             grade: export::Grade::default(),
         };
         let out = tmp.path().join(format!("{name}.mp4"));
@@ -1027,6 +1057,8 @@ async fn a_chosen_font_and_size_are_used_for_both_kinds_of_caption() {
         clip_volume: 1.0,
         clip_curve: vec![],
         mixdown: Default::default(),
+        speed: 1.0,
+        crop: None,
         grade: export::Grade::default(),
     };
     let out = tmp.path().join("plain.mp4");

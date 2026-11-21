@@ -2,8 +2,11 @@
 //
 // A sequence clip is what "Add to sequence" stored: the item's identity, the
 // trim, the caption settings (including lines edited in the editor), the
-// subtitle sync, the layers laid over it and the song under it. These two functions convert between that and the editor's
+// subtitle sync, the layers laid over it, the song under it and the look of its picture. These two functions convert between that and the editor's
 // own state, so editing a clip starts exactly where it was left.
+
+import { PLAIN, isPlain } from "./gradeModel.js";
+import { WHOLE, speedForRequest } from "./advancedPicture.js";
 
 /** The editor's starting state for a stored clip. */
 export function editorSeed(clip) {
@@ -21,11 +24,14 @@ export function editorSeed(clip) {
     subtitleOffsetMs: clip.subtitle_offset_ms || 0,
     layers: Array.isArray(clip.layers) ? clip.layers : [],
     music: clip.music && typeof clip.music.id === "string" ? clip.music : null,
+    grade: clip.grade && typeof clip.grade === "object" ? { ...PLAIN, ...clip.grade } : PLAIN,
+    speed: speedForRequest(clip.speed ?? 1),
+    reframe: clip.reframe && typeof clip.reframe === "object" ? { ...WHOLE, ...clip.reframe } : WHOLE,
   };
 }
 
 /** The stored clip with what the editor now says; its identity and place are kept. */
-export function updatedClip(clip, { start, end, caption, subtitleOffsetMs, layers, music }) {
+export function updatedClip(clip, { start, end, caption, subtitleOffsetMs, layers, music, grade, speed, reframe, crop }) {
   return {
     ...clip,
     start_ms: start,
@@ -34,6 +40,11 @@ export function updatedClip(clip, { start, end, caption, subtitleOffsetMs, layer
     subtitle_offset_ms: subtitleOffsetMs,
     layers: layers || [],
     music: music || null,
+    grade: grade && !isPlain(grade) ? grade : undefined,
+    // how fast it plays and the window kept: `reframe` is what the editor shows, `crop` what the export takes
+    speed: speed && speed !== 1 ? speed : undefined,
+    reframe: reframe && reframe.aspect !== "full" ? reframe : undefined,
+    crop: crop || undefined,
   };
 }
 

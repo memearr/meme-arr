@@ -1093,3 +1093,34 @@
   flex-basis: 100%;
   font-size: 0.85em;
 }
+
+.crop-guide {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.crop-veil {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.6);
+}
+.crop-edge {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px dashed rgba(255, 255, 255, 0.85);
+}
+.advanced-picture label {
+  display: block;
+  margin-top: 4px;
+}
+.loudness-readout {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 16px;
+  margin-top: 4px;
+  font-size: 0.8em;
+}
+.loudness-readout b {
+  font-variant-numeric: tabular-nums;
+}

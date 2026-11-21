@@ -426,7 +426,16 @@ Request (`ExportRequest`):
   -1 to 1 (added to every pixel), `contrast` 0 to 2, `saturation` 0 to 3, `tone` is `none`, `bw` or `sepia`,
   `mirror` swaps left and right, and the fades (from and to black, at the start and the end of the clip) are not
   negative and together no longer than the clip (`400` otherwise). The colour and mirror are applied to the clip's
-  picture before layers and captions, the fades to the finished picture. Not accepted on a sequence or `/api/still`.
+  picture before layers and captions, the fades to the finished picture. Not accepted on `/api/still`; each clip
+  of a sequence takes its own `grade`, the same way (the colour and mirror go on the picture inside the canvas, so
+  the black bars stay black).
+  `speed` (default 1) is how fast the finished clip plays, 0.25 to 4 (`400` outside it): the output is that much
+  shorter or longer, and the sound (the clip's own and the song) is sped up with its pitch kept. `crop` (default
+  none) is a window of the finished picture, `{"x": 0.34, "y": 0, "w": 0.32, "h": 1}` as fractions of it (the top-left
+  corner, then the size; each size at least 0.2 and the window inside the picture, `400` otherwise): the output has
+  the window's shape at the export's `width`. Captions, layers and fades are drawn on the whole picture first and
+  the crop and the speed are applied last, so a layer's or a caption's times are still the clip's own. Neither is
+  accepted on a sequence or `/api/still`.
   `curve` (default none), inside `music`, is the song's volume over the clip as a line of
   `{"t_ms": 1500, "gain": 0.3}` points (`t_ms` from the clip's start, `gain` 0 silent to 1 as `volume` says): the
   volume moves in straight lines between the points, before the first it is the first's and after the last it is
@@ -434,12 +443,15 @@ Request (`ExportRequest`):
   the clip's own sound (needs `audio: true`) and multiplies `clip_volume`. A sequence clip's `music` takes a
   `curve` in the clip's own time; the sequence's own `clip_curve` is not accepted. `pan` (default 0, -1 left
   to 1 right), inside `music`, places the song between the speakers. `mixdown` (default none) is
-  `{"clip_pan": 0, "master": 1, "normalize_lufs": null, "clip_highpass_hz": 0, "clip_lowpass_hz": 0}`: `clip_pan`
+  `{"clip_pan": 0, "master": 1, "normalize_lufs": null, "clip_highpass_hz": 0, "clip_lowpass_hz": 0, "clip_eq":
+  {"low_db": 0, "mid_db": 0, "high_db": 0}}`: `clip_pan`
   places the clip's own sound the same way (needs `audio: true`), `master` (0 to 2) scales the whole mix just
   before the limiter, `normalize_lufs` (-30 to -6, or `null`) first brings the mix to that loudness, and the
   clip's cuts take sound below `clip_highpass_hz` (20 to 2000) or above `clip_lowpass_hz` (1000 to 20000) out of
-  the clip's own sound (0 is off, both need `audio: true`, and the high-pass must be below the low-pass). `music`
-  takes `highpass_hz` and `lowpass_hz` the same way. A pan is the Web Audio stereo panner's law: the
+  the clip's own sound (0 is off, both need `audio: true`, and the high-pass must be below the low-pass). `clip_eq`
+  is a three-band equaliser on the clip's own sound: a low shelf below 120 Hz, a bell around 1 kHz and a high shelf
+  above 6 kHz, each -12 to 12 dB (0 leaves it alone; needs `audio: true`). `music` takes `highpass_hz`,
+  `lowpass_hz` and `eq` the same way. A pan is the Web Audio stereo panner's law: the
   sound moves toward a side and the other side folds into it, never louder; mono sound is spread to both sides
   first. All three are `400` outside their range.
 - `quality` drives libwebp's `-q:v` and x264/VP9 CRF for webp/mp4/webm, and
@@ -490,6 +502,19 @@ as before, and so do layers: each clip may carry `"layers": [...]` as on `POST /
 of that clip, and placed on the sequence's 16:9 canvas, which the clip's picture is fitted into). They go under
 the clip's captions; a layer that can't be used (as there) or an uploaded picture that is gone is a `400` naming
 the clip.
+
+A clip may carry a `"transition": {"kind": "fade", "ms": 1000}`, how it comes in over the clip before it (a
+clip with none is a cut). `kind` is `fade`, `dissolve`, `fade_black`, `fade_white`, `wipe_left`, `wipe_right`,
+`wipe_up`, `wipe_down`, `slide_left`, `slide_right`, `slide_up`, `slide_down`, `circle_open`, `circle_close`,
+`radial` or `pixelize`, and `ms` is 100 to 3000. The two clips overlap for `ms`, so the sequence is that much
+shorter, their sound is cross-faded over it, and a clip's own song starts where its clip does in the joined
+sequence. The first clip can't have one, and a clip must be at least as long as the transition into it plus the
+one out of it, counted at the speeds the clips play at (`400` naming the clip otherwise). A sequence with no
+transitions is joined as before. Each clip may also carry a `grade`, as on `POST /api/export`, a `speed` (0.25 to 4,
+default 1) and a `crop` window of its source picture (`{"x", "y", "w", "h"}` as fractions, as on that request). The
+window is cut first and the rest is fitted into the canvas; the speed is applied last, to the picture and the clip's
+sound, so the clip lasts that much shorter or longer and transitions and the total follow it. A clip that has a song
+of its own can't change speed (`400` naming the clip).
 
 A clip may also carry its own song, `"music": {...}` as on `POST /api/export`, with its times from the start of
 that clip: it comes in at `at_ms` into the clip, is cut where the clip ends, and plays along with the sequence's
