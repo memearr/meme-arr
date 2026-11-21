@@ -10,7 +10,7 @@ FROM ghcr.io/memearr/ffmpeg:${FFMPEG_VERSION} AS ffmpeg
 FROM node:26-trixie-slim AS web
 WORKDIR /web
 COPY web/package.json web/package-lock.json* ./
-RUN npm install
+RUN npm ci --ignore-scripts
 COPY web/ ./
 RUN npm run build
 
