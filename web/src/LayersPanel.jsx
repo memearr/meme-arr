@@ -104,7 +104,7 @@ export function LayersPanel({ layers, setLayers, selectedId, setSelectedId, over
             accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm"
             disabled={busy || full}
             onChange={(e) => {
-              upload(e.target.files?.[0]);
+              void upload(e.target.files?.[0]);
               e.target.value = "";
             }}
           />

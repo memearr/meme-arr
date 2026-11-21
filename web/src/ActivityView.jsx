@@ -34,7 +34,7 @@ export function ActivityView({ index, jobs }) {
         .activityLog(300)
         .then((d) => alive && setLog(d.entries || []))
         .catch((e) => alive && setLogErr(e.message));
-    load();
+    void load();
     const t = setInterval(load, 4000);
     return () => {
       alive = false;

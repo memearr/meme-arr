@@ -222,7 +222,7 @@ export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, set
                 accept="audio/*,.mp3,.flac,.ogg,.opus,.m4a,.wav,.webm"
                 disabled={uploading}
                 onChange={(e) => {
-                  upload(e.target.files?.[0]);
+                  void upload(e.target.files?.[0]);
                   e.target.value = "";
                 }}
               />

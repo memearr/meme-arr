@@ -62,7 +62,7 @@ export function Libraries({ onOpen, onWanted }) {
         .libraryStats()
         .then((d) => alive && setStats(d.libraries || []))
         .catch(() => {});
-    load();
+    void load();
     const t = setInterval(load, 5000);
     return () => {
       alive = false;
@@ -197,7 +197,7 @@ export function LibraryView({ onOpen, onWanted, onScope }) {
   useEffect(() => {
     api
       .libraryStats()
-      .then((d) => setNames([...new Set((d.libraries || []).map((l) => l.library))].sort()))
+      .then((d) => setNames([...new Set((d.libraries || []).map((l) => l.library))].sort((a, b) => a.localeCompare(b))))
       .catch(() => {});
   }, []);
   return (

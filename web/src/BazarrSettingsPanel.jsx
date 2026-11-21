@@ -63,7 +63,7 @@ export function BazarrSettingsPanel() {
     setMsg(null);
     try {
       show(await api.testBazarr());
-      api.getBazarrSettings().then(apply);
+      api.getBazarrSettings().then(apply).catch(() => {});
     } catch (e) {
       setMsg({ ok: false, text: e.message });
     } finally {
@@ -109,16 +109,16 @@ export function BazarrSettingsPanel() {
         either way; this adds the buttons and the instant refresh.
       </p>
       <div className="field">
-        <label>Bazarr address</label>
-        <input
+        <label htmlFor="bazarr-url">Bazarr address</label>
+        <input id="bazarr-url"
           placeholder="http://bazarr:6767"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
         />
       </div>
       <div className="field">
-        <label>API key</label>
-        <input
+        <label htmlFor="bazarr-key">API key</label>
+        <input id="bazarr-key"
           type="password"
           placeholder={keySet ? "•••••••• (saved — leave blank to keep)" : "Bazarr → Settings → General → Security"}
           value={key}

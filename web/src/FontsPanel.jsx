@@ -15,7 +15,7 @@ export function FontsPanel() {
       .then(setData)
       .catch((e) => setMsg({ ok: false, text: e.message }));
   useEffect(() => {
-    load();
+    void load();
   }, []);
 
   async function onPick(e) {

@@ -126,7 +126,7 @@ export function popularityText(c) {
 export function humanizeKey(key) {
   const spaced = key
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .replace(/([A-Z])(?=[A-Z][a-z])/g, "$1 ")
     .replace(/[_-]+/g, " ")
     .trim();
   return spaced.charAt(0).toUpperCase() + spaced.slice(1).toLowerCase().replace(/\biso\b/g, "ISO");
@@ -213,7 +213,7 @@ export function loadLanguage(storage) {
 
 export function saveLanguage(storage, code) {
   try {
-    storage?.setItem("memearr:subtitle-language", code);
+    storage?.setItem("memearr:subtitle-language", validLanguage(code));
   } catch (_) {
     /* private mode / blocked: the choice just isn't remembered */
   }

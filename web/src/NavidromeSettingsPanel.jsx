@@ -57,7 +57,7 @@ export function NavidromeSettingsPanel() {
 
   const remove = async () => {
     if (!window.confirm("Remove the Navidrome connection?")) return;
-    run(async () => {
+    void run(async () => {
       apply(await api.deleteNavidromeSettings());
     });
   };
@@ -71,16 +71,16 @@ export function NavidromeSettingsPanel() {
         music; this app only searches and plays songs, it changes nothing in Navidrome.
       </p>
       <div className="field">
-        <label>Navidrome address</label>
-        <input placeholder="http://navidrome:4533" value={url} onChange={(e) => setUrl(e.target.value)} />
+        <label htmlFor="navidrome-url">Navidrome address</label>
+        <input id="navidrome-url" placeholder="http://navidrome:4533" value={url} onChange={(e) => setUrl(e.target.value)} />
       </div>
       <div className="field">
-        <label>User name</label>
-        <input autoComplete="off" value={user} onChange={(e) => setUser(e.target.value)} />
+        <label htmlFor="navidrome-user">User name</label>
+        <input id="navidrome-user" autoComplete="off" value={user} onChange={(e) => setUser(e.target.value)} />
       </div>
       <div className="field">
-        <label>Password</label>
-        <input
+        <label htmlFor="navidrome-password">Password</label>
+        <input id="navidrome-password"
           type="password"
           autoComplete="new-password"
           placeholder={passwordSet ? "•••••••• (saved — leave blank to keep)" : ""}

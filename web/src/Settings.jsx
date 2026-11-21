@@ -18,8 +18,8 @@ export function ConnectionFields({ server, setServer, url, setUrl, secret, setSe
   return (
     <>
       <div className="field">
-        <label>Media server</label>
-        <select value={server} onChange={(e) => setServer(e.target.value)}>
+        <label htmlFor="media-server">Media server</label>
+        <select id="media-server" value={server} onChange={(e) => setServer(e.target.value)}>
           {Object.entries(SERVERS).map(([k, v]) => (
             <option key={k} value={k}>
               {v.label}
@@ -29,8 +29,8 @@ export function ConnectionFields({ server, setServer, url, setUrl, secret, setSe
       </div>
       <p className="hint">{meta.help}</p>
       <div className="field">
-        <label>Server URL</label>
-        <input placeholder={meta.urlPlaceholder} value={url} onChange={(e) => setUrl(e.target.value)} />
+        <label htmlFor="media-server-url">Server URL</label>
+        <input id="media-server-url" placeholder={meta.urlPlaceholder} value={url} onChange={(e) => setUrl(e.target.value)} />
       </div>
       <div className="field">
         <label>{meta.secretLabel}</label>
@@ -77,7 +77,7 @@ export function Settings({ onChange }) {
           ? s.mappings.map((m) => ({ ...m, label: m.label || "" }))
           : [emptyMapping()]
       );
-    });
+    }).catch(() => {});
   }, []);
 
   function updateRow(i, field, value) {
@@ -427,7 +427,7 @@ function PlexLoginPanel() {
     api.getPlexLoginSettings().then((s) => {
       setLinked(!!s.linked);
       setUsername(s.username);
-    });
+    }).catch(() => {});
   }
   useEffect(load, []);
 
@@ -491,7 +491,7 @@ function AuthentikSettingsPanel() {
       setClientId(s.client_id || "");
       setSecretSet(!!s.secret_set);
       setConfigured(!!s.configured);
-    });
+    }).catch(() => {});
   }
   useEffect(load, []);
 
@@ -539,20 +539,20 @@ function AuthentikSettingsPanel() {
         as the redirect URI.
       </p>
       <div className="field">
-        <label>Issuer URL</label>
-        <input
+        <label htmlFor="authentik-issuer">Issuer URL</label>
+        <input id="authentik-issuer"
           placeholder="https://auth.example.com/application/o/meme-arr/"
           value={issuerUrl}
           onChange={(e) => setIssuerUrl(e.target.value)}
         />
       </div>
       <div className="field">
-        <label>Client ID</label>
-        <input value={clientId} onChange={(e) => setClientId(e.target.value)} />
+        <label htmlFor="authentik-client-id">Client ID</label>
+        <input id="authentik-client-id" value={clientId} onChange={(e) => setClientId(e.target.value)} />
       </div>
       <div className="field">
-        <label>Client secret</label>
-        <input
+        <label htmlFor="authentik-client-secret">Client secret</label>
+        <input id="authentik-client-secret"
           type="password"
           placeholder={secretSet ? "•••••••• (saved — leave blank to keep)" : ""}
           value={clientSecret}
@@ -606,8 +606,8 @@ function ChangePasswordPanel() {
     <form className="panel" onSubmit={submit}>
       <h3>Admin password</h3>
       <div className="field">
-        <label>Current password</label>
-        <input
+        <label htmlFor="password-current">Current password</label>
+        <input id="password-current"
           type="password"
           value={current}
           onChange={(e) => setCurrent(e.target.value)}
@@ -615,8 +615,8 @@ function ChangePasswordPanel() {
         />
       </div>
       <div className="field">
-        <label>New password</label>
-        <input
+        <label htmlFor="password-new">New password</label>
+        <input id="password-new"
           type="password"
           value={next}
           onChange={(e) => setNext(e.target.value)}
@@ -625,8 +625,8 @@ function ChangePasswordPanel() {
         />
       </div>
       <div className="field">
-        <label>Confirm new password</label>
-        <input
+        <label htmlFor="password-confirm">Confirm new password</label>
+        <input id="password-confirm"
           type="password"
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}

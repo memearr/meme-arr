@@ -98,7 +98,7 @@ function VersionLine() {
     }
   }
   useEffect(() => {
-    check();
+    void check();
   }, []);
 
   if (!v && !fetchFailed) return null;

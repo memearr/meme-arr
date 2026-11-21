@@ -228,7 +228,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
       .catch(() => {});
   }
   useEffect(() => {
-    reloadOverlays();
+    void reloadOverlays();
   }, []);
 
   useEffect(() => {
@@ -326,7 +326,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
 
   useEffect(() => {
     let alive = true;
-    (async () => {
+    void (async () => {
       let duration = null;
       try {
         const m = await api.media(item.rating_key);
