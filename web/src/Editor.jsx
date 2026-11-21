@@ -20,6 +20,9 @@ import { adjustMusic, clipVolumeForRequest, musicForRequest } from "./musicModel
 import { QUIET, audible, previewMaster, soundForExport, toggleMute, toggleSolo } from "./mixModel.js";
 import { setPan } from "./audioGraph.js";
 import { MixTimeline } from "./MixTimeline.jsx";
+import { AdvancedAudio } from "./AdvancedAudio.jsx";
+import { useAdvanced } from "./advanced.js";
+import { PLAIN_SOUND, songCuts, soundForMixdown } from "./advancedAudio.js";
 import { GradePanel } from "./GradePanel.jsx";
 import { PLAIN, fadeLevel, gradeForRequest, previewStyle } from "./gradeModel.js";
 import { curveForRequest, fitted, gainAt } from "./volumeCurve.js";
@@ -85,6 +88,8 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   const [mix, setMix] = useState(QUIET); // mute and solo of the clip's sound and the song (see mixModel)
   const [clipPan, setClipPan] = useState(0); // -1 left .. 1 right
   const [master, setMaster] = useState(1); // the whole mix, 0..2
+  const [advanced, setAdvanced] = useAdvanced(); // the Advanced tick box (kept between visits)
+  const [sound, setSound] = useState(PLAIN_SOUND); // advanced sound: cuts on the clip, loudness target
   const songEl = useRef(null); // the page's audio element for the song, for its level meter
   const [overlayList, setOverlayList] = useState({ overlays: [], shapes: [] });
   const [top, setTop] = useState(seed ? seed.top : "");
@@ -641,9 +646,9 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
         credit_source: creditSource,
         filename: filename || null,
         layers: layersForRequest(layers, clipLength),
-        music: musicForRequest(mixed.music, clipLength, audio),
+        music: musicForRequest(songCuts(mixed.music, advanced), clipLength, audio),
         clip_volume: clipVolumeForRequest(mixed.clipVolume, audio),
-        mixdown: { clip_pan: audio ? clipPan : 0, master },
+        mixdown: { clip_pan: audio ? clipPan : 0, master, ...soundForMixdown(sound, { advanced, audio }) },
         clip_curve: audio ? curveForRequest(clipCurve, clipLength) : [],
         grade: gradeForRequest(grade, clipLength),
       });
@@ -766,6 +771,9 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
           {item.line && <p className="line">“{item.line}”</p>}
         </div>
         <div className="editor-head-actions">
+          <label className="check advanced-toggle" title="Show the advanced tools. They are hidden and left out of the export when this is off.">
+            <input type="checkbox" checked={advanced} onChange={(e) => setAdvanced(e.target.checked)} /> Advanced
+          </label>
           <button
             type="button"
             className="secondary"
@@ -929,6 +937,19 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
                     }
                   : undefined
               }
+            />
+          )}
+
+          {advanced && (music || (audio && !sequenceEdit)) && (
+            <AdvancedAudio
+              ratingKey={item.rating_key}
+              start={start}
+              end={end}
+              sound={sound}
+              onSound={(change) => setSound((s) => ({ ...s, ...change }))}
+              music={music}
+              onMusic={(change) => setMusic((m) => (m ? adjustMusic(m, change, clipLength) : m))}
+              clipSound={!sequenceEdit && audio}
             />
           )}
 

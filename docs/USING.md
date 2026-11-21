@@ -183,6 +183,16 @@ and WebM only; GIF and WebP can't carry audio). Finished files also land in your
   where the **Master** is. Mute and solo are for the clip editor and aren't kept in a saved sequence (a song's
   pan is); there is no Master in a sequence section. Meters and pan in the player need a browser with Web Audio
   (all current ones); the export doesn't.
+- **Advanced.** The **Advanced** tick box at the top of the editor shows the tools most clips don't need; the
+  browser remembers it, so it stays as you left it the next time you open the editor. Turned off, the tools are
+  hidden and left out of the export (the settings are kept for when you turn it on again). The first of them is
+  **Advanced sound**, under the Mix: a **high-pass** (takes out rumble and wind: sound below the pitch is cut) and
+  a **low-pass** (takes off hiss: sound above it is cut) for the clip's sound and for the song, each with a
+  slider that is off at the left (double-click for off); **Normalise the mix**, which brings the whole mix to a
+  loudness target before the master and the limiter (**-23** is the broadcast level, **-16** the usual for
+  streaming, **-14** is loud); and **Measure the clip's loudness**, which reads how loud the clip's own sound is
+  over the stretch you cut, in LUFS, with its peak and how much it varies. The player doesn't play the cuts or
+  the normalising; the export has them.
 - **Picture: colour, mirror and fades.** The **Picture** box gives the clip a look. **Brightness**, **Contrast**
   and **Saturation** are sliders, **Tone** turns it black and white or sepia, and four starting looks (Vivid,
   Faded, Noir, Old photo) set them all at once (**Reset** puts it back). **Mirror** swaps left and right. **Fade in

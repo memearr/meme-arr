@@ -30,6 +30,8 @@ describe("choosing a song", () => {
       fade_out_ms: 0,
       duck: 0,
       pan: 0,
+      highpass_hz: 0,
+      lowpass_hz: 0,
       curve: [],
     });
   });
@@ -88,6 +90,8 @@ describe("the export request", () => {
       fade_out_ms: 0,
       duck: 0,
       pan: 0,
+      highpass_hz: 0,
+      lowpass_hz: 0,
       curve: [],
     });
   });

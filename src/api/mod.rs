@@ -218,6 +218,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/frame/{rating_key}", get(frame))
         .route("/api/filmstrip/{rating_key}", get(filmstrip))
         .route("/api/waveform/{rating_key}", get(clip_waveform))
+        .route("/api/loudness/{rating_key}", get(clip_loudness))
         .route("/api/export", post(export_start))
         .route("/api/still", post(still_export))
         .route("/api/track", post(track_spot))

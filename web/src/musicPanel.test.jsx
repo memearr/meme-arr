@@ -99,6 +99,8 @@ describe("the Music box", () => {
       fade_out_ms: 1500,
       duck: 0,
       pan: 0,
+      highpass_hz: 0,
+      lowpass_hz: 0,
       curve: [],
     });
     expect(screen.getByText("50%")).toBeTruthy();

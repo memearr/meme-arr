@@ -316,6 +316,12 @@ The loudness of the file's own sound over `[start, end)` as bars, for the editor
 loudest sample in its slice, scaled so the loudest is 1). A file with no sound answers `has_audio: false` and no
 bars. The span may be at most 10 minutes (`400` beyond that); `404` if the media isn't indexed.
 
+### `GET /api/loudness/:rating_key?start=<ms>&end=<ms>`
+How loud the file's own sound is over `[start, end)` (EBU R128, by ffmpeg's `ebur128`):
+`{"has_audio": true, "lufs": -14.9, "true_peak_db": -0.4, "range_lu": 5.3}`. `lufs` is `null` for a silent stretch,
+and a file with no sound answers `has_audio: false`. The span may be at most 10 minutes (`400` beyond that); `404`
+if the media isn't indexed.
+
 ### `POST /api/still`
 One frame as a picture, with its caption drawn on. It takes a moment, so it
 answers with the finished file rather than a job to poll. `400` if `t_ms` is
@@ -428,8 +434,12 @@ Request (`ExportRequest`):
   the clip's own sound (needs `audio: true`) and multiplies `clip_volume`. A sequence clip's `music` takes a
   `curve` in the clip's own time; the sequence's own `clip_curve` is not accepted. `pan` (default 0, -1 left
   to 1 right), inside `music`, places the song between the speakers. `mixdown` (default none) is
-  `{"clip_pan": 0, "master": 1}`: `clip_pan` places the clip's own sound the same way (needs `audio: true`) and
-  `master` (0 to 2) scales the whole mix just before the limiter. A pan is the Web Audio stereo panner's law: the
+  `{"clip_pan": 0, "master": 1, "normalize_lufs": null, "clip_highpass_hz": 0, "clip_lowpass_hz": 0}`: `clip_pan`
+  places the clip's own sound the same way (needs `audio: true`), `master` (0 to 2) scales the whole mix just
+  before the limiter, `normalize_lufs` (-30 to -6, or `null`) first brings the mix to that loudness, and the
+  clip's cuts take sound below `clip_highpass_hz` (20 to 2000) or above `clip_lowpass_hz` (1000 to 20000) out of
+  the clip's own sound (0 is off, both need `audio: true`, and the high-pass must be below the low-pass). `music`
+  takes `highpass_hz` and `lowpass_hz` the same way. A pan is the Web Audio stereo panner's law: the
   sound moves toward a side and the other side folds into it, never louder; mono sound is spread to both sides
   first. All three are `400` outside their range.
 - `quality` drives libwebp's `-q:v` and x264/VP9 CRF for webp/mp4/webm, and

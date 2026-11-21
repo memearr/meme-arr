@@ -103,9 +103,110 @@ pub async fn analyze_span(
     })
 }
 
+/// How loud a stretch of sound is, as broadcast meters read it (EBU R128).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Loudness {
+    /// Integrated loudness over the stretch, in LUFS (about -14 is loud music, -23 broadcast).
+    pub lufs: f32,
+    /// The highest true peak, in dBTP (0 is full scale).
+    pub true_peak_db: f32,
+    /// How much the loudness varies, in LU.
+    pub range_lu: f32,
+}
+
+/// The reading in the summary ffmpeg's `ebur128` filter prints when it finishes, or `None` when there
+/// is none or the stretch was silent (ffmpeg then reports no level at all).
+pub fn parse_ebur128(stderr: &str) -> Option<Loudness> {
+    let summary = &stderr[stderr.rfind("Summary:")?..];
+    let value = |key: &str, unit: &str| -> Option<f32> {
+        summary.lines().find_map(|l| {
+            let l = l.trim();
+            let rest = l.strip_prefix(key)?.trim().strip_suffix(unit)?.trim();
+            rest.parse::<f32>().ok().filter(|v| v.is_finite())
+        })
+    };
+    Some(Loudness {
+        lufs: value("I:", "LUFS").filter(|v| *v > -69.9)?,
+        true_peak_db: value("Peak:", "dBFS")?,
+        range_lu: value("LRA:", "LU").unwrap_or(0.0),
+    })
+}
+
+/// Measure the `len_ms` of `file`'s sound from `start_ms`. `None` for silence.
+pub async fn loudness(
+    ffmpeg: &str,
+    file: &Path,
+    start_ms: i64,
+    len_ms: i64,
+) -> Result<Option<Loudness>> {
+    let secs = |ms: i64| format!("{:.3}", ms.max(0) as f64 / 1000.0);
+    let out = tokio::process::Command::new(ffmpeg)
+        .args([
+            "-hide_banner",
+            "-nostats",
+            "-nostdin",
+            "-ss",
+            &secs(start_ms),
+            "-t",
+        ])
+        .arg(secs(len_ms.min(MAX_SECS as i64 * 1000)))
+        .arg("-i")
+        .arg(file)
+        .args(["-vn", "-af", "ebur128=peak=true", "-f", "null", "-"])
+        .kill_on_drop(true)
+        .output()
+        .await
+        .context("couldn't run ffmpeg")?;
+    let err = String::from_utf8_lossy(&out.stderr);
+    if !out.status.success() {
+        bail!("ffmpeg couldn't measure the sound: {}", err.trim());
+    }
+    Ok(parse_ebur128(&err))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const SUMMARY: &str = "[Parsed_ebur128_0 @ 0x1] Summary:
+
+  Integrated loudness:
+    I:         -14.9 LUFS
+    Threshold: -24.9 LUFS
+
+  Loudness range:
+    LRA:         5.3 LU
+    LRA low:   -18.1 LUFS
+
+  True peak:
+    Peak:       -0.4 dBFS
+";
+
+    #[test]
+    fn the_summary_ffmpeg_prints_is_read() {
+        let l = parse_ebur128(&format!(
+            "frame info
+t: 1.0 I: -30.0 LUFS
+{SUMMARY}"
+        ))
+        .unwrap();
+        assert_eq!(
+            l,
+            Loudness {
+                lufs: -14.9,
+                true_peak_db: -0.4,
+                range_lu: 5.3
+            }
+        );
+    }
+
+    #[test]
+    fn silence_and_no_summary_are_no_reading() {
+        assert!(parse_ebur128("no summary here").is_none());
+        let silent = SUMMARY.replace("-14.9 LUFS", "-70.0 LUFS");
+        assert!(parse_ebur128(&silent).is_none());
+        assert!(parse_ebur128(&SUMMARY.replace("-14.9", "-inf")).is_none());
+    }
 
     #[test]
     fn each_bar_is_the_loudest_sample_of_its_slice_scaled_to_the_loudest() {
