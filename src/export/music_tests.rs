@@ -11,6 +11,8 @@ fn song() -> Soundtrack {
         duck: 0.0,
         curve: vec![],
         pan: 0.0,
+        highpass_hz: 0.0,
+        lowpass_hz: 0.0,
         file: Some(PathBuf::from("/data/music/abc-123.mp3")),
     }
 }
@@ -513,7 +515,16 @@ fn a_pan_filter_follows_the_web_audio_panner_and_is_empty_in_the_middle() {
 
 #[test]
 fn pan_and_master_are_checked() {
-    let ok = |clip_pan, master, audio| validate_mixdown(&Mixdown { clip_pan, master }, audio);
+    let ok = |clip_pan, master, audio| {
+        validate_mixdown(
+            &Mixdown {
+                clip_pan,
+                master,
+                ..Default::default()
+            },
+            audio,
+        )
+    };
     assert_eq!(ok(0.0, 1.0, false), None);
     assert_eq!(ok(-1.0, 2.0, true), None);
     assert!(ok(1.1, 1.0, true).is_some());
@@ -524,7 +535,8 @@ fn pan_and_master_are_checked() {
     assert!(Mixdown::default().is_plain());
     assert!(!Mixdown {
         clip_pan: 0.0,
-        master: 0.9
+        master: 0.9,
+        ..Default::default()
     }
     .is_plain());
     let mut m = song();
@@ -543,6 +555,7 @@ fn the_mix_pans_each_sound_and_scales_the_whole_at_the_end() {
     let md = Mixdown {
         clip_pan: -1.0,
         master: 0.5,
+        ..Default::default()
     };
     let mix = plan_audio_mixed(Some(&m), 1.0, &[], &md, true, 5000, 1).unwrap();
     assert!(
@@ -578,14 +591,125 @@ fn a_panned_clip_sound_or_a_master_volume_is_a_mix_on_its_own() {
     let panned = Mixdown {
         clip_pan: 0.4,
         master: 1.0,
+        ..Default::default()
     };
     assert!(plan_audio_mixed(None, 1.0, &[], &panned, true, 5000, 1).is_some());
     let quieter = Mixdown {
         clip_pan: 0.0,
         master: 0.7,
+        ..Default::default()
     };
     let mix = plan_audio_mixed(None, 1.0, &[], &quieter, true, 5000, 1).unwrap();
     assert!(mix.graph.contains("volume=0.700,atrim"), "{}", mix.graph);
     // with no sound at all there is nothing to scale
     assert!(plan_audio_mixed(None, 1.0, &[], &quieter, false, 5000, 1).is_none());
+}
+
+#[test]
+fn cuts_are_checked_and_written_as_filters() {
+    assert_eq!(cut_filters(0.0, 0.0), "");
+    assert_eq!(cut_filters(120.0, 0.0), ",highpass=f=120");
+    assert_eq!(cut_filters(0.0, 8000.0), ",lowpass=f=8000");
+    assert_eq!(cut_filters(80.0, 9000.0), ",highpass=f=80,lowpass=f=9000");
+    assert!(validate_cuts(0.0, 0.0, "x").is_none());
+    assert!(validate_cuts(80.0, 9000.0, "x").is_none());
+    assert!(validate_cuts(10.0, 0.0, "x").unwrap().contains("high-pass"));
+    assert!(validate_cuts(0.0, 500.0, "x").unwrap().contains("low-pass"));
+    assert!(validate_cuts(f32::NAN, 0.0, "x").is_some());
+    assert!(validate_cuts(1500.0, 1200.0, "x")
+        .unwrap()
+        .contains("below"));
+}
+
+#[test]
+fn the_mix_cuts_each_sound_and_normalises_before_the_master_volume() {
+    let mut m = song();
+    m.highpass_hz = 200.0;
+    m.lowpass_hz = 6000.0;
+    let md = Mixdown {
+        normalize_lufs: Some(-16.0),
+        master: 0.5,
+        clip_highpass_hz: 100.0,
+        ..Default::default()
+    };
+    let mix = plan_audio_mixed(Some(&m), 1.0, &[], &md, true, 5000, 1).unwrap();
+    let g = &mix.graph;
+    assert!(
+        g.contains("[0:a:0]aformat=channel_layouts=stereo,highpass=f=100,volume=1.000"),
+        "{g}"
+    );
+    assert!(
+        g.contains("stereo,highpass=f=200,lowpass=f=6000,volume="),
+        "{g}"
+    );
+    let norm = g
+        .find("loudnorm=I=-16.0:TP=-1.5:LRA=11,aresample=48000,")
+        .expect(g);
+    let master = g.find("volume=0.500,atrim").expect(g);
+    assert!(
+        norm < master,
+        "the loudness is set before the master volume: {g}"
+    );
+    // normalising alone makes a mix of the clip's sound
+    let only = Mixdown {
+        normalize_lufs: Some(-23.0),
+        ..Default::default()
+    };
+    assert!(!only.is_plain());
+    let mix = plan_audio_mixed(None, 1.0, &[], &only, true, 5000, 1).unwrap();
+    assert!(mix.graph.contains("loudnorm=I=-23.0"), "{}", mix.graph);
+}
+
+#[test]
+fn a_mixdown_refuses_a_loudness_target_and_cuts_out_of_range() {
+    let bad = |m: Mixdown, keep| validate_mixdown(&m, keep);
+    assert!(bad(
+        Mixdown {
+            normalize_lufs: Some(-16.0),
+            ..Default::default()
+        },
+        true
+    )
+    .is_none());
+    assert!(bad(
+        Mixdown {
+            normalize_lufs: Some(-40.0),
+            ..Default::default()
+        },
+        true
+    )
+    .is_some());
+    assert!(bad(
+        Mixdown {
+            normalize_lufs: Some(f32::NAN),
+            ..Default::default()
+        },
+        true
+    )
+    .is_some());
+    assert!(bad(
+        Mixdown {
+            clip_highpass_hz: 100.0,
+            ..Default::default()
+        },
+        true
+    )
+    .is_none());
+    assert!(bad(
+        Mixdown {
+            clip_highpass_hz: 100.0,
+            ..Default::default()
+        },
+        false
+    )
+    .unwrap()
+    .contains("sound is kept"));
+    assert!(bad(
+        Mixdown {
+            clip_lowpass_hz: 50.0,
+            ..Default::default()
+        },
+        true
+    )
+    .is_some());
 }

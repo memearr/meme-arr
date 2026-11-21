@@ -29,6 +29,16 @@ pub struct Mixdown {
     /// The whole mix, 0..=2 (the clip's sound and the song together, before the limiter).
     #[serde(default = "one")]
     pub master: f32,
+    /// Bring the whole mix to this loudness in LUFS (a streaming-like -16 is the usual), `None` to
+    /// leave it. It comes before the master volume and the limiter.
+    #[serde(default)]
+    pub normalize_lufs: Option<f32>,
+    /// Cut the clip's own sound below this many Hz (0: off). Takes out rumble and wind.
+    #[serde(default)]
+    pub clip_highpass_hz: f32,
+    /// Cut the clip's own sound above this many Hz (0: off). Takes the hiss off.
+    #[serde(default)]
+    pub clip_lowpass_hz: f32,
 }
 
 impl Default for Mixdown {
@@ -36,8 +46,51 @@ impl Default for Mixdown {
         Self {
             clip_pan: 0.0,
             master: 1.0,
+            normalize_lufs: None,
+            clip_highpass_hz: 0.0,
+            clip_lowpass_hz: 0.0,
         }
     }
+}
+
+/// Lowest and highest loudness target, in LUFS.
+pub const MIN_TARGET_LUFS: f32 = -30.0;
+pub const MAX_TARGET_LUFS: f32 = -6.0;
+/// The range of a high-pass cut and of a low-pass cut, in Hz (0 is off for both).
+pub const HIGHPASS_RANGE_HZ: (f32, f32) = (20.0, 2000.0);
+pub const LOWPASS_RANGE_HZ: (f32, f32) = (1000.0, 20000.0);
+
+/// Why a pair of cuts (`what` names the sound) can't be used, or `None`.
+pub fn validate_cuts(highpass: f32, lowpass: f32, what: &str) -> Option<String> {
+    let ok = |v: f32, (lo, hi): (f32, f32)| v == 0.0 || (v.is_finite() && (lo..=hi).contains(&v));
+    if !ok(highpass, HIGHPASS_RANGE_HZ) {
+        return Some(format!(
+            "the {what} high-pass must be off or between {} and {} Hz",
+            HIGHPASS_RANGE_HZ.0, HIGHPASS_RANGE_HZ.1
+        ));
+    }
+    if !ok(lowpass, LOWPASS_RANGE_HZ) {
+        return Some(format!(
+            "the {what} low-pass must be off or between {} and {} Hz",
+            LOWPASS_RANGE_HZ.0, LOWPASS_RANGE_HZ.1
+        ));
+    }
+    if highpass > 0.0 && lowpass > 0.0 && highpass >= lowpass {
+        return Some(format!("the {what} high-pass must be below its low-pass"));
+    }
+    None
+}
+
+/// The filters for a pair of cuts, each with a comma in front, or "" for none.
+pub fn cut_filters(highpass: f32, lowpass: f32) -> String {
+    let mut s = String::new();
+    if highpass > 0.0 {
+        s.push_str(&format!(",highpass=f={highpass:.0}"));
+    }
+    if lowpass > 0.0 {
+        s.push_str(&format!(",lowpass=f={lowpass:.0}"));
+    }
+    s
 }
 
 impl Mixdown {
@@ -60,7 +113,17 @@ pub fn validate_mixdown(m: &Mixdown, keep_audio: bool) -> Option<String> {
             "the master volume must be between 0 and {MAX_VOLUME}"
         ));
     }
-    None
+    if let Some(t) = m.normalize_lufs {
+        if !t.is_finite() || !(MIN_TARGET_LUFS..=MAX_TARGET_LUFS).contains(&t) {
+            return Some(format!(
+                "the loudness target must be between {MIN_TARGET_LUFS} and {MAX_TARGET_LUFS} LUFS"
+            ));
+        }
+    }
+    if (m.clip_highpass_hz != 0.0 || m.clip_lowpass_hz != 0.0) && !keep_audio {
+        return Some("the clip's cuts only matter when its sound is kept".into());
+    }
+    validate_cuts(m.clip_highpass_hz, m.clip_lowpass_hz, "clip's")
 }
 
 /// The `pan` filter that places a stereo sound at `pan` (-1 left .. 1 right), or "" for the middle.
@@ -185,6 +248,12 @@ pub struct Soundtrack {
     /// Where the song sits between the speakers, -1 (left) .. 1 (right); 0 leaves it be.
     #[serde(default)]
     pub pan: f32,
+    /// Cut the song below this many Hz (0: off), so it leaves room for a voice.
+    #[serde(default)]
+    pub highpass_hz: f32,
+    /// Cut the song above this many Hz (0: off).
+    #[serde(default)]
+    pub lowpass_hz: f32,
     /// The song's file, filled in by the server before the export runs.
     #[serde(skip)]
     pub file: Option<PathBuf>,
@@ -230,6 +299,9 @@ pub fn validate_music(
     }
     if !m.pan.is_finite() || !(-1.0..=1.0).contains(&m.pan) {
         return Some("the music's pan must be between -1 (left) and 1 (right)".into());
+    }
+    if let Some(why) = validate_cuts(m.highpass_hz, m.lowpass_hz, "music's") {
+        return Some(why);
     }
     if !m.duck.is_finite() || !(0.0..=1.0).contains(&m.duck) {
         return Some("the ducking must be between 0 and 1".into());
@@ -421,8 +493,9 @@ pub fn plan_mix_mixed(
         } else {
             format!(",{pan}")
         };
+        let cuts = cut_filters(mixdown.clip_highpass_hz, mixdown.clip_lowpass_hz);
         parts.push(format!(
-            "[0:a:0]aformat=channel_layouts=stereo{pan},volume={clip_volume:.3}{line}{to}"
+            "[0:a:0]aformat=channel_layouts=stereo{pan}{cuts},volume={clip_volume:.3}{line}{to}"
         ));
         if !ducked.is_empty() {
             // one copy is mixed, the others listen (each at the songs' own rate)
@@ -465,8 +538,9 @@ pub fn plan_mix_mixed(
         } else {
             format!(",{song_pan}")
         };
+        let song_cuts = cut_filters(m.highpass_hz, m.lowpass_hz);
         let mut chain = format!(
-            "[{}:a:0]aresample=48000,aformat=channel_layouts=stereo{song_pan},volume={:.3}",
+            "[{}:a:0]aresample=48000,aformat=channel_layouts=stereo{song_pan}{song_cuts},volume={:.3}",
             first_input + i,
             m.volume
         );
@@ -510,10 +584,15 @@ pub fn plan_mix_mixed(
         }
         labels.push(format!("[{out}]"));
     }
+    // Loudness first (it measures the mix as it is), then the master volume on top of it.
+    let normalize = match mixdown.normalize_lufs {
+        Some(t) => format!("loudnorm=I={t:.1}:TP=-1.5:LRA=11,aresample=48000,"),
+        None => String::new(),
+    };
     let master = if (mixdown.master - 1.0).abs() > f32::EPSILON {
-        format!("volume={:.3},", mixdown.master)
+        format!("{normalize}volume={:.3},", mixdown.master)
     } else {
-        String::new()
+        normalize
     };
     let tail = format!(
         "{master}atrim=end={},alimiter=limit=0.95[aout]",

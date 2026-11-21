@@ -210,6 +210,41 @@ pub(super) async fn clip_waveform(
     }
 }
 
+/// `GET /api/loudness/{rating_key}?start=&end=`: how loud the file's own sound is over `[start, end)`
+/// (EBU R128). `{"has_audio": true, "lufs": -14.9, "true_peak_db": -0.4, "range_lu": 5.3}`; `lufs` is
+/// `null` when that stretch is silent, and a file with no sound answers `has_audio: false`.
+pub(super) async fn clip_loudness(
+    State(st): State<AppState>,
+    Path(rating_key): Path<String>,
+    Query(p): Query<WaveformParams>,
+) -> Result<Response, AppError> {
+    if p.start < 0 || p.end <= p.start {
+        return Ok(bad_request("end must be greater than start"));
+    }
+    if p.end - p.start > MAX_WAVEFORM_SPAN_MS {
+        return Ok(bad_request("that is too long a stretch to measure"));
+    }
+    let (_, file) = match resolve_source(&st, &rating_key).await? {
+        Ok(found) => found,
+        Err(resp) => return Ok(resp),
+    };
+    let has_audio = ffmpeg::probe(&st.config.ffprobe_bin, &file)
+        .await
+        .map(|i| i.has_audio)
+        .unwrap_or(false);
+    if !has_audio {
+        return Ok(Json(json!({ "has_audio": false, "lufs": null })).into_response());
+    }
+    let _slot = still_slots().acquire().await?;
+    let l =
+        crate::waveform::loudness(&st.config.ffmpeg_bin, &file, p.start, p.end - p.start).await?;
+    Ok(Json(match l {
+        Some(l) => json!({ "has_audio": true, "lufs": l.lufs, "true_peak_db": l.true_peak_db, "range_lu": l.range_lu }),
+        None => json!({ "has_audio": true, "lufs": null }),
+    })
+    .into_response())
+}
+
 /// `POST /api/still`: one frame, with its subtitle or meme text drawn on it,
 /// as a PNG, JPEG or GIF. One frame takes a moment, so the answer comes back
 /// with the finished file's download address rather than as a job to poll.

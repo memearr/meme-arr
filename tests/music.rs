@@ -62,6 +62,8 @@ fn music(file: &Path) -> Soundtrack {
         duck: 0.0,
         curve: vec![],
         pan: 0.0,
+        highpass_hz: 0.0,
+        lowpass_hz: 0.0,
         file: Some(file.to_path_buf()),
     }
 }
@@ -978,7 +980,11 @@ fn channel_level(file: &Path, ch: usize) -> f64 {
 }
 
 fn mixed(clip_pan: f32, master: f32) -> export::Mixdown {
-    export::Mixdown { clip_pan, master }
+    export::Mixdown {
+        clip_pan,
+        master,
+        ..Default::default()
+    }
 }
 
 #[tokio::test]
@@ -1117,4 +1123,90 @@ async fn a_bad_pan_or_master_is_refused() {
             "{name}: {err}"
         );
     }
+}
+
+#[tokio::test]
+async fn cuts_take_the_low_end_off_the_clip_and_the_song() {
+    need_ffmpeg!();
+    let tmp = tempfile::tempdir().unwrap();
+    let src = clip(tmp.path(), true);
+    let plain = render(
+        tmp.path(),
+        &src,
+        "cut-plain",
+        request(Format::Mp4, true, None, 1.0),
+    )
+    .await;
+    let mut req = request(Format::Mp4, true, None, 1.0);
+    req.mixdown = export::Mixdown {
+        clip_highpass_hz: 1500.0,
+        ..Default::default()
+    };
+    let cut = render(tmp.path(), &src, "cut-clip", req).await;
+    // the 440 Hz tone is well below the cut
+    assert!(level(&plain, 0.5, 2.0) - level(&cut, 0.5, 2.0) > 10.0);
+    // a low-pass above the tone leaves it be
+    let mut req = request(Format::Mp4, true, None, 1.0);
+    req.mixdown = export::Mixdown {
+        clip_lowpass_hz: 5000.0,
+        ..Default::default()
+    };
+    let low = render(tmp.path(), &src, "cut-low", req).await;
+    assert!((level(&plain, 0.5, 2.0) - level(&low, 0.5, 2.0)).abs() < 1.0);
+
+    // the song's own cut, on a 880 Hz tone
+    let song = song_file(tmp.path());
+    let mut m = music(&song);
+    let open = render(
+        tmp.path(),
+        &src,
+        "song-open",
+        request(Format::Mp4, false, Some(m.clone()), 1.0),
+    )
+    .await;
+    m.highpass_hz = 2000.0;
+    let cut = render(
+        tmp.path(),
+        &src,
+        "song-cut",
+        request(Format::Mp4, false, Some(m), 1.0),
+    )
+    .await;
+    assert!(level(&open, 0.5, 2.0) - level(&cut, 0.5, 2.0) > 8.0);
+}
+
+/// The integrated loudness (LUFS) of the file's sound.
+async fn lufs(file: &Path) -> f32 {
+    meme_arr::waveform::loudness("ffmpeg", file, 0, 600_000)
+        .await
+        .unwrap()
+        .expect("some sound")
+        .lufs
+}
+
+#[tokio::test]
+async fn normalising_brings_a_quiet_and_a_loud_clip_to_the_same_loudness() {
+    need_ffmpeg!();
+    let tmp = tempfile::tempdir().unwrap();
+    let src = clip(tmp.path(), true);
+    let go = |name: &'static str, vol: f32, target: Option<f32>| {
+        let mut req = request(Format::Mp4, true, None, vol);
+        req.mixdown = export::Mixdown {
+            normalize_lufs: target,
+            ..Default::default()
+        };
+        (name, req)
+    };
+    let (n1, r1) = go("norm-quiet", 0.15, Some(-23.0));
+    let (n2, r2) = go("norm-loud", 1.0, Some(-23.0));
+    let (n3, r3) = go("norm-off", 0.15, None);
+    let quiet = lufs(&render(tmp.path(), &src, n1, r1).await).await;
+    let loud = lufs(&render(tmp.path(), &src, n2, r2).await).await;
+    let untouched = lufs(&render(tmp.path(), &src, n3, r3).await).await;
+    assert!((quiet - loud).abs() < 2.5, "quiet {quiet}, loud {loud}");
+    assert!((loud - -23.0).abs() < 3.0, "{loud}");
+    assert!(
+        untouched < quiet - 6.0,
+        "off stays quiet: {untouched} vs {quiet}"
+    );
 }

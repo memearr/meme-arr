@@ -2,6 +2,7 @@
 // clip's own sound are, and its fades. Pure logic, no React; the limits are the server's.
 import { withBase } from "./base.js";
 import { curveForRequest, fitted, gainAt } from "./volumeCurve.js";
+import { cutHz } from "./advancedAudio.js";
 
 export const MAX_VOLUME = 2;
 /** The shortest stretch of music worth having, so a clip trimmed short keeps a little. */
@@ -25,6 +26,8 @@ export function newMusic(track) {
     fade_out_ms: 0,
     duck: 0,
     pan: 0, // -1 left .. 1 right
+    highpass_hz: 0, // cut below this (0: off)
+    lowpass_hz: 0, // cut above this (0: off)
     curve: [], // the volume over the clip as a line of {t_ms, gain} (see volumeCurve.js)
   };
 }
@@ -36,6 +39,8 @@ export function adjustMusic(music, changes, clipMs) {
   m.volume = clamp(num(m.volume, 1), 0, MAX_VOLUME);
   m.duck = clamp(num(m.duck), 0, 1);
   m.pan = Math.round(clamp(num(m.pan), -1, 1) * 100) / 100;
+  m.highpass_hz = cutHz(m.highpass_hz, 20, 2000);
+  m.lowpass_hz = cutHz(m.lowpass_hz, 1000, 20000);
   m.start_ms = Math.round(clamp(num(m.start_ms), 0, songMs));
   m.at_ms = Math.round(clamp(num(m.at_ms), 0, Math.max(0, clipMs - MIN_PLAY_MS)));
   const playing = Math.max(0, clipMs - m.at_ms);
@@ -60,6 +65,8 @@ export function musicForRequest(music, clipMs, keepAudio = true) {
     // ducking is for the clip's own sound, so it only goes when that is kept
     duck: keepAudio ? m.duck : 0,
     pan: m.pan,
+    highpass_hz: m.highpass_hz || 0,
+    lowpass_hz: m.lowpass_hz || 0,
     curve: curveForRequest(m.curve, clipMs),
   };
 }

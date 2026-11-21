@@ -4,6 +4,9 @@ import { JobResult } from "./JobResult.jsx";
 import { MusicPanel } from "./MusicPanel.jsx";
 import { layersForRequest } from "./layersModel.js";
 import { clipVolumeForRequest, musicForRequest } from "./musicModel.js";
+import { loadAdvanced } from "./advanced.js";
+import { songCuts } from "./advancedAudio.js";
+import { browserStorage } from "./editorStorage.js";
 import { SectionEditor } from "./SectionEditor.jsx";
 import { SequenceBulkEdit } from "./SequenceBulkEdit.jsx";
 import SequencePlayer from "./SequencePlayer.jsx";
@@ -176,14 +179,14 @@ export function SequenceView({ sequence, setSequence, onJob }) {
           caption: c.caption,
           subtitle_offset_ms: c.subtitle_offset_ms || 0,
           layers: layersForRequest(c.layers, c.end_ms - c.start_ms),
-          music: musicForRequest(c.music, c.end_ms - c.start_ms, audio),
+          music: musicForRequest(songCuts(c.music, loadAdvanced(browserStorage())), c.end_ms - c.start_ms, audio),
         })),
         format,
         width,
         fps,
         quality,
         audio,
-        music: musicForRequest(music, total, audio),
+        music: musicForRequest(songCuts(music, loadAdvanced(browserStorage())), total, audio),
         clip_volume: clipVolumeForRequest(clipVolume, audio),
         credit_source: creditSource,
         filename: filename || null,

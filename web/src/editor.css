@@ -1048,3 +1048,48 @@
   background: #000;
   pointer-events: none;
 }
+
+/* ---- advanced tools ---- */
+.advanced-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 8px;
+  font-size: 0.85em;
+}
+.advanced-audio {
+  margin: 8px 0;
+  padding: 6px 10px 8px;
+  border: 1px solid var(--border, rgba(128, 128, 128, 0.3));
+  border-radius: 6px;
+}
+.advanced-audio legend {
+  padding: 0 6px;
+  font-size: 0.85em;
+  opacity: 0.85;
+}
+.adv-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  margin-bottom: 6px;
+}
+.adv-group > b {
+  flex-basis: 100%;
+  font-size: 0.8em;
+}
+.adv-cut {
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+  flex: 1;
+  font-size: 0.8em;
+}
+.adv-cut input[type="range"] {
+  margin: 2px 0 0;
+}
+.adv-reading {
+  flex-basis: 100%;
+  font-size: 0.85em;
+}
