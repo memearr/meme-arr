@@ -18,6 +18,12 @@ pub const FORMAT_VERSION: u32 = 1;
 /// How many backups to keep; older ones are deleted after each new one.
 pub const KEEP: usize = 14;
 const MAX_SETTINGS: usize = 500;
+const MAX_MAPPINGS: usize = 500;
+const MAX_TASKS: usize = 100;
+/// A real backup is a few KB; this is generous, and checked before decoding.
+const MAX_BYTES: usize = 1 << 20;
+/// Longest key, value or path accepted (a token or password hash is far shorter).
+const MAX_FIELD: usize = 16 * 1024;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BackupFile {
@@ -160,7 +166,13 @@ fn prune(dir: &Path, keep: usize) {
     }
 }
 
+/// Decode and check an uploaded backup. The upload is untrusted: its size is
+/// capped before any decoding, and every list and string is bounded after, so
+/// nothing reaches the database unchecked.
 pub fn parse(bytes: &[u8]) -> Result<BackupFile> {
+    if bytes.len() > MAX_BYTES {
+        bail!("backup file is too large");
+    }
     let file: BackupFile = serde_json::from_slice(bytes).context("not a valid backup file")?;
     if file.version != FORMAT_VERSION {
         bail!(
@@ -173,6 +185,23 @@ pub fn parse(bytes: &[u8]) -> Result<BackupFile> {
     }
     if file.settings.iter().any(|(k, _)| k.trim().is_empty()) {
         bail!("backup contains an empty setting name");
+    }
+    if file.mappings.len() > MAX_MAPPINGS || file.tasks.len() > MAX_TASKS {
+        bail!("backup has too many mappings or tasks");
+    }
+    let long = file
+        .settings
+        .iter()
+        .any(|(k, v)| k.len() > MAX_FIELD || v.len() > MAX_FIELD)
+        || file.app_version.len() > MAX_FIELD
+        || file.mappings.iter().any(|m| {
+            m.plex_prefix.len() > MAX_FIELD
+                || m.container_path.len() > MAX_FIELD
+                || m.label.as_deref().is_some_and(|l| l.len() > MAX_FIELD)
+        })
+        || file.tasks.iter().any(|t| t.name.len() > MAX_FIELD);
+    if long {
+        bail!("backup contains a value that is too long");
     }
     Ok(file)
 }
@@ -295,5 +324,27 @@ mod tests {
         assert!(parse(wrong).unwrap_err().to_string().contains("version 99"));
         let empty_key = br#"{"version":1,"created_at":0,"app_version":"","settings":[[" ","x"]],"mappings":[],"tasks":[]}"#;
         assert!(parse(empty_key).is_err());
+    }
+
+    #[test]
+    fn oversized_backups_are_rejected() {
+        let big = vec![b' '; MAX_BYTES + 1];
+        assert!(parse(&big).unwrap_err().to_string().contains("too large"));
+        let long = "x".repeat(MAX_FIELD + 1);
+        let body = format!(
+            r#"{{"version":1,"created_at":0,"app_version":"","settings":[["k","{long}"]],"mappings":[],"tasks":[]}}"#
+        );
+        assert!(parse(body.as_bytes())
+            .unwrap_err()
+            .to_string()
+            .contains("too long"));
+        let maps = vec![r#"{"plex_prefix":"a","container_path":"b"}"#; MAX_MAPPINGS + 1].join(",");
+        let body = format!(
+            r#"{{"version":1,"created_at":0,"app_version":"","settings":[],"mappings":[{maps}],"tasks":[]}}"#
+        );
+        assert!(parse(body.as_bytes())
+            .unwrap_err()
+            .to_string()
+            .contains("too many"));
     }
 }
