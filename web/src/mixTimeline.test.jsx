@@ -111,7 +111,7 @@ describe("the mix timeline", () => {
   it("says when the video has no sound", async () => {
     api.clipWaveform.mockResolvedValue({ has_audio: false, peaks: [] });
     render(<Harness withMusic={false} />);
-    await screen.findByText("This video has no sound.");
+    expect(await screen.findByText("This video has no sound.")).toBeTruthy();
   });
 });
 

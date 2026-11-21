@@ -42,10 +42,10 @@ export function LogsPanel() {
           if (r.entries.length) setEntries((prev) => mergeEntries(prev, r.entries));
         })
         .catch((e) => alive && setErr(e.message));
-    tick();
+    void tick();
     const t = setInterval(() => {
       after = lastId(entriesRef.current);
-      tick();
+      void tick();
     }, 3000);
     return () => {
       alive = false;

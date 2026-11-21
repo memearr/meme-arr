@@ -29,10 +29,10 @@ const exe = process.platform === "win32" ? ".exe" : "";
 // The newest build of the app (release or debug), unless APP_BIN says otherwise.
 const APP_BIN = process.env.APP_BIN || ["release", "debug"]
   .map((d) => path.join(root, "target", d, "meme-arr" + exe))
-  .filter(fs.existsSync)
+  .filter((p) => fs.existsSync(p))
   .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs)[0];
 const WEB_DIR = process.env.WEB_DIR || path.join(root, "web", "dist");
-const BROWSER = process.env.BROWSER || ["C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Google/Chrome/Application/chrome.exe", "/usr/bin/chromium", "/usr/bin/google-chrome"].find(fs.existsSync);
+const BROWSER = process.env.BROWSER || ["C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Google/Chrome/Application/chrome.exe", "/usr/bin/chromium", "/usr/bin/google-chrome"].find((p) => fs.existsSync(p));
 
 const children = [];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

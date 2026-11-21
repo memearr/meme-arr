@@ -33,7 +33,7 @@ export default function App() {
       .catch(() => setAuthState({ setup_required: false, authenticated: false }));
 
   useEffect(() => {
-    checkAuth();
+    void checkAuth();
     const onUnauthorized = () => setAuthState({ setup_required: false, authenticated: false });
     window.addEventListener("memearr:unauthorized", onUnauthorized);
     return () => window.removeEventListener("memearr:unauthorized", onUnauthorized);
@@ -101,7 +101,7 @@ function AppShell({ onLogout }) {
         .health()
         .then((h) => alive && setHealth(h))
         .catch(() => {});
-    tick();
+    void tick();
     const t = setInterval(tick, 60_000);
     return () => {
       alive = false;
@@ -121,7 +121,7 @@ function AppShell({ onLogout }) {
         .health()
         .then((h) => alive && setHealth(h))
         .catch(() => {});
-    tick();
+    void tick();
     const t = setInterval(tick, health?.running ? 2_000 : 15_000);
     return () => {
       alive = false;
@@ -140,7 +140,7 @@ function AppShell({ onLogout }) {
         /* ignore */
       }
     };
-    tick();
+    void tick();
     const t = setInterval(tick, 3000);
     return () => {
       alive = false;
@@ -155,7 +155,7 @@ function AppShell({ onLogout }) {
   useEffect(() => {
     api
       .libraryStats()
-      .then((d) => setLibraryNames([...new Set((d.libraries || []).map((l) => l.library))].sort()))
+      .then((d) => setLibraryNames([...new Set((d.libraries || []).map((l) => l.library))].sort((a, b) => a.localeCompare(b))))
       .catch(() => {});
   }, [view]);
 
@@ -214,7 +214,7 @@ function AppShell({ onLogout }) {
   // Changing the searched libraries re-runs the search that is on screen.
   function pickSearchLibraries(libs) {
     setSearchLibraries(libs);
-    doSearch(null, { libraries: libs });
+    void doSearch(null, { libraries: libs });
   }
 
   // Adding or removing a filter chip re-runs the search: with some text it
@@ -222,7 +222,7 @@ function AppShell({ onLogout }) {
   // the filters leave.
   function changeScope(next) {
     setScope(next);
-    doSearch(null, { scope: next, clearIfEmpty: true });
+    void doSearch(null, { scope: next, clearIfEmpty: true });
   }
   const addScopeFilter = (f) => changeScope(addFilter(scope, f));
   const removeScopeFilter = (i) => changeScope(removeFilterAt(scope, i));
@@ -232,7 +232,7 @@ function AppShell({ onLogout }) {
     const next = addFilter(scope, { field: "show", value: name, negate: false });
     setScope(next);
     setView("make");
-    doSearch(null, { scope: next });
+    void doSearch(null, { scope: next });
     setTimeout(() => document.querySelector("form.search input")?.focus(), 80);
   }
 

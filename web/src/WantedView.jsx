@@ -67,7 +67,7 @@ export default function WantedView({ onOpen, focus, onFocusHandled }) {
   useEffect(() => {
     api
       .libraryStats()
-      .then((d) => setLibraries([...new Set((d.libraries || []).map((l) => l.library))].sort()))
+      .then((d) => setLibraries([...new Set((d.libraries || []).map((l) => l.library))].sort((a, b) => a.localeCompare(b))))
       .catch(() => {});
   }, []);
 

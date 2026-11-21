@@ -113,7 +113,7 @@ export function TrimPanel({
 
   const frameParse = (t) => {
     if (!fps) return null;
-    const n = /^\s*f?\s*(\d+)\s*f?\s*$/i.exec(t);
+    const n = /^f?\s*(\d+)\s*f?$/i.exec(t.trim());
     return n ? frameToMs(Number(n[1]), fps) : null;
   };
   const frameFormat = (ms) => (fps ? String(msToFrame(ms, fps)) : "–");
