@@ -89,12 +89,34 @@ fn make_sample(dir: &Path, name: &str, with_audio: bool) -> std::path::PathBuf {
         "yuv420p",
         "-c:s",
         "mov_text",
-        "-shortest",
+        // every input is already 3 s long; no `-shortest` (which, with a subtitle stream in the
+        // mix, is the one thing here that can leave ffmpeg waiting on a stream that has ended)
+        "-t",
+        "3",
         &out.to_string_lossy(),
     ]);
-    let status = cmd.status().expect("spawn ffmpeg");
+    let status = run_bounded(&mut cmd);
     assert!(status.success(), "sample generation failed");
     out
+}
+
+/// Run a fixture-making command, but not for ever: a fixture ffmpeg that hangs would otherwise hold a
+/// CI job until its own time limit, with nothing to say which test it was. After a minute it is
+/// killed and the test fails saying so.
+fn run_bounded(cmd: &mut Command) -> std::process::ExitStatus {
+    let mut child = cmd.spawn().expect("spawn ffmpeg");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    loop {
+        if let Some(status) = child.try_wait().expect("wait for ffmpeg") {
+            return status;
+        }
+        if std::time::Instant::now() > deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("a fixture ffmpeg ran for over a minute and was killed: {cmd:?}");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
 }
 
 #[tokio::test]
