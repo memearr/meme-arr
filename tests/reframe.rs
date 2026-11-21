@@ -383,6 +383,7 @@ fn seq_clip(file: &Path, grade: Grade, layers: Vec<Layer>) -> ResolvedSequenceCl
         layers,
         music: None,
         grade,
+        transition: None,
     }
 }
 
@@ -479,6 +480,8 @@ async fn a_bad_picture_look_on_a_sequence_clip_is_refused() {
             fade_in_ms: 3000,
             ..Grade::default()
         },
+
+        transition: None,
     };
     let err = export::validate_sequence(std::slice::from_ref(&spec)).unwrap_err();
     assert!(err.contains("fades"), "{err}");

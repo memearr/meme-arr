@@ -375,6 +375,7 @@ fn resolve_sequence(
             layers: spec.layers.clone(),
             music: spec.music.clone(),
             grade: spec.grade,
+            transition: spec.transition,
             file,
             start_ms: spec.start_ms,
             end_ms: spec.end_ms,

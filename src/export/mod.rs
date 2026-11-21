@@ -24,6 +24,7 @@ mod run;
 mod still;
 #[cfg(test)]
 mod tests;
+mod transition;
 
 pub use self::ass::*;
 pub use self::caption::*;
@@ -36,3 +37,4 @@ pub use self::reframe::*;
 pub use self::request::*;
 pub use self::run::*;
 pub use self::still::*;
+pub use self::transition::*;

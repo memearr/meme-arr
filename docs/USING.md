@@ -288,6 +288,14 @@ any shows or movies, into one back-to-back GIF, WebP, MP4 or WebM (up to 20 sect
   **Layers** box as in the editor: they are timed from the start of that section and placed on the
   sequence's 16:9 canvas (the picture is fitted into it, so on a 16:9 source it's the same place). They
   are kept with the section, drawn over the player here, and burned in by the export under the captions.
+- **Transitions** (with **Advanced** ticked, which is also on the Sequence tab). A section after the first has a
+  **Coming in** box: **Cut** (the default), a **cross-fade**, **dissolve**, **through black** or **white**, a
+  **wipe** or **slide** in any direction, a **circle** opening or closing, a **radial** sweep or a **pixelate**,
+  and how long it takes (up to 3 seconds, and never more than the sections around it have room for). The section
+  comes in over the end of the one before it, so the two overlap for that long: the sequence is that much
+  shorter, the sound of the two is cross-faded the same way, and a song on a section starts where its section
+  does. The player here plays the sections back to back; only the export blends them. Advanced also shows a
+  section's **Picture** look (colour, mirror, fades) in its Detailed edit and the cuts on its song.
 - **Undo and redo** step back through every change made here (typing a time or dragging a
   slider counts as one step).
 

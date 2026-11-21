@@ -247,6 +247,8 @@ pub struct ResolvedSequenceClip {
     pub music: Option<Soundtrack>,
     /// The look of this clip's picture.
     pub grade: Grade,
+    /// How this clip comes in over the one before it.
+    pub transition: Option<Transition>,
 }
 
 /// What every clip of one sequence is rendered to: the frame rate, the shared
@@ -576,10 +578,15 @@ pub async fn run_sequence_export_with(
     // not stream-copied, so we're not relying on every part's container
     // metadata lining up exactly; audio -- when present -- is a straight
     // stream copy, valid because phase 1 gave every part the same PCM params).
+    // When clips come in with transitions they are blended instead (see `join_args`).
+    let transitions: Vec<Option<Transition>> = clips.iter().map(|c| c.transition).collect();
+    let blended = has_transitions(&transitions);
     let list_path = tmp_dir.join(format!("{job_id}-list.txt"));
-    if let Err(e) = std::fs::write(&list_path, concat_list(&parts)) {
-        cleanup_paths(&parts);
-        return Err(e.into());
+    if !blended {
+        if let Err(e) = std::fs::write(&list_path, concat_list(&parts)) {
+            cleanup_paths(&parts);
+            return Err(e.into());
+        }
     }
     let concat_path = tmp_dir.join(format!("{job_id}-concat.{}", part_ext(audio)));
     let mut concat_args = vec![
@@ -606,6 +613,24 @@ pub async fn run_sequence_export_with(
     }));
     concat_args.extend(privacy_args(None));
     concat_args.push(concat_path.to_string_lossy().into_owned());
+    if blended {
+        // the parts' real lengths (a part is a frame or so off its nominal length), so each
+        // transition starts where the clip before it really ends
+        let mut lens = Vec::with_capacity(parts.len());
+        for (part, clip) in parts.iter().zip(clips) {
+            let nominal = clip.end_ms - clip.start_ms;
+            let real = ffmpeg::probe(tools.ffprobe, part)
+                .await
+                .map(|p| p.duration_ms)
+                .unwrap_or(0);
+            lens.push(if (real - nominal).abs() < 500 && real > 0 {
+                real
+            } else {
+                nominal
+            });
+        }
+        concat_args = join_args(&parts, &lens, &transitions, fps, audio, &concat_path);
+    }
     if let Err(e) = ffmpeg::run(tools.ffmpeg, &concat_args).await {
         cleanup_paths(&parts);
         let _ = std::fs::remove_file(&list_path);
@@ -637,8 +662,11 @@ pub async fn run_sequence_export_with(
             len_ms: total_ms - m.at_ms,
         });
     }
-    let mut offset = 0;
-    for c in clips {
+    // each clip's own song starts where its clip starts in the joined sequence (a transition
+    // pulls a clip back over the one before it)
+    let lens: Vec<i64> = clips.iter().map(|c| c.end_ms - c.start_ms).collect();
+    let starts = clip_starts(&lens, &transitions);
+    for (c, offset) in clips.iter().zip(starts) {
         let len = c.end_ms - c.start_ms;
         if let Some(m) = c.music.as_ref() {
             songs.push(Placed {
@@ -647,7 +675,6 @@ pub async fn run_sequence_export_with(
                 len_ms: len - m.at_ms,
             });
         }
-        offset += len;
     }
     let mix = if !songs.is_empty() || (req.clip_volume - 1.0).abs() > f32::EPSILON {
         if let Some(why) =

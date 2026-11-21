@@ -4,6 +4,7 @@ import { api } from "./api.js";
 import { SCALE_DEFAULT, SCALE_MAX, SCALE_MIN, SCALE_STEP, fontOptions } from "./fonts.js";
 import { episodeLabel, fmtTime } from "./format.js";
 import { trim } from "./sequenceModel.js";
+import { DEFAULT_MS, KINDS, MIN_MS } from "./transitionModel.js";
 import { fpsOf } from "./timecode.js";
 
 /** The caption a section has after switching to `mode`, keeping what carries over. */
@@ -20,9 +21,11 @@ export function captionFor(clip, mode) {
 /**
  * Edit one section of the sequence: its exact In/Out, its captions and font,
  * and (for burned subtitles) the sync. Everything lands in the sequence at once.
- * "Detailed edit" opens the full editor for the lines and everything else.
+ * "Detailed edit" opens the full editor for the lines and everything else. With `transitionLimit`
+ * above zero (Advanced is on and the section has one before it) it also has how it comes in over
+ * the section before, up to that many ms.
  */
-export function SectionEditor({ clip, index, count, onChange, onDetailed }) {
+export function SectionEditor({ clip, index, count, onChange, onDetailed, transitionLimit = 0 }) {
   const [fonts, setFonts] = useState({ fonts: [], default: null });
   const [info, setInfo] = useState(null); // video-info, for frame numbers
   const [lock, setLock] = useState(false);
@@ -154,6 +157,53 @@ export function SectionEditor({ clip, index, count, onChange, onDetailed }) {
           </div>
         )}
       </fieldset>
+
+      {transitionLimit > 0 && (
+        <fieldset className="section-transition">
+          <legend>Coming in</legend>
+          <label>
+            Transition{" "}
+            <select
+              value={clip.transition?.kind || ""}
+              aria-label="Transition"
+              onChange={(e) =>
+                onChange({
+                  ...clip,
+                  transition: e.target.value
+                    ? { kind: e.target.value, ms: Math.min(transitionLimit, clip.transition?.ms || DEFAULT_MS) }
+                    : undefined,
+                })
+              }
+            >
+              <option value="">Cut</option>
+              {KINDS.map((k) => (
+                <option key={k.id} value={k.id}>
+                  {k.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {clip.transition && (
+            <label>
+              Length <b>{(clip.transition.ms / 1000).toFixed(1)} s</b>
+              <input
+                type="range"
+                min={MIN_MS}
+                max={Math.max(MIN_MS, transitionLimit)}
+                step={100}
+                value={Math.min(clip.transition.ms, Math.max(MIN_MS, transitionLimit))}
+                aria-label="Transition length"
+                onChange={(e) => onChange({ ...clip, transition: { ...clip.transition, ms: Number(e.target.value) } })}
+              />
+            </label>
+          )}
+          <p className="hint tiny">
+            This section comes in over the end of the one before it, so the two overlap for the length of the
+            transition and the sequence is that much shorter. The player above plays the sections back to back; the
+            export blends them.
+          </p>
+        </fieldset>
+      )}
 
       <div className="btn-row">
         <button type="button" className="secondary" onClick={onDetailed} title="Open this section in the full editor: player, timeline, every subtitle line">

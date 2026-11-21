@@ -500,6 +500,15 @@ of that clip, and placed on the sequence's 16:9 canvas, which the clip's picture
 the clip's captions; a layer that can't be used (as there) or an uploaded picture that is gone is a `400` naming
 the clip.
 
+A clip may carry a `"transition": {"kind": "fade", "ms": 1000}`, how it comes in over the clip before it (a
+clip with none is a cut). `kind` is `fade`, `dissolve`, `fade_black`, `fade_white`, `wipe_left`, `wipe_right`,
+`wipe_up`, `wipe_down`, `slide_left`, `slide_right`, `slide_up`, `slide_down`, `circle_open`, `circle_close`,
+`radial` or `pixelize`, and `ms` is 100 to 3000. The two clips overlap for `ms`, so the sequence is that much
+shorter, their sound is cross-faded over it, and a clip's own song starts where its clip does in the joined
+sequence. The first clip can't have one, and a clip must be at least as long as the transition into it plus the
+one out of it (`400` naming the clip otherwise). A sequence with no transitions is joined as before. Each clip
+may also carry a `grade`, as on `POST /api/export`.
+
 A clip may also carry its own song, `"music": {...}` as on `POST /api/export`, with its times from the start of
 that clip: it comes in at `at_ms` into the clip, is cut where the clip ends, and plays along with the sequence's
 own `music` and any other clip's. `duck` dips it under that clip's own sound (needs `audio: true`). A song that

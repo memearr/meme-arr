@@ -418,6 +418,7 @@ fn seq_clip(file: PathBuf, secs: i64) -> export::ResolvedSequenceClip {
         layers: vec![],
         music: None,
         grade: Default::default(),
+        transition: None,
     }
 }
 

@@ -262,6 +262,10 @@ pub struct SequenceClipSpec {
     /// The look of this clip's picture: colour, mirror, fades (see [`Grade`]).
     #[serde(default)]
     pub grade: Grade,
+    /// How this clip comes in over the one before it (see [`Transition`]); `None` is a cut. Not on
+    /// the first clip.
+    #[serde(default)]
+    pub transition: Option<Transition>,
 }
 
 /// Export several clips — possibly from different source files — back to
@@ -390,6 +394,13 @@ pub fn validate_sequence(clips: &[SequenceClipSpec]) -> std::result::Result<(), 
             ));
         }
         total += len;
+    }
+    let lens: Vec<(Option<Transition>, i64)> = clips
+        .iter()
+        .map(|c| (c.transition, c.end_ms - c.start_ms))
+        .collect();
+    if let Some(why) = validate_transitions(&lens) {
+        return Err(why);
     }
     if total > MAX_SEQUENCE_MS {
         return Err(format!(

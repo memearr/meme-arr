@@ -1,5 +1,5 @@
-// The Advanced switch: one tick box that shows the editor's advanced tools. The browser remembers it.
-import { useCallback, useState } from "react";
+// The Advanced switch: one tick box that shows the advanced tools. The browser remembers it.
+import { useCallback, useEffect, useState } from "react";
 import { browserStorage } from "./editorStorage.js";
 
 export const ADVANCED_KEY = "memearr.advanced";
@@ -21,12 +21,23 @@ export function saveAdvanced(store, on) {
   }
 }
 
-/** `[advanced, setAdvanced]`: starts as it was left, and keeps what it is set to. */
+// Every box on the page that shows the switch, so turning it on in one turns it on in all.
+const listeners = new Set();
+
+/** `[advanced, setAdvanced]`: starts as it was left, keeps what it is set to, and follows other boxes. */
 export function useAdvanced() {
   const [on, setOn] = useState(() => loadAdvanced(browserStorage()));
+  useEffect(() => {
+    listeners.add(setOn);
+    // it may have changed between the first render and now
+    setOn(loadAdvanced(browserStorage()));
+    return () => {
+      listeners.delete(setOn);
+    };
+  }, []);
   const set = useCallback((v) => {
-    setOn(!!v);
     saveAdvanced(browserStorage(), !!v);
+    listeners.forEach((fn) => fn(!!v));
   }, []);
   return [on, set];
 }

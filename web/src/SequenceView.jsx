@@ -4,10 +4,10 @@ import { JobResult } from "./JobResult.jsx";
 import { MusicPanel } from "./MusicPanel.jsx";
 import { layersForRequest } from "./layersModel.js";
 import { clipVolumeForRequest, musicForRequest } from "./musicModel.js";
-import { loadAdvanced } from "./advanced.js";
+import { useAdvanced } from "./advanced.js";
+import { transitionLimit, transitionsForRequest } from "./transitionModel.js";
 import { gradeForRequest } from "./gradeModel.js";
 import { songCuts } from "./advancedAudio.js";
-import { browserStorage } from "./editorStorage.js";
 import { SectionEditor } from "./SectionEditor.jsx";
 import { SequenceBulkEdit } from "./SequenceBulkEdit.jsx";
 import SequencePlayer from "./SequencePlayer.jsx";
@@ -39,6 +39,7 @@ function newSectionId() {
  */
 export function SequenceView({ sequence, setSequence, onJob }) {
   const [format, setFormat] = useState("gif");
+  const [advanced, setAdvanced] = useAdvanced(); // the Advanced tick box (kept between visits)
   const [hearClipSongs, setHearClipSongs] = useState(true); // the sections' own songs, in the player
   const [width, setWidth] = useState(480);
   const [fps, setFps] = useState(15);
@@ -172,23 +173,25 @@ export function SequenceView({ sequence, setSequence, onJob }) {
   async function doExport() {
     setError(null);
     try {
+      const transitions = transitionsForRequest(sequence, advanced);
       const started = await api.startSequenceExport({
-        clips: sequence.map((c) => ({
+        clips: sequence.map((c, i) => ({
           rating_key: c.rating_key,
           start_ms: c.start_ms,
           end_ms: c.end_ms,
           caption: c.caption,
           subtitle_offset_ms: c.subtitle_offset_ms || 0,
           layers: layersForRequest(c.layers, c.end_ms - c.start_ms),
-          music: musicForRequest(songCuts(c.music, loadAdvanced(browserStorage())), c.end_ms - c.start_ms, audio),
-          grade: loadAdvanced(browserStorage()) ? gradeForRequest(c.grade, c.end_ms - c.start_ms) : undefined,
+          music: musicForRequest(songCuts(c.music, advanced), c.end_ms - c.start_ms, audio),
+          grade: advanced ? gradeForRequest(c.grade, c.end_ms - c.start_ms) : undefined,
+          transition: transitions[i],
         })),
         format,
         width,
         fps,
         quality,
         audio,
-        music: musicForRequest(songCuts(music, loadAdvanced(browserStorage())), total, audio),
+        music: musicForRequest(songCuts(music, advanced), total, audio),
         clip_volume: clipVolumeForRequest(clipVolume, audio),
         credit_source: creditSource,
         filename: filename || null,
@@ -214,6 +217,9 @@ export function SequenceView({ sequence, setSequence, onJob }) {
         <h2>Sequence</h2>
         {sequence.length > 0 && (
           <div className="editor-head-actions">
+            <label className="check advanced-toggle" title="Show the advanced tools. They are hidden and left out of the export when this is off.">
+              <input type="checkbox" checked={advanced} onChange={(e) => setAdvanced(e.target.checked)} /> Advanced
+            </label>
             <button type="button" className="secondary" onClick={undo} disabled={history.past.length === 0} title="Undo the last change to the sequence">
               ↶ Undo
             </button>
@@ -286,6 +292,7 @@ export function SequenceView({ sequence, setSequence, onJob }) {
                 count={sequence.length}
                 onChange={(updated) => commit(replaceClip(sequence, updated), `section:${updated.id}`)}
                 onDetailed={() => setEditingId(selected.id)}
+                transitionLimit={advanced ? transitionLimit(sequence, index) : 0}
               />
             )}
             <SequenceBulkEdit sequence={sequence} onChange={(next) => commit(next)} />
