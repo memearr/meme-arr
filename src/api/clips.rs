@@ -376,6 +376,8 @@ fn resolve_sequence(
             music: spec.music.clone(),
             grade: spec.grade,
             transition: spec.transition,
+            speed: spec.speed,
+            crop: spec.crop,
             file,
             start_ms: spec.start_ms,
             end_ms: spec.end_ms,

@@ -1,3 +1,5 @@
+import { sectionSpeed } from "./advancedPicture.js";
+
 // Transitions between the sections of a sequence: how a section comes in over the one before it.
 // Pure logic, no React; the limits are the server's (see src/export/transition.rs).
 
@@ -25,7 +27,8 @@ export const MIN_MS = 100;
 export const MAX_MS = 3000;
 export const DEFAULT_MS = 1000;
 
-const lengthOf = (c) => Math.max(0, (c?.end_ms ?? 0) - (c?.start_ms ?? 0));
+// how long a section lasts in the export: its length at its own speed
+const lengthOf = (c) => Math.max(0, Math.round(((c?.end_ms ?? 0) - (c?.start_ms ?? 0)) / sectionSpeed(c)));
 const inMs = (c) => (c?.transition ? c.transition.ms : 0);
 
 /**

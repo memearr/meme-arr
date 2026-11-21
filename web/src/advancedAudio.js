@@ -9,7 +9,33 @@ export const TARGETS = [
 export const DEFAULT_TARGET = -16;
 
 /** No cuts, no loudness target. */
-export const PLAIN_SOUND = { clipHigh: 0, clipLow: 0, normalize: null };
+export const PLAIN_SOUND = { clipHigh: 0, clipLow: 0, normalize: null, clipEq: { low_db: 0, mid_db: 0, high_db: 0 } };
+
+/** The most a band of the equaliser may be turned up or down, in dB. */
+export const MAX_EQ_DB = 12;
+export const FLAT_EQ = { low_db: 0, mid_db: 0, high_db: 0 };
+
+/** An equaliser kept inside the server's limits, in half-dB steps (anything missing is flat). */
+export function adjustEq(eq, changes = {}) {
+  const e = { ...FLAT_EQ, ...eq, ...changes };
+  const band = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.round(Math.min(MAX_EQ_DB, Math.max(-MAX_EQ_DB, n)) * 2) / 2 : 0;
+  };
+  return { low_db: band(e.low_db), mid_db: band(e.mid_db), high_db: band(e.high_db) };
+}
+
+/** Whether an equaliser leaves the sound as it is. */
+export function isFlatEq(eq) {
+  const e = adjustEq(eq);
+  return e.low_db === 0 && e.mid_db === 0 && e.high_db === 0;
+}
+
+/** "+3 dB", "-1.5 dB", "0 dB". */
+export function dbBandText(db) {
+  const v = Number.isFinite(db) ? db : 0;
+  return `${v > 0 ? "+" : ""}${v} dB`;
+}
 
 export const HIGH_RANGE = [20, 2000];
 export const LOW_RANGE = [1000, 20000];
@@ -53,15 +79,16 @@ export function cutHz(v, lo, hi) {
 
 /** The advanced sound settings for the export's `mixdown`: the plain ones unless Advanced is on and the sound is kept. */
 export function soundForMixdown(sound, { advanced, audio }) {
-  if (!advanced || !audio) return { clip_highpass_hz: 0, clip_lowpass_hz: 0, normalize_lufs: null };
+  if (!advanced || !audio) return { clip_highpass_hz: 0, clip_lowpass_hz: 0, normalize_lufs: null, clip_eq: FLAT_EQ };
   return {
     clip_highpass_hz: sound.clipHigh || 0,
     clip_lowpass_hz: sound.clipLow || 0,
     normalize_lufs: sound.normalize ?? null,
+    clip_eq: adjustEq(sound.clipEq),
   };
 }
 
-/** The song as a request should have it: its cuts only count with Advanced on. */
+/** The song as a request should have it: its cuts and equaliser only count with Advanced on. */
 export function songCuts(music, advanced) {
-  return music && !advanced ? { ...music, highpass_hz: 0, lowpass_hz: 0 } : music;
+  return music && !advanced ? { ...music, highpass_hz: 0, lowpass_hz: 0, eq: FLAT_EQ } : music;
 }

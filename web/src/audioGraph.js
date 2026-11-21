@@ -5,6 +5,7 @@
 
 let context = null;
 let bus = null; // {analyser, buffer}: the whole mix
+let kBus = null; // {input, channels:[{analyser, buffer}, ...], sampleRate}: the whole mix, K-weighted, for loudness
 const taps = new WeakMap(); // element -> {analyser, buffer, panner}
 const wantedPan = new WeakMap(); // element -> pan asked for (kept for an element not wired yet)
 
@@ -39,6 +40,49 @@ function mixBus(ctx) {
   return bus;
 }
 
+/**
+ * The mix as a loudness meter hears it: filtered with the K-weighting of ITU-R BS.1770 (a high shelf
+ * and a low cut, in the standard's shape) and split into its two channels, each with a window of the
+ * last 32768 samples. Built once, the first time something is wired in; null where the browser can't.
+ */
+function kWeighted(ctx) {
+  if (kBus) return kBus;
+  try {
+    const input = ctx.createGain();
+    const shelf = ctx.createBiquadFilter();
+    shelf.type = "highshelf";
+    shelf.frequency.value = 1681.97;
+    shelf.gain.value = 3.9998;
+    const low = ctx.createBiquadFilter();
+    low.type = "highpass";
+    low.frequency.value = 38.13;
+    low.Q.value = 0.5003;
+    const split = ctx.createChannelSplitter(2);
+    input.connect(shelf);
+    shelf.connect(low);
+    low.connect(split);
+    const sink = ctx.createGain();
+    sink.gain.value = 0;
+    sink.connect(ctx.destination);
+    const channels = [0, 1].map((i) => {
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 32768;
+      split.connect(analyser, i);
+      analyser.connect(sink); // pulled, at zero volume, so it runs
+      return { analyser, buffer: new Float32Array(analyser.fftSize) };
+    });
+    kBus = { input, channels, sampleRate: ctx.sampleRate || 48000 };
+  } catch (_) {
+    kBus = null;
+  }
+  return kBus;
+}
+
+/** The loudness meter's windows, or null before any sound has been wired in (or without the filters). */
+export function loudnessMeter() {
+  return kBus;
+}
+
 /** The meter of the whole mix, or null before any sound has been wired in. */
 export function mixMeter() {
   return bus;
@@ -67,6 +111,8 @@ export function tap(el) {
     end.connect(own.analyser);
     own.analyser.connect(ctx.destination);
     end.connect(mixBus(ctx).analyser);
+    const k = kWeighted(ctx);
+    if (k) end.connect(k.input);
     const made = { ...own, panner };
     taps.set(el, made);
     return made;

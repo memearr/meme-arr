@@ -67,21 +67,32 @@ pub fn compose_width(width: u32, crop: Option<&Crop>) -> u32 {
     (full - full % 2).max(2)
 }
 
+/// The `crop` filter for a window (even-sized, whole pixels).
+pub fn crop_filter(c: &Crop) -> String {
+    format!(
+        "crop=trunc(iw*{:.4}/2)*2:trunc(ih*{:.4}/2)*2:trunc(iw*{:.4}):trunc(ih*{:.4})",
+        c.w, c.h, c.x, c.y
+    )
+}
+
+/// The filters that play the picture at `speed` times (frames dropped or doubled to `fps`). Empty at
+/// normal speed.
+pub fn speed_filters(fps: u32, speed: f32) -> Vec<String> {
+    if is_normal_speed(speed) {
+        return Vec::new();
+    }
+    vec![format!("setpts=PTS/{speed:.4}"), format!("fps={fps}")]
+}
+
 /// The filters that finish the picture: the crop (and sizing the window to `width`), then the speed.
 /// Empty when there is nothing to do.
 pub fn finishing_filters(width: u32, fps: u32, crop: Option<&Crop>, speed: f32) -> Vec<String> {
     let mut f = Vec::new();
     if let Some(c) = crop {
-        f.push(format!(
-            "crop=trunc(iw*{:.4}/2)*2:trunc(ih*{:.4}/2)*2:trunc(iw*{:.4}):trunc(ih*{:.4})",
-            c.w, c.h, c.x, c.y
-        ));
+        f.push(crop_filter(c));
         f.push(format!("scale={width}:-2:flags=lanczos"));
     }
-    if !is_normal_speed(speed) {
-        f.push(format!("setpts=PTS/{speed:.4}"));
-        f.push(format!("fps={fps}"));
-    }
+    f.extend(speed_filters(fps, speed));
     f
 }
 

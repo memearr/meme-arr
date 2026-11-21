@@ -91,6 +91,8 @@ fn clip(file: &Path, transition: Option<Transition>) -> ResolvedSequenceClip {
         music: None,
         grade: Default::default(),
         transition,
+        speed: 1.0,
+        crop: None,
     }
 }
 
@@ -341,6 +343,7 @@ async fn a_clips_own_song_starts_where_its_clip_does_after_the_overlap() {
         pan: 0.0,
         highpass_hz: 0.0,
         lowpass_hz: 0.0,
+        eq: Default::default(),
         file: Some(song),
     });
     // no sound of its own kept: only the song is heard, and it should come in with the second clip,
@@ -370,6 +373,8 @@ async fn a_bad_transition_is_refused() {
         music: None,
         grade: Default::default(),
         transition: t,
+        speed: 1.0,
+        crop: None,
     };
     assert!(export::validate_sequence(&[spec(None, 3000), spec(fade(1000), 3000)]).is_ok());
     let err = export::validate_sequence(&[spec(fade(1000), 3000), spec(None, 3000)]).unwrap_err();

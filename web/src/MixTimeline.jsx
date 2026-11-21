@@ -3,6 +3,7 @@ import { api } from "./api.js";
 import { gainAt, gainText, linePath, addPoint, movePoint, removePoint, MIN_GAP_MS } from "./volumeCurve.js";
 import { secondsText } from "./layersModel.js";
 import { LevelMeter } from "./LevelMeter.jsx";
+import { LoudnessReadout } from "./LoudnessReadout.jsx";
 import { MAX_VOLUME } from "./musicModel.js";
 import { panText } from "./mixModel.js";
 
@@ -124,7 +125,8 @@ function TrackControls({ name, track }) {
   );
 }
 
-/** The master: one fader for the whole mix and a meter as wide as the clip. `master` is `{level, onLevel, active}`. */
+/** The master: one fader for the whole mix and a meter as wide as the clip. `master` is `{level, onLevel, active, loudness}`;
+ * `loudness` adds a live LUFS readout. */
 function MasterRow({ master }) {
   if (!master) return null;
   return (
@@ -146,6 +148,7 @@ function MasterRow({ master }) {
       <div className="mix-master-meter">
         <LevelMeter master active={!!master.active} label="Master" />
       </div>
+      {master.loudness && <LoudnessReadout active={!!master.active} />}
     </div>
   );
 }

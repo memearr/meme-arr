@@ -92,8 +92,8 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   const [master, setMaster] = useState(1); // the whole mix, 0..2
   const [advanced, setAdvanced] = useAdvanced(); // the Advanced tick box (kept between visits)
   const [sound, setSound] = useState(PLAIN_SOUND); // advanced sound: cuts on the clip, loudness target
-  const [clipSpeed, setClipSpeed] = useState(1); // advanced picture: how fast the export plays
-  const [reframe, setReframe] = useState(WHOLE); // advanced picture: the window of the picture to keep
+  const [clipSpeed, setClipSpeed] = useState(seed?.speed ?? 1); // advanced picture: how fast the export plays
+  const [reframe, setReframe] = useState(seed?.reframe ?? WHOLE); // advanced picture: the window of the picture to keep
   const songEl = useRef(null); // the page's audio element for the song, for its level meter
   const [overlayList, setOverlayList] = useState({ overlays: [], shapes: [] });
   const [top, setTop] = useState(seed ? seed.top : "");
@@ -142,9 +142,11 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
   // Where the picture sits inside the player (it is letterboxed), so the caption
   // overlay can be sized and placed like the export.
   const [pictureBox, setPictureBox] = useState(null);
-  // The advanced picture settings that count: they are left out with Advanced off, and in a sequence section.
-  const advancedPicture = advanced && !sequenceEdit;
-  const exportSpeed = advancedPicture ? speedForRequest(clipSpeed) : 1;
+  // The advanced picture settings that count: they are left out with Advanced off. A section of a
+  // sequence that has a song of its own plays at normal speed.
+  const advancedPicture = advanced;
+  const speedLocked = !!sequenceEdit && !!music;
+  const exportSpeed = advancedPicture && !speedLocked ? speedForRequest(clipSpeed) : 1;
   const cropWin = advancedPicture ? cropWindow(reframe, pictureBox ? pictureBox.width / pictureBox.height : 16 / 9) : null;
   const rate = playbackRate(speed, exportSpeed); // the player plays at the export speed too
 
@@ -600,6 +602,10 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
         layers,
         music,
         grade,
+        // with Advanced off the section keeps the speed and window it had
+        speed: advanced ? exportSpeed : sequenceEdit.clip.speed,
+        reframe: advanced ? reframe : sequenceEdit.clip.reframe,
+        crop: advanced ? cropForRequest(cropWin) : sequenceEdit.clip.crop,
       }),
       andNext
     );
@@ -917,7 +923,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
               onClipCurve={setClipCurve}
               music={music}
               onMusicCurve={(curve) => setMusic((m) => (m ? adjustMusic(m, { curve }, clipLength) : m))}
-              master={sequenceEdit ? undefined : { level: master, onLevel: setMaster, active: playing }}
+              master={sequenceEdit ? undefined : { level: master, onLevel: setMaster, active: playing, loudness: advanced }}
               clipTrack={
                 sequenceEdit
                   ? undefined
@@ -1077,9 +1083,10 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
 
             {(!sequenceEdit || advanced) && <GradePanel grade={grade} onChange={setGrade} clipMs={clipLength} />}
 
-            {advanced && !sequenceEdit && (
+            {advanced && (
               <AdvancedPicture
-                speed={clipSpeed}
+                speedLocked={speedLocked}
+                speed={speedLocked ? 1 : clipSpeed}
                 onSpeed={setClipSpeed}
                 view={reframe}
                 onView={setReframe}

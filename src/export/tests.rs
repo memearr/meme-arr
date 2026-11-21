@@ -280,6 +280,8 @@ fn validate_sequence_rejects_backwards_or_overlong_clip() {
         music: None,
         grade: Default::default(),
         transition: None,
+        speed: 1.0,
+        crop: None,
     }];
     assert!(validate_sequence(&backwards).is_err());
 
@@ -293,6 +295,8 @@ fn validate_sequence_rejects_backwards_or_overlong_clip() {
         music: None,
         grade: Default::default(),
         transition: None,
+        speed: 1.0,
+        crop: None,
     }];
     assert!(validate_sequence(&too_long).is_err());
 }
@@ -311,6 +315,8 @@ fn validate_sequence_rejects_total_over_cap() {
             music: None,
             grade: Default::default(),
             transition: None,
+            speed: 1.0,
+            crop: None,
         })
         .collect();
     // Five clips at the per-clip cap comfortably exceed the total cap.
@@ -330,6 +336,8 @@ fn validate_sequence_rejects_too_many_clips() {
             music: None,
             grade: Default::default(),
             transition: None,
+            speed: 1.0,
+            crop: None,
         })
         .collect();
     assert!(validate_sequence(&clips).is_err());
@@ -348,6 +356,8 @@ fn validate_sequence_accepts_reasonable_sequence() {
             music: None,
             grade: Default::default(),
             transition: None,
+            speed: 1.0,
+            crop: None,
         },
         SequenceClipSpec {
             rating_key: "b".into(),
@@ -359,6 +369,8 @@ fn validate_sequence_accepts_reasonable_sequence() {
             music: None,
             grade: Default::default(),
             transition: None,
+            speed: 1.0,
+            crop: None,
         },
     ];
     assert!(validate_sequence(&clips).is_ok());

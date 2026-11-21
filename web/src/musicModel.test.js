@@ -32,6 +32,7 @@ describe("choosing a song", () => {
       pan: 0,
       highpass_hz: 0,
       lowpass_hz: 0,
+      eq: { low_db: 0, mid_db: 0, high_db: 0 },
       curve: [],
     });
   });
@@ -92,6 +93,7 @@ describe("the export request", () => {
       pan: 0,
       highpass_hz: 0,
       lowpass_hz: 0,
+      eq: { low_db: 0, mid_db: 0, high_db: 0 },
       curve: [],
     });
   });

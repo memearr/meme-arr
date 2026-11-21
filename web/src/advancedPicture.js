@@ -63,6 +63,11 @@ export function speedForRequest(speed) {
   return Number.isFinite(speed) && speed >= 0.25 && speed <= 4 ? speed : 1;
 }
 
+/** The speed a sequence section is exported at: its own, unless it has a song of its own (which can't change speed). */
+export function sectionSpeed(clip) {
+  return clip?.music ? 1 : speedForRequest(clip?.speed ?? 1);
+}
+
 /** The player's rate for a clip played at `clipSpeed` with the player's own speed control at `playerSpeed`. */
 export function playbackRate(playerSpeed, clipSpeed) {
   return Math.min(16, Math.max(0.0625, num(playerSpeed, 1) * speedForRequest(clipSpeed)));

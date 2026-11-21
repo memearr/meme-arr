@@ -6,7 +6,7 @@ import { ASPECTS, SPEEDS, WHOLE, cropWindow, movable, speedText } from "./advanc
  * (see `cropWindow`) and `srcAspect` the picture's width over its height. The player draws the window;
  * the captions and layers are placed on the whole picture and cropped with it.
  */
-export function AdvancedPicture({ speed, onSpeed, view, onView, srcAspect }) {
+export function AdvancedPicture({ speed, onSpeed, view, onView, srcAspect, speedLocked = false }) {
   const win = cropWindow(view, srcAspect);
   const can = movable(win);
   const set = (change) => onView({ ...WHOLE, ...view, ...change });
@@ -15,7 +15,7 @@ export function AdvancedPicture({ speed, onSpeed, view, onView, srcAspect }) {
       <legend>Advanced picture</legend>
       <label>
         Speed{" "}
-        <select value={speed} aria-label="Clip speed" onChange={(e) => onSpeed(Number(e.target.value))}>
+        <select value={speed} aria-label="Clip speed" disabled={speedLocked} onChange={(e) => onSpeed(Number(e.target.value))}>
           {SPEEDS.map((s) => (
             <option key={s} value={s}>
               {speedText(s)}
@@ -62,6 +62,9 @@ export function AdvancedPicture({ speed, onSpeed, view, onView, srcAspect }) {
             onDoubleClick={() => set({ cy: 0.5 })}
           />
         </label>
+      )}
+      {speedLocked && (
+        <p className="hint tiny">A section with a song of its own plays at normal speed: take its song off to change it.</p>
       )}
       <p className="hint tiny">
         Speed plays the whole clip, sound included, faster or slower; the export is shorter or longer to match.

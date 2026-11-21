@@ -384,6 +384,8 @@ fn seq_clip(file: &Path, grade: Grade, layers: Vec<Layer>) -> ResolvedSequenceCl
         music: None,
         grade,
         transition: None,
+        speed: 1.0,
+        crop: None,
     }
 }
 
@@ -482,9 +484,175 @@ async fn a_bad_picture_look_on_a_sequence_clip_is_refused() {
         },
 
         transition: None,
+
+        speed: 1.0,
+
+        crop: None,
     };
     let err = export::validate_sequence(std::slice::from_ref(&spec)).unwrap_err();
     assert!(err.contains("fades"), "{err}");
     spec.grade = Grade::default();
     assert!(export::validate_sequence(&[spec]).is_ok());
+}
+
+async fn seq_render_many(
+    dir: &Path,
+    name: &str,
+    clips: &[ResolvedSequenceClip],
+    audio: bool,
+) -> PathBuf {
+    let out = dir.join(format!("{name}.mp4"));
+    export::run_sequence_export_with(
+        TOOLS,
+        export::JobSpec {
+            id: &format!("job-{name}"),
+            tmp_dir: dir,
+            out_path: &out,
+            source_title: None,
+        },
+        &seq_request(audio),
+        clips,
+        FONT,
+        &|_: &str| -> Option<LayerSource> { None },
+    )
+    .await
+    .unwrap_or_else(|e| panic!("{name}: {e:#}"));
+    out
+}
+
+#[tokio::test]
+async fn a_sequence_clip_can_play_faster_or_slower_with_its_sound() {
+    need_ffmpeg!();
+    let tmp = tempfile::tempdir().unwrap();
+    let src = sample(tmp.path()); // 4 s with sound
+    let at = |speed: f32| {
+        let mut c = seq_clip(&src, Grade::default(), vec![]);
+        c.speed = speed;
+        c
+    };
+    // 4 s at 2x is 2 s, then 4 s as it is
+    let out = seq_render_many(tmp.path(), "fastfirst", &[at(2.0), at(1.0)], true).await;
+    assert!((video_secs(&out) - 6.0).abs() < 0.4, "{}", video_secs(&out));
+    assert!((audio_secs(&out) - 6.0).abs() < 0.4, "{}", audio_secs(&out));
+    // 4 s at half speed is 8 s
+    let out = seq_render_many(tmp.path(), "slow", &[at(0.5)], true).await;
+    assert!((video_secs(&out) - 8.0).abs() < 0.5, "{}", video_secs(&out));
+    assert!((audio_secs(&out) - 8.0).abs() < 0.5, "{}", audio_secs(&out));
+    // a silent sequence too
+    let out = seq_render_many(tmp.path(), "quiet", &[at(4.0)], false).await;
+    assert!(
+        (video_secs(&out) - 1.0).abs() < 0.35,
+        "{}",
+        video_secs(&out)
+    );
+}
+
+#[tokio::test]
+async fn a_speed_changes_where_the_transition_into_the_next_clip_starts() {
+    need_ffmpeg!();
+    let tmp = tempfile::tempdir().unwrap();
+    let src = sample(tmp.path());
+    let mut first = seq_clip(&src, Grade::default(), vec![]);
+    first.speed = 2.0; // 2 s long
+    let mut second = seq_clip(&src, Grade::default(), vec![]);
+    second.transition = Some(export::Transition {
+        kind: export::TransitionKind::Fade,
+        ms: 1000,
+    });
+    // 2 s + 4 s, less the 1 s they share
+    let out = seq_render_many(tmp.path(), "sped-fade", &[first, second], true).await;
+    assert!((video_secs(&out) - 5.0).abs() < 0.4, "{}", video_secs(&out));
+    assert!((audio_secs(&out) - 5.0).abs() < 0.4, "{}", audio_secs(&out));
+}
+
+#[tokio::test]
+async fn a_sequence_clip_can_keep_a_window_of_its_picture() {
+    need_ffmpeg!();
+    let tmp = tempfile::tempdir().unwrap();
+    let src = sample(tmp.path()); // left red, right blue
+    let window = |x: f32| {
+        let mut c = seq_clip(&src, Grade::default(), vec![]);
+        c.crop = Some(Crop {
+            x,
+            y: 0.0,
+            w: 0.5,
+            h: 1.0,
+        });
+        c
+    };
+    let right = seq_render_many(tmp.path(), "seq-right", &[window(0.5)], false).await;
+    let left = seq_render_many(tmp.path(), "seq-left", &[window(0.0)], false).await;
+    let (r, l) = (mean_colour(&right), mean_colour(&left));
+    // the window is fitted into the 16:9 canvas, with black bars either side: blue or red still leads
+    assert!(r[2] > r[0] + 30, "the right half is blue: {r:?}");
+    assert!(l[0] > l[2] + 30, "the left half is red: {l:?}");
+    assert_eq!(size(&right).0, 320, "the canvas is as wide as the sequence");
+    // and with a layer and a speed together
+    let layer = Layer {
+        id: "l".into(),
+        kind: LayerKind::Shape {
+            shape: "dot".into(),
+            color: Some("#00ff00".into()),
+        },
+        start_ms: 0,
+        end_ms: None,
+        x: 0.5,
+        y: 0.5,
+        size: 0.3,
+        rotation: 0.0,
+        opacity: 1.0,
+        path: vec![],
+    };
+    let mut both = window(0.5);
+    both.layers = vec![layer];
+    both.speed = 2.0;
+    let out = seq_render_many(tmp.path(), "seq-both", &[both], true).await;
+    assert!((video_secs(&out) - 2.0).abs() < 0.4, "{}", video_secs(&out));
+    let c = mean_colour(&out);
+    assert!(c[1] > 40, "the green dot shows: {c:?}");
+}
+
+#[tokio::test]
+async fn a_bad_speed_or_crop_on_a_sequence_clip_is_refused() {
+    let spec = |speed: f32, crop: Option<Crop>, music: bool| export::SequenceClipSpec {
+        rating_key: "k".into(),
+        start_ms: 0,
+        end_ms: 2000,
+        caption: None,
+        subtitle_offset_ms: 0,
+        layers: vec![],
+        music: music.then(|| export::Soundtrack {
+            id: "s".into(),
+            start_ms: 0,
+            at_ms: 0,
+            volume: 1.0,
+            fade_in_ms: 0,
+            fade_out_ms: 0,
+            duck: 0.0,
+            curve: vec![],
+            pan: 0.0,
+            highpass_hz: 0.0,
+            lowpass_hz: 0.0,
+            eq: Default::default(),
+            file: None,
+        }),
+        grade: Grade::default(),
+        transition: None,
+        speed,
+        crop,
+    };
+    assert!(export::validate_sequence(&[spec(2.0, None, false)]).is_ok());
+    let err = export::validate_sequence(&[spec(9.0, None, false)]).unwrap_err();
+    assert!(err.contains("speed"), "{err}");
+    let bad = Crop {
+        x: 0.8,
+        y: 0.0,
+        w: 0.5,
+        h: 1.0,
+    };
+    assert!(export::validate_sequence(&[spec(1.0, Some(bad), false)]).is_err());
+    let err = export::validate_sequence(&[spec(2.0, None, true)]).unwrap_err();
+    assert!(err.contains("song of its own"), "{err}");
+    // a song is fine at normal speed
+    assert!(export::validate_sequence(&[spec(1.0, None, true)]).is_ok());
 }

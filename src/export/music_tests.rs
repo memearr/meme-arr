@@ -13,6 +13,7 @@ fn song() -> Soundtrack {
         pan: 0.0,
         highpass_hz: 0.0,
         lowpass_hz: 0.0,
+        eq: Default::default(),
         file: Some(PathBuf::from("/data/music/abc-123.mp3")),
     }
 }
@@ -712,4 +713,95 @@ fn a_mixdown_refuses_a_loudness_target_and_cuts_out_of_range() {
         true
     )
     .is_some());
+}
+
+#[test]
+fn an_equaliser_is_checked_and_written_as_filters() {
+    let flat = Equaliser::default();
+    assert!(flat.is_flat());
+    assert_eq!(eq_filters(&flat), "");
+    let eq = Equaliser {
+        low_db: 3.0,
+        mid_db: -2.5,
+        high_db: 6.0,
+    };
+    assert!(!eq.is_flat());
+    assert_eq!(
+        eq_filters(&eq),
+        ",bass=g=3.0:f=120:w=0.7,equalizer=f=1000:t=q:w=0.8:g=-2.5,treble=g=6.0:f=6000:w=0.7"
+    );
+    // a band that is left alone is left out
+    let only_mid = Equaliser {
+        mid_db: 4.0,
+        ..Default::default()
+    };
+    assert_eq!(eq_filters(&only_mid), ",equalizer=f=1000:t=q:w=0.8:g=4.0");
+    assert!(validate_eq(&eq, "x").is_none());
+    assert!(validate_eq(&Equaliser { low_db: 13.0, ..eq }, "x").is_some());
+    assert!(validate_eq(
+        &Equaliser {
+            high_db: -12.5,
+            ..eq
+        },
+        "x"
+    )
+    .is_some());
+    assert!(validate_eq(
+        &Equaliser {
+            mid_db: f32::NAN,
+            ..eq
+        },
+        "x"
+    )
+    .is_some());
+}
+
+#[test]
+fn the_mix_puts_each_equaliser_after_its_cuts_and_a_flat_one_adds_nothing() {
+    let mut m = song();
+    m.highpass_hz = 200.0;
+    m.eq = Equaliser {
+        high_db: -4.0,
+        ..Default::default()
+    };
+    let md = Mixdown {
+        clip_eq: Equaliser {
+            low_db: 5.0,
+            ..Default::default()
+        },
+        clip_highpass_hz: 100.0,
+        ..Default::default()
+    };
+    let g = plan_audio_mixed(Some(&m), 1.0, &[], &md, true, 5000, 1)
+        .unwrap()
+        .graph;
+    assert!(
+        g.contains("stereo,highpass=f=100,bass=g=5.0:f=120:w=0.7,volume=1.000"),
+        "{g}"
+    );
+    assert!(
+        g.contains("stereo,highpass=f=200,treble=g=-4.0:f=6000:w=0.7,volume="),
+        "{g}"
+    );
+    let flat = plan_audio_mixed(Some(&song()), 1.0, &[], &Mixdown::default(), true, 5000, 1)
+        .unwrap()
+        .graph;
+    assert!(
+        !flat.contains("bass") && !flat.contains("equalizer") && !flat.contains("treble"),
+        "{flat}"
+    );
+    // an equaliser on the clip makes the mix, and needs its sound kept
+    let only = Mixdown {
+        clip_eq: Equaliser {
+            mid_db: 3.0,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    assert!(!only.is_plain());
+    assert!(plan_audio_mixed(None, 1.0, &[], &only, true, 5000, 1).is_some());
+    assert!(validate_mixdown(&only, false)
+        .unwrap()
+        .contains("sound is kept"));
+    assert!(validate_mixdown(&only, true).is_none());
 }

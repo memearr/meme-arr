@@ -116,13 +116,14 @@ describe("the numbers of the advanced sound", () => {
   });
 
   it("sends the settings only with Advanced on and the sound kept", () => {
-    const sound = { clipHigh: 120, clipLow: 8000, normalize: -16 };
+    const sound = { clipHigh: 120, clipLow: 8000, normalize: -16, clipEq: { low_db: 3, mid_db: 0, high_db: -2 } };
     expect(soundForMixdown(sound, { advanced: true, audio: true })).toEqual({
       clip_highpass_hz: 120,
       clip_lowpass_hz: 8000,
       normalize_lufs: -16,
+      clip_eq: { low_db: 3, mid_db: 0, high_db: -2 },
     });
-    const none = { clip_highpass_hz: 0, clip_lowpass_hz: 0, normalize_lufs: null };
+    const none = { clip_highpass_hz: 0, clip_lowpass_hz: 0, normalize_lufs: null, clip_eq: { low_db: 0, mid_db: 0, high_db: 0 } };
     expect(soundForMixdown(sound, { advanced: false, audio: true })).toEqual(none);
     expect(soundForMixdown(sound, { advanced: true, audio: false })).toEqual(none);
     expect(soundForMixdown(PLAIN_SOUND, { advanced: true, audio: true })).toEqual(none);

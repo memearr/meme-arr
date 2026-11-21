@@ -7,6 +7,7 @@ import { clipVolumeForRequest, musicForRequest } from "./musicModel.js";
 import { useAdvanced } from "./advanced.js";
 import { transitionLimit, transitionsForRequest } from "./transitionModel.js";
 import { gradeForRequest } from "./gradeModel.js";
+import { sectionSpeed } from "./advancedPicture.js";
 import { songCuts } from "./advancedAudio.js";
 import { SectionEditor } from "./SectionEditor.jsx";
 import { SequenceBulkEdit } from "./SequenceBulkEdit.jsx";
@@ -185,6 +186,8 @@ export function SequenceView({ sequence, setSequence, onJob }) {
           music: musicForRequest(songCuts(c.music, advanced), c.end_ms - c.start_ms, audio),
           grade: advanced ? gradeForRequest(c.grade, c.end_ms - c.start_ms) : undefined,
           transition: transitions[i],
+          speed: advanced && sectionSpeed(c) !== 1 ? sectionSpeed(c) : undefined,
+          crop: advanced ? c.crop || undefined : undefined,
         })),
         format,
         width,

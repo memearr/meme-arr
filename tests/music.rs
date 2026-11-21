@@ -64,6 +64,7 @@ fn music(file: &Path) -> Soundtrack {
         pan: 0.0,
         highpass_hz: 0.0,
         lowpass_hz: 0.0,
+        eq: Default::default(),
         file: Some(file.to_path_buf()),
     }
 }
@@ -419,6 +420,8 @@ fn seq_clip(file: PathBuf, secs: i64) -> export::ResolvedSequenceClip {
         music: None,
         grade: Default::default(),
         transition: None,
+        speed: 1.0,
+        crop: None,
     }
 }
 
@@ -1213,4 +1216,73 @@ async fn normalising_brings_a_quiet_and_a_loud_clip_to_the_same_loudness() {
         untouched < quiet - 6.0,
         "off stays quiet: {untouched} vs {quiet}"
     );
+}
+
+#[tokio::test]
+async fn the_equaliser_turns_a_band_up_or_down_on_the_clip_and_the_song() {
+    need_ffmpeg!();
+    let tmp = tempfile::tempdir().unwrap();
+    let src = clip(tmp.path(), true); // a 440 Hz tone
+                                      // a flat mix (the master a hair under 1 only to send the sound through the mix graph), so the
+                                      // comparison is of the equaliser alone and not of the mix against the untouched clip
+    let mut flat_req = request(Format::Mp4, true, None, 1.0);
+    flat_req.mixdown = export::Mixdown {
+        master: 0.9999,
+        ..Default::default()
+    };
+    let plain = render(tmp.path(), &src, "eq-plain", flat_req).await;
+    let with = |name: &'static str, eq: export::Equaliser| {
+        let mut req = request(Format::Mp4, true, None, 1.0);
+        req.mixdown = export::Mixdown {
+            clip_eq: eq,
+            ..Default::default()
+        };
+        (name, req)
+    };
+    let band = |low, mid, high| export::Equaliser {
+        low_db: low,
+        mid_db: mid,
+        high_db: high,
+    };
+    let (n, r) = with("eq-mid-down", band(0.0, -9.0, 0.0));
+    let down = render(tmp.path(), &src, n, r).await;
+    let (n, r) = with("eq-mid-up", band(0.0, 6.0, 0.0));
+    let up = render(tmp.path(), &src, n, r).await;
+    // the 440 Hz tone is in the middle band: taken down it is quieter, up it is louder
+    let base = level(&plain, 0.5, 2.0);
+    assert!(
+        base - level(&down, 0.5, 2.0) > 2.0,
+        "{base} vs {}",
+        level(&down, 0.5, 2.0)
+    );
+    assert!(
+        level(&up, 0.5, 2.0) - base > 1.5,
+        "{base} vs {}",
+        level(&up, 0.5, 2.0)
+    );
+    // the high shelf is far above 440 Hz: it leaves the tone alone
+    let (n, r) = with("eq-high", band(0.0, 0.0, -12.0));
+    let high = render(tmp.path(), &src, n, r).await;
+    assert!((base - level(&high, 0.5, 2.0)).abs() < 1.0);
+
+    // the song's own: an 880 Hz song, with its high shelf down 12 dB (880 Hz is a little under it, but
+    // its bass shelf at 120 Hz is far from it, so use the bell around 1 kHz instead)
+    let song = song_file(tmp.path());
+    let mut m = music(&song);
+    let open = render(
+        tmp.path(),
+        &src,
+        "song-eq-open",
+        request(Format::Mp4, false, Some(m.clone()), 1.0),
+    )
+    .await;
+    m.eq = band(0.0, -12.0, 0.0);
+    let cut = render(
+        tmp.path(),
+        &src,
+        "song-eq-cut",
+        request(Format::Mp4, false, Some(m), 1.0),
+    )
+    .await;
+    assert!(level(&open, 0.5, 2.0) - level(&cut, 0.5, 2.0) > 3.0);
 }

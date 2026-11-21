@@ -1112,3 +1112,15 @@
   display: block;
   margin-top: 4px;
 }
+.loudness-readout {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 16px;
+  margin-top: 4px;
+  font-size: 0.8em;
+}
+.loudness-readout b {
+  font-variant-numeric: tabular-nums;
+}

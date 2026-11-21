@@ -2,9 +2,13 @@ import { useState } from "react";
 import { api } from "./api.js";
 import {
   DEFAULT_TARGET,
+  FLAT_EQ,
   HIGH_RANGE,
   LOW_RANGE,
+  MAX_EQ_DB,
   TARGETS,
+  adjustEq,
+  dbBandText,
   hzText,
   hzToStep,
   loudnessText,
@@ -30,6 +34,38 @@ function Cut({ label, hz, range, onChange }) {
         onDoubleClick={() => onChange(0)}
       />
     </label>
+  );
+}
+
+/** The three bands of an equaliser: bass, middle and treble, each from -12 to +12 dB (double-click for 0). */
+function Bands({ name, eq, onChange }) {
+  const e = adjustEq(eq);
+  const bands = [
+    ["Bass", "low_db", "below 120 Hz"],
+    ["Middle", "mid_db", "around 1 kHz"],
+    ["Treble", "high_db", "above 6 kHz"],
+  ];
+  return (
+    <>
+      {bands.map(([label, key, where]) => (
+        <label key={key} className="adv-cut" title={`${name} ${label.toLowerCase()}: ${where}`}>
+          <span>
+            {name} {label.toLowerCase()} <b>{dbBandText(e[key])}</b>
+          </span>
+          <input
+            type="range"
+            min={-MAX_EQ_DB}
+            max={MAX_EQ_DB}
+            step={0.5}
+            value={e[key]}
+            aria-label={`${name} ${label.toLowerCase()}`}
+            aria-valuetext={dbBandText(e[key])}
+            onChange={(ev) => onChange(adjustEq(e, { [key]: Number(ev.target.value) }))}
+            onDoubleClick={() => onChange(adjustEq(e, { [key]: 0 }))}
+          />
+        </label>
+      ))}
+    </>
   );
 }
 
@@ -66,6 +102,7 @@ export function AdvancedAudio({ ratingKey, start, end, sound, onSound, music, on
           <b>Clip sound</b>
           <Cut label="Clip high-pass" hz={sound.clipHigh} range={HIGH_RANGE} onChange={(v) => onSound({ clipHigh: v })} />
           <Cut label="Clip low-pass" hz={sound.clipLow} range={LOW_RANGE} onChange={(v) => onSound({ clipLow: v })} />
+          <Bands name="Clip" eq={sound.clipEq ?? FLAT_EQ} onChange={(clipEq) => onSound({ clipEq })} />
         </div>
       )}
       {music && (
@@ -73,6 +110,7 @@ export function AdvancedAudio({ ratingKey, start, end, sound, onSound, music, on
           <b>Song</b>
           <Cut label="Song high-pass" hz={music.highpass_hz || 0} range={HIGH_RANGE} onChange={(v) => onMusic({ highpass_hz: v })} />
           <Cut label="Song low-pass" hz={music.lowpass_hz || 0} range={LOW_RANGE} onChange={(v) => onMusic({ lowpass_hz: v })} />
+          <Bands name="Song" eq={music.eq ?? FLAT_EQ} onChange={(eq) => onMusic({ eq })} />
         </div>
       )}
       {clipSound && (
@@ -111,7 +149,8 @@ export function AdvancedAudio({ ratingKey, start, end, sound, onSound, music, on
         </div>
       )}
       <p className="hint tiny">
-        A high-pass cuts the low end, a low-pass the top (double-click a slider for off). Normalising brings the
+        A high-pass cuts the low end, a low-pass the top (double-click a slider for off). The bass, middle and treble
+        sliders turn a band up or down by up to 12 dB (double-click for 0). Normalising brings the
         whole mix to the target loudness before the master and the limiter. The player doesn't play these; the
         export has them.
       </p>

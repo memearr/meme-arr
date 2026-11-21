@@ -443,12 +443,15 @@ Request (`ExportRequest`):
   the clip's own sound (needs `audio: true`) and multiplies `clip_volume`. A sequence clip's `music` takes a
   `curve` in the clip's own time; the sequence's own `clip_curve` is not accepted. `pan` (default 0, -1 left
   to 1 right), inside `music`, places the song between the speakers. `mixdown` (default none) is
-  `{"clip_pan": 0, "master": 1, "normalize_lufs": null, "clip_highpass_hz": 0, "clip_lowpass_hz": 0}`: `clip_pan`
+  `{"clip_pan": 0, "master": 1, "normalize_lufs": null, "clip_highpass_hz": 0, "clip_lowpass_hz": 0, "clip_eq":
+  {"low_db": 0, "mid_db": 0, "high_db": 0}}`: `clip_pan`
   places the clip's own sound the same way (needs `audio: true`), `master` (0 to 2) scales the whole mix just
   before the limiter, `normalize_lufs` (-30 to -6, or `null`) first brings the mix to that loudness, and the
   clip's cuts take sound below `clip_highpass_hz` (20 to 2000) or above `clip_lowpass_hz` (1000 to 20000) out of
-  the clip's own sound (0 is off, both need `audio: true`, and the high-pass must be below the low-pass). `music`
-  takes `highpass_hz` and `lowpass_hz` the same way. A pan is the Web Audio stereo panner's law: the
+  the clip's own sound (0 is off, both need `audio: true`, and the high-pass must be below the low-pass). `clip_eq`
+  is a three-band equaliser on the clip's own sound: a low shelf below 120 Hz, a bell around 1 kHz and a high shelf
+  above 6 kHz, each -12 to 12 dB (0 leaves it alone; needs `audio: true`). `music` takes `highpass_hz`,
+  `lowpass_hz` and `eq` the same way. A pan is the Web Audio stereo panner's law: the
   sound moves toward a side and the other side folds into it, never louder; mono sound is spread to both sides
   first. All three are `400` outside their range.
 - `quality` drives libwebp's `-q:v` and x264/VP9 CRF for webp/mp4/webm, and
@@ -506,8 +509,12 @@ clip with none is a cut). `kind` is `fade`, `dissolve`, `fade_black`, `fade_whit
 `radial` or `pixelize`, and `ms` is 100 to 3000. The two clips overlap for `ms`, so the sequence is that much
 shorter, their sound is cross-faded over it, and a clip's own song starts where its clip does in the joined
 sequence. The first clip can't have one, and a clip must be at least as long as the transition into it plus the
-one out of it (`400` naming the clip otherwise). A sequence with no transitions is joined as before. Each clip
-may also carry a `grade`, as on `POST /api/export`.
+one out of it, counted at the speeds the clips play at (`400` naming the clip otherwise). A sequence with no
+transitions is joined as before. Each clip may also carry a `grade`, as on `POST /api/export`, a `speed` (0.25 to 4,
+default 1) and a `crop` window of its source picture (`{"x", "y", "w", "h"}` as fractions, as on that request). The
+window is cut first and the rest is fitted into the canvas; the speed is applied last, to the picture and the clip's
+sound, so the clip lasts that much shorter or longer and transitions and the total follow it. A clip that has a song
+of its own can't change speed (`400` naming the clip).
 
 A clip may also carry its own song, `"music": {...}` as on `POST /api/export`, with its times from the start of
 that clip: it comes in at `at_ms` into the clip, is cut where the clip ends, and plays along with the sequence's

@@ -212,6 +212,14 @@ pub struct ExportRequest {
     pub crop: Option<Crop>,
 }
 
+/// How long a `len_ms` stretch lasts when it is played at `speed` times.
+pub fn played_ms(len_ms: i64, speed: f32) -> i64 {
+    if is_normal_speed(speed) || !speed.is_finite() || speed <= 0.0 {
+        return len_ms;
+    }
+    (len_ms as f64 / speed as f64).round() as i64
+}
+
 pub(super) fn volume_one() -> f32 {
     1.0
 }
@@ -266,6 +274,14 @@ pub struct SequenceClipSpec {
     /// the first clip.
     #[serde(default)]
     pub transition: Option<Transition>,
+    /// How fast this clip plays, 0.25 to 4 times (see `reframe`); its sound goes with it. A clip
+    /// with a song of its own can't change speed.
+    #[serde(default = "volume_one")]
+    pub speed: f32,
+    /// The window of this clip's picture to keep (see [`Crop`]), as fractions of the source picture;
+    /// what is kept is then fitted into the sequence's canvas.
+    #[serde(default)]
+    pub crop: Option<Crop>,
 }
 
 /// Export several clips — possibly from different source files — back to
@@ -386,6 +402,15 @@ pub fn validate_sequence(clips: &[SequenceClipSpec]) -> std::result::Result<(), 
         if let Some(why) = validate_grade(&c.grade, len) {
             return Err(format!("clip {} (#{i}): {why}", c.rating_key));
         }
+        if let Some(why) = validate_speed(c.speed).or_else(|| validate_crop(c.crop.as_ref())) {
+            return Err(format!("clip {} (#{i}): {why}", c.rating_key));
+        }
+        if c.music.is_some() && !is_normal_speed(c.speed) {
+            return Err(format!(
+                "clip {} (#{i}): a clip with a song of its own can't change speed",
+                c.rating_key
+            ));
+        }
         if len > MAX_CLIP_MS {
             return Err(format!(
                 "clip {} (#{i}) is longer than the {}s per-clip limit",
@@ -393,11 +418,11 @@ pub fn validate_sequence(clips: &[SequenceClipSpec]) -> std::result::Result<(), 
                 MAX_CLIP_MS / 1000
             ));
         }
-        total += len;
+        total += played_ms(len, c.speed);
     }
     let lens: Vec<(Option<Transition>, i64)> = clips
         .iter()
-        .map(|c| (c.transition, c.end_ms - c.start_ms))
+        .map(|c| (c.transition, played_ms(c.end_ms - c.start_ms, c.speed)))
         .collect();
     if let Some(why) = validate_transitions(&lens) {
         return Err(why);
