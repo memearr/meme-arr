@@ -106,6 +106,14 @@ def sidebar() -> str:
     return "\n".join(lines)
 
 
+def _inside(base: Path, name: str) -> Path:
+    """`base / name`, refusing anything that resolves outside `base` (the wiki clone given on the command line)."""
+    target = (base / name).resolve()
+    if not target.is_relative_to(base):
+        raise ValueError(f"{name} would be written outside {base}")
+    return target
+
+
 def sync(repo_root: Path, wiki_dir: Path) -> list[str]:
     """Write all pages into `wiki_dir`; returns the files written."""
     written = []
@@ -115,17 +123,17 @@ def sync(repo_root: Path, wiki_dir: Path) -> list[str]:
         if not source.is_relative_to(repo_root):
             raise ValueError(f"page outside the repository: {src}")
         text = source.read_text(encoding="utf-8")
-        (wiki_dir / f"{name}.md").write_text(page_text(text, src), encoding="utf-8", newline="\n")
+        _inside(wiki_dir, f"{name}.md").write_text(page_text(text, src), encoding="utf-8", newline="\n")
         written.append(f"{name}.md")
-    (wiki_dir / "_Sidebar.md").write_text(sidebar(), encoding="utf-8", newline="\n")
+    _inside(wiki_dir, "_Sidebar.md").write_text(sidebar(), encoding="utf-8", newline="\n")
     written.append("_Sidebar.md")
     src_images = repo_root / IMAGES_DIR
     if src_images.is_dir():
-        out = wiki_dir / "images"
+        out = _inside(wiki_dir, "images")
         out.mkdir(exist_ok=True)
         for img in sorted(src_images.iterdir()):
             if img.is_file() and img.suffix.lower() in IMAGE_SUFFIXES:
-                (out / img.name).write_bytes(img.read_bytes())
+                _inside(out, img.name).write_bytes(img.read_bytes())
                 written.append(f"images/{img.name}")
     return written
 
