@@ -21,7 +21,7 @@ jobs:
       # Run under coverage.py so the "sonar" job can report coverage of the scripts.
       - name: Test the scripts
         run: |
-          python3 -m pip install coverage
+          python3 -m pip install --only-binary :all: coverage==7.17.4
           python3 -m coverage run -m unittest discover -s scripts -v
           python3 -m coverage xml -o coverage.xml
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
