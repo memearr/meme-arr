@@ -36,7 +36,7 @@ export function ConnectionFields({ server, setServer, url, setUrl, secret, setSe
         <label>{meta.secretLabel}</label>
         <input
           type="password"
-          placeholder={secretSet ? "•••••••• (saved — leave blank to keep)" : meta.secretHint}
+          placeholder={secretSet ? "•••••••• (saved — leave blank to keep)" : meta.credentialHint}
           value={secret}
           onChange={(e) => setSecret(e.target.value)}
         />

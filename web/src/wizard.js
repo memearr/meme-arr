@@ -63,14 +63,14 @@ export const SERVERS = {
     label: "Plex",
     urlPlaceholder: PLEX_URL_EXAMPLE,
     secretLabel: "Token",
-    secretHint: "X-Plex-Token",
+    credentialHint: "X-Plex-Token",
     help: "The token is in Plex → any item → Get Info → View XML → the X-Plex-Token in the URL.",
   },
   jellyfin: {
     label: "Jellyfin",
     urlPlaceholder: JELLYFIN_URL_EXAMPLE,
     secretLabel: "API key",
-    secretHint: "Jellyfin API key",
+    credentialHint: "Jellyfin API key",
     help: "Create an API key in Jellyfin → Dashboard → Advanced → API Keys.",
   },
 };
