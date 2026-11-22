@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "./api.js";
+import { NAVIDROME_URL_EXAMPLE } from "./exampleUrls.js";
 
 /** Settings -> Navidrome: where it is and the account to use for the music under a clip. */
 export function NavidromeSettingsPanel() {
@@ -72,7 +73,7 @@ export function NavidromeSettingsPanel() {
       </p>
       <div className="field">
         <label htmlFor="navidrome-url">Navidrome address</label>
-        <input id="navidrome-url" placeholder="http://navidrome:4533" value={url} onChange={(e) => setUrl(e.target.value)} />
+        <input id="navidrome-url" placeholder={NAVIDROME_URL_EXAMPLE} value={url} onChange={(e) => setUrl(e.target.value)} />
       </div>
       <div className="field">
         <label htmlFor="navidrome-user">User name</label>

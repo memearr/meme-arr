@@ -22,7 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libfreetype-dev libfontconfig-dev libfribidi-dev libharfbuzz-dev \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
-RUN curl -fsSLO "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz" \
+RUN curl --proto '=https' --tlsv1.2 -fsSLO "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz" \
  && echo "${FFMPEG_SHA256}  ffmpeg-${FFMPEG_VERSION}.tar.xz" | sha256sum -c - \
  && tar xf "ffmpeg-${FFMPEG_VERSION}.tar.xz"
 WORKDIR /src/ffmpeg-${FFMPEG_VERSION}
@@ -75,4 +75,6 @@ RUN set -eux; \
 
 # What gets published: just the files, for `COPY --from=`.
 FROM scratch AS artifact
+# Never run: it only carries files for `COPY --from=`. A non-root user costs nothing here.
+USER 65532:65532
 COPY --from=build /opt/ffmpeg /opt/ffmpeg

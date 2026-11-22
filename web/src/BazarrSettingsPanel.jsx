@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api.js";
 import CopyButton from "./CopyButton.jsx";
+import { BAZARR_URL_EXAMPLE } from "./exampleUrls.js";
 import { hookUrl, refreshBazarr } from "./bazarr.js";
 
 /** Settings -> Bazarr: where it is, the key, and the address it should call back. */
@@ -111,7 +112,7 @@ export function BazarrSettingsPanel() {
       <div className="field">
         <label htmlFor="bazarr-url">Bazarr address</label>
         <input id="bazarr-url"
-          placeholder="http://bazarr:6767"
+          placeholder={BAZARR_URL_EXAMPLE}
           value={url}
           onChange={(e) => setUrl(e.target.value)}
         />

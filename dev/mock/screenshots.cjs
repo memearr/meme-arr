@@ -120,7 +120,7 @@ async function main() {
   await demoPolish(ctx);
   const page = await ctx.newPage();
   // what the pictures should say instead of this machine's paths and loopback address
-  const pairs = [[abs, "/media"], [abs.replace(/\//g, "\\"), "/media"], [`http://127.0.0.1:${MOCK_PORT}`, "http://192.168.1.10:32400"], [`http://127.0.0.1:${APP_PORT}`, "http://192.168.1.20:8089"]];
+  const pairs = [[abs, "/media"], [abs.replace(/\//g, "\\"), "/media"], [`http://127.0.0.1:${MOCK_PORT}`, "http://192.168.1.10:32400"], [`http://127.0.0.1:${APP_PORT}`, "http://192.168.1.20:8089"]]; // NOSONAR: loopback addresses of the dev mocks, swapped for LAN examples in the pictures
   const shot = async (name, opts = {}) => {
     await page.waitForTimeout(500);
     await scrubPaths(page, pairs);
