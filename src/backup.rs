@@ -166,13 +166,21 @@ fn prune(dir: &Path, keep: usize) {
     }
 }
 
+/// Refuses an upload larger than `MAX_BYTES`; otherwise hands the same bytes back.
+/// This is the validation step before decoding, and CodeQL is told so by the model in
+/// `.github/codeql/extensions` (a barrier on this function's result).
+pub fn within_size_limit(bytes: &[u8]) -> Result<&[u8]> {
+    if bytes.len() > MAX_BYTES {
+        bail!("backup file is too large");
+    }
+    Ok(bytes)
+}
+
 /// Decode and check an uploaded backup. The upload is untrusted: its size is
 /// capped before any decoding, and every list and string is bounded after, so
 /// nothing reaches the database unchecked.
 pub fn parse(bytes: &[u8]) -> Result<BackupFile> {
-    if bytes.len() > MAX_BYTES {
-        bail!("backup file is too large");
-    }
+    let bytes = within_size_limit(bytes)?;
     let file: BackupFile = serde_json::from_slice(bytes).context("not a valid backup file")?;
     if file.version != FORMAT_VERSION {
         bail!(
