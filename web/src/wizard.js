@@ -1,4 +1,5 @@
 // Pure helpers for the first-run setup wizard.
+import { JELLYFIN_URL_EXAMPLE, PLEX_URL_EXAMPLE } from "./exampleUrls.js";
 
 /** The last folder name of a Plex location; a bare Windows drive ("D:\") -> "d". */
 export function locationLabel(location) {
@@ -60,14 +61,14 @@ export function mappingsToSave(rows) {
 export const SERVERS = {
   plex: {
     label: "Plex",
-    urlPlaceholder: "http://192.168.1.10:32400",
+    urlPlaceholder: PLEX_URL_EXAMPLE,
     secretLabel: "Token",
     secretHint: "X-Plex-Token",
     help: "The token is in Plex → any item → Get Info → View XML → the X-Plex-Token in the URL.",
   },
   jellyfin: {
     label: "Jellyfin",
-    urlPlaceholder: "http://192.168.1.10:8096",
+    urlPlaceholder: JELLYFIN_URL_EXAMPLE,
     secretLabel: "API key",
     secretHint: "Jellyfin API key",
     help: "Create an API key in Jellyfin → Dashboard → Advanced → API Keys.",

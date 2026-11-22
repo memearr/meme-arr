@@ -27,6 +27,8 @@ RUN touch src/main.rs && cargo build --release --locked
 
 # ---- 3. Runtime ----------------------------------------------------------
 FROM debian:trixie-slim AS runtime
+# This stage starts as root on purpose: docker-entrypoint.sh hands /data and /output to PUID:PGID, then drops
+# privileges with setpriv before the app starts (the LinuxServer.io convention). A USER line here would stop that.
 # ffmpeg is copied in below, not installed: it brings its own codec libraries and
 # only needs glibc from here. fontconfig and a font are what drawtext/libass use.
 RUN apt-get update \

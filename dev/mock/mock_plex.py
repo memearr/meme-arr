@@ -163,7 +163,7 @@ def main():
         item["file"] = manifest[rk]["file"]
         item["duration_ms"] = manifest[rk]["duration_ms"]
     srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
-    print(f"mock Plex {VERSION} on http://127.0.0.1:{args.port} ({len(ITEMS)} items)", flush=True)
+    print(f"mock Plex {VERSION} on http://127.0.0.1:{args.port} ({len(ITEMS)} items)", flush=True)  # NOSONAR: a dev mock bound to loopback
     srv.serve_forever()
 
 
