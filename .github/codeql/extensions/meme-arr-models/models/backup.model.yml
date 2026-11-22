@@ -1,0 +1,10 @@
+# Tells CodeQL's Rust analysis that `backup::within_size_limit` validates an uploaded
+# backup before it is decoded: it rejects anything over the size cap and returns the
+# same bytes otherwise, so its result is not treated as unvalidated user data.
+extensions:
+  - addsTo:
+      pack: codeql/rust-all
+      extensible: barrierModel
+    data:
+      - ["meme_arr::backup::within_size_limit", "ReturnValue", "unsafe-deserialization", "manual"]
+      - ["meme-arr::backup::within_size_limit", "ReturnValue", "unsafe-deserialization", "manual"]
