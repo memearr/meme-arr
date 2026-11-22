@@ -121,6 +121,19 @@ class RepoTests(unittest.TestCase):
             self.assertNotIn("](ARCHITECTURE.md)", home)
 
 
+    def test_the_wiki_clone_must_sit_beside_the_repository(self):
+        with tempfile.TemporaryDirectory() as d:
+            repo = Path(d).resolve() / "meme-arr"
+            wiki = Path(d).resolve() / "meme-arr.wiki"
+            elsewhere = tempfile.TemporaryDirectory()
+            self.addCleanup(elsewhere.cleanup)
+            for p in (repo, wiki / ".git", Path(elsewhere.name) / ".git"):
+                p.mkdir(parents=True)
+            self.assertEqual(w.wiki_clone(repo, str(wiki)), wiki)
+            self.assertIsNone(w.wiki_clone(repo, elsewhere.name), "outside the repository's parent folder")
+            self.assertIsNone(w.wiki_clone(repo, str(repo)), "not a git clone")
+            self.assertIsNone(w.wiki_clone(repo, str(wiki / ".." / ".." / "x")))
+
     def test_nothing_is_written_outside_the_wiki_clone(self):
         with tempfile.TemporaryDirectory() as d:
             base = Path(d).resolve()

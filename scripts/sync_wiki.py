@@ -3,6 +3,9 @@
 
     python scripts/sync_wiki.py <path-to-a-clone-of-the-wiki-repo>
 
+The clone has to sit beside the repository folder or under it (conventionally
+`../<repo>.wiki`); other locations are refused.
+
 Each doc becomes one wiki page; relative links between docs are rewritten to
 wiki page links, and links to other repo files (source, dashboards, ...) become
 absolute GitHub URLs. The script only touches the pages it owns, so it is safe
@@ -140,15 +143,30 @@ def sync(repo_root: Path, wiki_dir: Path) -> list[str]:
     return written
 
 
+def wiki_clone(repo_root: Path, arg: str) -> Path | None:
+    """The wiki clone named on the command line, or None unless it is an existing git clone
+    that lives next to (or under) the repository's own folder, e.g. ../meme-arr.wiki."""
+    base = os.path.realpath(repo_root.parent)
+    target = os.path.realpath(arg)
+    if not target.startswith(base + os.sep):
+        return None
+    if not os.path.isdir(os.path.join(target, ".git")):
+        return None
+    return Path(target)
+
+
 def main(argv: list[str]) -> int:
     if len(argv) != 2:
         print(__doc__)
         return 2
-    wiki_dir = Path(argv[1]).resolve()
-    if not wiki_dir.is_dir() or not (wiki_dir / ".git").exists():
-        print(f"{wiki_dir} is not a git clone of the wiki repository", file=sys.stderr)
-        return 1
     root = Path(__file__).resolve().parent.parent
+    wiki_dir = wiki_clone(root, argv[1])
+    if wiki_dir is None:
+        print(
+            f"{argv[1]} must be a git clone of the wiki repository inside {root.parent} (e.g. ../{root.name}.wiki)",
+            file=sys.stderr,
+        )
+        return 1
     for f in sync(root, wiki_dir):
         print("wrote", f)
     return 0
