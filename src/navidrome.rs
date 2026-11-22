@@ -42,7 +42,9 @@ pub struct Client {
 
 /// `md5(password + salt)` as lowercase hex: the Subsonic `t` parameter.
 pub fn token(password: &str, salt: &str) -> String {
-    let mut h = Md5::new();
+    // MD5 is what the Subsonic token scheme specifies (`t = md5(password + salt)`); the server checks it,
+    // so it can't be swapped for a stronger hash. It is not used to store or protect anything here.
+    let mut h = Md5::new(); // NOSONAR
     h.update(password.as_bytes());
     h.update(salt.as_bytes());
     h.finalize().iter().map(|b| format!("{b:02x}")).collect()
