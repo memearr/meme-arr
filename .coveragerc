@@ -1,0 +1,7 @@
+# coverage.py settings for the Python dev scripts (run by the docs job in CI).
+# relative_files and include (instead of source) make coverage.xml name files as
+# scripts/<name>.py, relative to the repository root, which is what SonarCloud matches.
+[run]
+relative_files = True
+include = scripts/*
+omit = scripts/test_*.py
