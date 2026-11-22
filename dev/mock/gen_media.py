@@ -19,6 +19,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import catalog  # noqa: E402
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
 # One gradient per show/library so thumbnails and previews look different.
 COLOURS = {
     "The Lantern Cove": ("0x1f6f8b", "0xf2c14e"),
@@ -43,8 +45,15 @@ def relative_path(item):
     return Path(item["library"]) / show / f'Season {item["season"]:02d}' / name
 
 
+def inside(path, base):
+    """`path` (resolved) must be `base` or live under it."""
+    return path.resolve().is_relative_to(base.resolve())
+
+
 def make_video(path, colours):
     c0, c1 = colours
+    # Always an absolute path, so ffmpeg can never read it as an option.
+    path = path.resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
     cmd = [
         "ffmpeg", "-v", "error", "-y",
@@ -60,7 +69,9 @@ def main():
     ap.add_argument("--out", default="dev/mock/media")
     ap.add_argument("--clean", action="store_true", help="delete the output folder first")
     args = ap.parse_args()
-    out = Path(args.out)
+    out = Path(args.out).resolve()
+    if not inside(out, REPO_ROOT):
+        sys.exit(f"--out must be inside the repository ({REPO_ROOT})")
     if args.clean and out.exists():
         shutil.rmtree(out)
     if not shutil.which("ffmpeg"):
@@ -69,6 +80,8 @@ def main():
     for item in catalog.items():
         rel = relative_path(item)
         video = out / rel
+        if not inside(video, out):
+            sys.exit(f"refusing to write outside {out}: {rel}")
         if not video.exists():
             make_video(video, COLOURS.get(item["show"] or "Movies", COLOURS["Movies"]))
         srt = video.with_suffix(".srt")
