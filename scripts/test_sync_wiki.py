@@ -121,6 +121,13 @@ class RepoTests(unittest.TestCase):
             self.assertNotIn("](ARCHITECTURE.md)", home)
 
 
+    def test_nothing_is_written_outside_the_wiki_clone(self):
+        with tempfile.TemporaryDirectory() as d:
+            base = Path(d).resolve()
+            self.assertEqual(w._inside(base, "Home.md"), base / "Home.md")
+            with self.assertRaises(ValueError):
+                w._inside(base, "../escaped.md")
+
     def test_files_without_an_extension_link_as_blob_and_folders_as_tree(self):
         # LICENSE is a file in the repository root; examples/ and grafana/ are folders.
         self.assertEqual(w.rewrite_target("../LICENSE", "docs/README.md"), f"{w.REPO_URL}/blob/main/LICENSE")

@@ -10,7 +10,7 @@
 
 use crate::music::sniff;
 use crate::navidrome::Track;
-use md5::{Digest, Md5};
+use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
@@ -93,9 +93,9 @@ fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
-/// `md5(data)` as hex, cut to `n` characters.
+/// `sha256(data)` as hex, cut to `n` characters (an id, not a secret).
 fn short_hash(data: &[u8], n: usize) -> String {
-    let mut h = Md5::new();
+    let mut h = Sha256::new();
     h.update(data);
     let mut s = hex(&h.finalize());
     s.truncate(n);
