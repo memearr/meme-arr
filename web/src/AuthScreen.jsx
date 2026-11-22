@@ -2,6 +2,7 @@ import { BrandMark } from "./BrandMark.jsx";
 import { api } from "./api.js";
 import { useState } from "react";
 import { withBase } from "./base.js";
+import { focusOnMount } from "./focusOnMount.js";
 
 export function AuthScreen({ mode, onDone, authentikAvailable, plexLoginAvailable }) {
   const [password, setPassword] = useState("");
@@ -47,7 +48,7 @@ export function AuthScreen({ mode, onDone, authentikAvailable, plexLoginAvailabl
           Password
           <input
             type="password"
-            autoFocus
+            ref={focusOnMount}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             minLength={8}
