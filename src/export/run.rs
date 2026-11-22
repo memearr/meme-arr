@@ -610,7 +610,7 @@ pub async fn run_sequence_export_with(
     let blended = has_transitions(&transitions);
     let list_path = tmp_dir.join(format!("{job_id}-list.txt"));
     if !blended {
-        if let Err(e) = std::fs::write(&list_path, concat_list(&parts)) {
+        if let Err(e) = tokio::fs::write(&list_path, concat_list(&parts)).await {
             cleanup_paths(&parts);
             return Err(e.into());
         }
@@ -660,11 +660,11 @@ pub async fn run_sequence_export_with(
     }
     if let Err(e) = ffmpeg::run(tools.ffmpeg, &concat_args).await {
         cleanup_paths(&parts);
-        let _ = std::fs::remove_file(&list_path);
+        let _ = tokio::fs::remove_file(&list_path).await;
         return Err(e);
     }
     cleanup_paths(&parts);
-    let _ = std::fs::remove_file(&list_path);
+    let _ = tokio::fs::remove_file(&list_path).await;
 
     // Phase 3: encode the concatenated video to the requested format. The
     // concatenated file is already exactly `canvas` sized, so core_chain's
@@ -710,7 +710,7 @@ pub async fn run_sequence_export_with(
         if let Some(why) =
             validate_music(req.music.as_ref(), req.clip_volume, total_ms, format, audio)
         {
-            let _ = std::fs::remove_file(&concat_path);
+            let _ = tokio::fs::remove_file(&concat_path).await;
             anyhow::bail!(why);
         }
         plan_mix(&songs, req.clip_volume, audio, total_ms, 1)
@@ -740,7 +740,7 @@ pub async fn run_sequence_export_with(
         None => args,
     };
     let result = ffmpeg::run(tools.ffmpeg, &args).await;
-    let _ = std::fs::remove_file(&concat_path);
+    let _ = tokio::fs::remove_file(&concat_path).await;
     result?;
     maybe_optimize_gif(tools.gifsicle, format, quality, out_path).await;
     Ok(())

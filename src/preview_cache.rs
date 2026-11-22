@@ -146,7 +146,7 @@ where
                 "cached preview {} is incomplete (an earlier render was interrupted); rendering it again",
                 final_path.display()
             );
-            let _ = std::fs::remove_file(final_path);
+            let _ = tokio::fs::remove_file(final_path).await;
         }
         let mut part = PartFile::new(final_path);
         render(part.path.clone()).await?;

@@ -412,8 +412,12 @@ async fn a_cover_that_is_not_a_picture_or_not_there_is_refused() {
 /// A state with a library folder holding a song called "Library Song" and an upload called "Upload Song".
 async fn state_with_local_songs() -> (tempfile::TempDir, tempfile::TempDir, AppState) {
     let lib = tempfile::tempdir().unwrap();
-    std::fs::create_dir_all(lib.path().join("Band/LP")).unwrap();
-    std::fs::write(lib.path().join("Band/LP/Library Song.mp3"), b"ID3-x").unwrap();
+    tokio::fs::create_dir_all(lib.path().join("Band/LP"))
+        .await
+        .unwrap();
+    tokio::fs::write(lib.path().join("Band/LP/Library Song.mp3"), b"ID3-x")
+        .await
+        .unwrap();
     let (dir, mut st) = state();
     let mut cfg = (*st.config).clone();
     cfg.music_library_dir = Some(lib.path().to_path_buf());
