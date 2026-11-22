@@ -18,6 +18,7 @@ the web UI ("Create the first page"); after that this script does the rest.
 import os
 import posixpath
 import re
+import shutil
 import sys
 from pathlib import Path
 
@@ -119,6 +120,12 @@ def _inside(base: Path, name: str) -> Path:
     return Path(target)
 
 
+def _write_text(base: Path, name: str, text: str) -> None:
+    """Write `text` to `base / name` (contained in `base`), as UTF-8 with Unix line endings."""
+    with open(_inside(base, name), "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(text)
+
+
 def sync(repo_root: Path, wiki_dir: Path) -> list[str]:
     """Write all pages into `wiki_dir`; returns the files written."""
     written = []
@@ -128,9 +135,9 @@ def sync(repo_root: Path, wiki_dir: Path) -> list[str]:
         if not source.is_relative_to(repo_root):
             raise ValueError(f"page outside the repository: {src}")
         text = source.read_text(encoding="utf-8")
-        _inside(wiki_dir, f"{name}.md").write_text(page_text(text, src), encoding="utf-8", newline="\n")
+        _write_text(wiki_dir, f"{name}.md", page_text(text, src))
         written.append(f"{name}.md")
-    _inside(wiki_dir, "_Sidebar.md").write_text(sidebar(), encoding="utf-8", newline="\n")
+    _write_text(wiki_dir, "_Sidebar.md", sidebar())
     written.append("_Sidebar.md")
     src_images = repo_root / IMAGES_DIR
     if src_images.is_dir():
@@ -138,7 +145,7 @@ def sync(repo_root: Path, wiki_dir: Path) -> list[str]:
         out.mkdir(exist_ok=True)
         for img in sorted(src_images.iterdir()):
             if img.is_file() and img.suffix.lower() in IMAGE_SUFFIXES:
-                _inside(out, img.name).write_bytes(img.read_bytes())
+                shutil.copyfile(img, _inside(out, img.name))
                 written.append(f"images/{img.name}")
     return written
 
