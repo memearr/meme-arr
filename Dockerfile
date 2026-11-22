@@ -18,12 +18,12 @@ RUN npm run build
 FROM rust:1-trixie AS build
 WORKDIR /src
 # Cache dependency compilation.
-COPY Cargo.toml Cargo.lock* ./
+COPY Cargo.toml Cargo.lock ./
 RUN mkdir src && echo "fn main() {}" > src/main.rs \
-    && cargo build --release 2>/dev/null || true
+    && cargo build --release --locked 2>/dev/null || true
 # Real sources.
 COPY src ./src
-RUN touch src/main.rs && cargo build --release
+RUN touch src/main.rs && cargo build --release --locked
 
 # ---- 3. Runtime ----------------------------------------------------------
 FROM debian:trixie-slim AS runtime

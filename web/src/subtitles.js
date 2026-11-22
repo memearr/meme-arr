@@ -44,7 +44,8 @@ export function languageLabel(code) {
 
 /** A saved language choice, but only if it's one we still offer. */
 export function validLanguage(code) {
-  return LANGUAGES.some(([c]) => c === code) ? code : DEFAULT_LANGUAGE;
+  // The list's own entry, never the caller's string, so nothing but a known code is ever stored.
+  return LANGUAGES.find(([c]) => c === code)?.[0] ?? DEFAULT_LANGUAGE;
 }
 
 /**
