@@ -28,6 +28,8 @@ use tracing::{info, warn};
 
 mod authentik;
 mod bazarr;
+#[cfg(test)]
+mod catalog_tests;
 mod clips;
 mod fonts;
 mod frames;
@@ -43,6 +45,8 @@ mod settings;
 mod source;
 mod subtitle_api;
 mod system;
+#[cfg(test)]
+mod test_support;
 mod track;
 use self::authentik::*;
 use self::bazarr::*;

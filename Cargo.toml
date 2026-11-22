@@ -39,6 +39,7 @@ time = "0.3"
 
 [dev-dependencies]
 tempfile = "3"
+tower = { version = "0.5", features = ["util"] }
 rcgen = "0.14"
 
 [profile.release]
