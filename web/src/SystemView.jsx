@@ -9,6 +9,22 @@ import { summarizeHealth } from "./health.js";
 import { useEffect, useState } from "react";
 import { withBase } from "./base.js";
 
+/** Props that make a row a real, keyboard-operable disclosure button. */
+function expandable(open, toggle) {
+  return {
+    role: "button",
+    tabIndex: 0,
+    "aria-expanded": !!open,
+    onClick: toggle,
+    onKeyDown: (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        toggle();
+      }
+    },
+  };
+}
+
 export function SystemView({ index, health, onHealth }) {
   const [libStats, setLibStats] = useState([]);
   const [expandMedia, setExpandMedia] = useState(false);
@@ -143,7 +159,7 @@ export function SystemView({ index, health, onHealth }) {
           </b>
         </div>
 
-        <div className="kv expandable" onClick={() => setExpandMedia((v) => !v)}>
+        <div className="kv expandable" {...expandable(expandMedia, () => setExpandMedia((v) => !v))}>
           <span>Indexed media {libraries.length > 0 && <span className="caret">{expandMedia ? "▾" : "▸"}</span>}</span>
           <b>{stats.media_count || 0}</b>
         </div>
@@ -170,7 +186,7 @@ export function SystemView({ index, health, onHealth }) {
           </table>
         )}
 
-        <div className="kv expandable" onClick={() => setExpandSubs((v) => !v)}>
+        <div className="kv expandable" {...expandable(expandSubs, () => setExpandSubs((v) => !v))}>
           <span>Subtitle lines {libraries.length > 0 && <span className="caret">{expandSubs ? "▾" : "▸"}</span>}</span>
           <b>{stats.cue_count || 0}</b>
         </div>
@@ -193,7 +209,7 @@ export function SystemView({ index, health, onHealth }) {
           </table>
         )}
 
-        <div className="kv expandable" onClick={() => setExpandStorage((v) => !v)}>
+        <div className="kv expandable" {...expandable(expandStorage, () => setExpandStorage((v) => !v))}>
           <span>
             Index storage {storage && <span className="caret">{expandStorage ? "▾" : "▸"}</span>}
           </span>
@@ -272,7 +288,7 @@ export function SystemView({ index, health, onHealth }) {
           </p>
         )}
 
-        <div className="kv expandable" onClick={toggleExports}>
+        <div className="kv expandable" {...expandable(expandExports, toggleExports)}>
           <span>
             Exported memes {storage && <span className="caret">{expandExports ? "▾" : "▸"}</span>}
           </span>

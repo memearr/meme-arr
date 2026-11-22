@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { LibraryFilter } from "./LibraryFilter.jsx";
+import { focusOnMount } from "./focusOnMount.js";
 import { FILTER_FIELDS, describeFilter, makeFilter } from "./searchScope.js";
 
 /** "+ Filter": a small form to add a filter (show, episode, movie, season, only movies/episodes). */
@@ -63,7 +64,7 @@ function AddFilter({ onAdd }) {
             <label>
               <span className="muted">Text</span>
               <input
-                autoFocus
+                ref={focusOnMount}
                 value={value}
                 placeholder={meta.placeholder}
                 inputMode={field === "season" ? "numeric" : undefined}

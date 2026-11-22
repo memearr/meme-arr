@@ -38,12 +38,11 @@ export function SequenceTimeline({
         </span>
       </div>
 
-      <div className="seq-tl-strip" role="list" aria-label="Sections in play order">
+      <div className="seq-tl-strip" role="group" aria-label="Sections in play order">
         {sequence.map((c, i) => (
           <button
             key={c.id}
             type="button"
-            role="listitem"
             className={
               "seq-block" +
               (c.id === selectedId ? " selected" : "") +
