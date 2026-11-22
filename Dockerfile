@@ -31,7 +31,9 @@ FROM debian:trixie-slim AS runtime
 # privileges with setpriv before the app starts (the LinuxServer.io convention). A USER line here would stop that.
 # ffmpeg is copied in below, not installed: it brings its own codec libraries and
 # only needs glibc from here. fontconfig and a font are what drawtext/libass use.
+# `upgrade` pulls in Debian's security fixes (zlib, glibc, ...) newer than the base image's own packages.
 RUN apt-get update \
+    && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends \
         gifsicle \
         fontconfig \
