@@ -64,9 +64,9 @@ pub async fn run(logs: Arc<logs::LogControl>) -> Result<()> {
     let config = Config::from_env().context("invalid configuration")?;
     info!("starting meme-arr; bind={}", config.bind_addr);
 
-    std::fs::create_dir_all(&config.data_dir).ok();
-    std::fs::create_dir_all(&config.output_dir).ok();
-    std::fs::create_dir_all(config.tmp_dir()).ok();
+    tokio::fs::create_dir_all(&config.data_dir).await.ok();
+    tokio::fs::create_dir_all(&config.output_dir).await.ok();
+    tokio::fs::create_dir_all(config.tmp_dir()).await.ok();
 
     let pool = db::open_pool(&config.db_path()).context("opening database")?;
 

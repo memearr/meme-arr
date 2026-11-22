@@ -405,7 +405,7 @@ pub async fn gifsicle_optimize(gifsicle_bin: &str, path: &Path, quality: u32) ->
         .await
         .with_context(|| format!("failed to run {gifsicle_bin}"))?;
     if !out.status.success() {
-        let _ = std::fs::remove_file(&tmp);
+        let _ = tokio::fs::remove_file(&tmp).await;
         bail!(
             "gifsicle optimization failed for {} (exit {}): {}",
             path.display(),
@@ -413,7 +413,8 @@ pub async fn gifsicle_optimize(gifsicle_bin: &str, path: &Path, quality: u32) ->
             stderr_or_fallback(&out.stderr),
         );
     }
-    std::fs::rename(&tmp, path)
+    tokio::fs::rename(&tmp, path)
+        .await
         .with_context(|| format!("could not replace {} with optimized GIF", path.display()))?;
     Ok(())
 }

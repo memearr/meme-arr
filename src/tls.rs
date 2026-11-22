@@ -39,11 +39,13 @@ pub async fn watch_certificate(
     cert: std::path::PathBuf,
     key: std::path::PathBuf,
 ) {
-    let stamp = |p: &std::path::Path| std::fs::metadata(p).and_then(|m| m.modified()).ok();
-    let mut seen = (stamp(&cert), stamp(&key));
+    async fn stamp(p: &std::path::Path) -> Option<std::time::SystemTime> {
+        tokio::fs::metadata(p).await.and_then(|m| m.modified()).ok()
+    }
+    let mut seen = (stamp(&cert).await, stamp(&key).await);
     loop {
         tokio::time::sleep(std::time::Duration::from_secs(60)).await;
-        let now = (stamp(&cert), stamp(&key));
+        let now = (stamp(&cert).await, stamp(&key).await);
         if now == seen {
             continue;
         }

@@ -459,7 +459,7 @@ async fn every_format_takes_layers_and_the_sound_is_kept() {
         let [r, g, b] = pixel(&f, W / 2, H / 2);
         assert!(r > 180 && g < 150 && b < 90, "{name}: {r},{g},{b}");
         // sound in the formats that can carry it
-        let streams = Command::new("ffprobe")
+        let streams = tokio::process::Command::new("ffprobe")
             .args([
                 "-v",
                 "error",
@@ -470,6 +470,7 @@ async fn every_format_takes_layers_and_the_sound_is_kept() {
             ])
             .arg(&out)
             .output()
+            .await
             .unwrap();
         let kinds = String::from_utf8_lossy(&streams.stdout).to_string();
         assert!(kinds.contains("video"), "{name}: {kinds}");

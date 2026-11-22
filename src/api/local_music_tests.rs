@@ -178,7 +178,7 @@ async fn a_library_song_is_served_from_the_library_and_nothing_else_is() {
 async fn an_uploaded_real_song_can_be_read_by_ffmpeg_for_its_waveform() {
     let tmp = tempfile::tempdir().unwrap();
     let wav = tmp.path().join("tone.wav");
-    let made = std::process::Command::new("ffmpeg")
+    let made = tokio::process::Command::new("ffmpeg")
         .args([
             "-y",
             "-v",
@@ -189,7 +189,8 @@ async fn an_uploaded_real_song_can_be_read_by_ffmpeg_for_its_waveform() {
             "sine=frequency=440:duration=2",
         ])
         .arg(&wav)
-        .status();
+        .status()
+        .await;
     if !made.map(|s| s.success()).unwrap_or(false) {
         eprintln!("skipping: ffmpeg not found on PATH");
         return;

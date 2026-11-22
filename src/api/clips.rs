@@ -147,7 +147,7 @@ pub(super) async fn preview(
     let Some(tmp) = paths::confine(&st.config.data_dir, &st.config.tmp_dir()) else {
         return Err(anyhow::anyhow!("the data folder isn't usable").into());
     };
-    std::fs::create_dir_all(&tmp)?;
+    tokio::fs::create_dir_all(&tmp).await?;
     let hash = p.cache_key(&m.file_path, end);
     let cache = tmp.join(format!("preview-{hash:x}.mp4"));
 
