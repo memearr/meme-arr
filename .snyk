@@ -1,0 +1,12 @@
+# Snyk policy.
+version: v1.25.0
+exclude:
+  code:
+    # Developer and CI tooling, never shipped in the image. Their paths from the command line are
+    # confined to the repository / wiki clone before use (inside(), _inside(), wiki_clone()); Snyk
+    # Code doesn't recognise those checks and reports them as path traversal.
+    - dev/**
+    - scripts/**
+    # Test fixtures (e.g. a dummy password in a settings test).
+    - web/src/**/*.test.jsx
+    - web/src/**/*.test.js

@@ -2,7 +2,7 @@
 // a convenience for whoever is using it, not shared); where the browser won't store anything the
 // list just doesn't outlive the page.
 
-const KEY = "memearr.recentSongs";
+const STORAGE_NAME = "memearr.recentSongs";
 export const MAX_RECENT = 8;
 
 const text = (v) => (typeof v === "string" ? v : "");
@@ -24,7 +24,7 @@ function clean(t) {
 /** The remembered songs, newest first (an empty list when there are none or they can't be read). */
 export function loadRecent(store) {
   try {
-    const list = JSON.parse(store?.getItem(KEY) || "[]");
+    const list = JSON.parse(store?.getItem(STORAGE_NAME) || "[]");
     return (Array.isArray(list) ? list : []).map(clean).filter(Boolean).slice(0, MAX_RECENT);
   } catch (_) {
     return [];
@@ -33,7 +33,7 @@ export function loadRecent(store) {
 
 function save(store, list) {
   try {
-    store?.setItem(KEY, JSON.stringify(list));
+    store?.setItem(STORAGE_NAME, JSON.stringify(list));
   } catch (_) {
     /* storage unavailable: not remembered */
   }
