@@ -123,8 +123,7 @@ def sync(repo_root: Path, wiki_dir: Path) -> list[str]:
         if not source.is_relative_to(repo_root):
             raise ValueError(f"page outside the repository: {src}")
         text = source.read_text(encoding="utf-8")
-        _inside(wiki_dir, f"{name}.md").write_text(page_text(text, src), encoding="utf-8", newline="
-")
+        _inside(wiki_dir, f"{name}.md").write_text(page_text(text, src), encoding="utf-8", newline="\n")
         written.append(f"{name}.md")
     _inside(wiki_dir, "_Sidebar.md").write_text(sidebar(), encoding="utf-8", newline="\n")
     written.append("_Sidebar.md")
