@@ -5,6 +5,12 @@ Cargo.lock.orig
 # Node / frontend
 web/node_modules
 web/dist
+web/coverage
+
+# Coverage reports (CI hands them to SonarCloud)
+/lcov.info
+/coverage.xml
+.coverage
 
 # Local runtime
 /output

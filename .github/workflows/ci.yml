@@ -18,7 +18,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - run: python3 -m unittest discover -s scripts -v
+      # Run under coverage.py so the "sonar" job can report coverage of the scripts.
+      - name: Test the scripts
+        run: |
+          python3 -m pip install --only-binary :all: coverage==7.17.4
+          python3 -m coverage run -m unittest discover -s scripts -v
+          python3 -m coverage xml -o coverage.xml
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-python
+          path: coverage.xml
+          if-no-files-found: error
 
   backend:
     # The pipeline tests run the same ffmpeg the image ships (ghcr.io/memearr/ffmpeg,
@@ -33,7 +43,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
-          components: rustfmt, clippy
+          components: rustfmt, clippy, llvm-tools-preview
+      - uses: taiki-e/install-action@25f51f6b1bf4e18876107cece836f4f77ac17c8c # v2
+        with:
+          tool: cargo-llvm-cov
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       # The pipeline tests run the real ffmpeg; they skip themselves silently
       # without it, so install it and then fail loudly if it is missing.
@@ -65,7 +78,13 @@ jobs:
         # with an error that names the test, instead of the job dying silently at 20.
         env:
           MEMEARR_FFMPEG_TIMEOUT_SECS: "120"
-        run: cargo test --all
+        # Same tests, built with coverage instrumentation; lcov.info goes to the "sonar" job.
+        run: cargo llvm-cov --all --lcov --output-path lcov.info --ignore-filename-regex '(^|/)tests/|_tests\.rs$'
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-rust
+          path: lcov.info
+          if-no-files-found: error
 
   # Fails the build on any known-vulnerable crate in Cargo.lock, so an advisory
   # shows up in the PR itself instead of only on the repo's Security tab.
@@ -92,8 +111,13 @@ jobs:
         working-directory: web
         run: |
           npm ci --ignore-scripts
-          npm test
+          npm run coverage
           npm run build
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-web
+          path: web/coverage/lcov.info
+          if-no-files-found: error
       # What ships in the app (the built SPA's runtime dependencies) must be clean.
       - name: npm audit, shipped dependencies (fail on high/critical)
         working-directory: web
@@ -104,6 +128,43 @@ jobs:
         working-directory: web
         continue-on-error: true
         run: npm audit --audit-level=high
+
+  # SonarQube Cloud analysis with the coverage reports from the jobs above. It needs the
+  # SONAR_TOKEN repository secret, which forks and Dependabot don't get, so the scan
+  # is skipped (not failed) when the secret is missing. Settings: sonar-project.properties.
+  sonar:
+    runs-on: ubuntu-latest
+    needs: [docs, backend, frontend]
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    steps:
+      - name: Check for the SonarQube Cloud token
+        id: token
+        run: |
+          if [ -n "$SONAR_TOKEN" ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "SONAR_TOKEN is not available here; skipping the scan."; fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        if: steps.token.outputs.present == 'true'
+        with:
+          fetch-depth: 0 # the scan needs full history to attribute new code
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: steps.token.outputs.present == 'true'
+        with:
+          name: coverage-rust
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: steps.token.outputs.present == 'true'
+        with:
+          name: coverage-python
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: steps.token.outputs.present == 'true'
+        with:
+          name: coverage-web
+          path: web/coverage
+      # vitest writes paths relative to web/; the scan runs from the repository root.
+      - name: Make the web report paths repository-relative
+        if: steps.token.outputs.present == 'true'
+        run: sed -i 's#^SF:src/#SF:web/src/#' web/coverage/lcov.info
+      - uses: SonarSource/sonarqube-scan-action@59202af334b4ba7b5db01b701b8e79f8b3bef0f4 # v8.5.0
+        if: steps.token.outputs.present == 'true'
 
   # Builds the image with the same actions the release workflow uses (minus the
   # registry login/push), so a breaking action upgrade fails on a PR rather

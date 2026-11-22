@@ -10,6 +10,15 @@ export default defineConfig({
   // sub-path (the server's URL_BASE -- see src/spa.rs).
   base: "./",
   build: { outDir: "dist" },
+  // `npm run coverage` writes coverage/lcov.info, which CI hands to SonarCloud.
+  test: {
+    coverage: {
+      provider: "v8",
+      reporter: ["lcov", "text-summary"],
+      include: ["src/**"],
+      exclude: ["src/**/*.test.*"],
+    },
+  },
   server: {
     port: 5173,
     proxy: {
