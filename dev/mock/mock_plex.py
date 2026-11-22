@@ -155,7 +155,10 @@ def main():
     ap.add_argument("--manifest", default="dev/mock/media/manifest.json",
                     help="written by gen_media.py; only its file paths are used")
     args = ap.parse_args()
-    manifest = {m["rating_key"]: m for m in json.loads(Path(args.manifest).read_text(encoding="utf-8"))}
+    path = Path(args.manifest).resolve()
+    if not path.is_relative_to(Path(__file__).resolve().parents[2]) or path.suffix != ".json" or not path.is_file():
+        sys.exit("--manifest must be a .json file inside the repository")
+    manifest = {m["rating_key"]: m for m in json.loads(path.read_text(encoding="utf-8"))}
     for rk, item in ITEMS.items():
         item["file"] = manifest[rk]["file"]
         item["duration_ms"] = manifest[rk]["duration_ms"]

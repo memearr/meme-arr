@@ -116,11 +116,15 @@ def _inside(base: Path, name: str) -> Path:
 
 def sync(repo_root: Path, wiki_dir: Path) -> list[str]:
     """Write all pages into `wiki_dir`; returns the files written."""
-    wiki_dir = wiki_dir.resolve()
     written = []
+    repo_root, wiki_dir = repo_root.resolve(), wiki_dir.resolve()
     for src, name in PAGES.items():
-        text = (repo_root / src).read_text(encoding="utf-8")
-        _inside(wiki_dir, f"{name}.md").write_text(page_text(text, src), encoding="utf-8", newline="\n")
+        source = (repo_root / src).resolve()
+        if not source.is_relative_to(repo_root):
+            raise ValueError(f"page outside the repository: {src}")
+        text = source.read_text(encoding="utf-8")
+        _inside(wiki_dir, f"{name}.md").write_text(page_text(text, src), encoding="utf-8", newline="
+")
         written.append(f"{name}.md")
     _inside(wiki_dir, "_Sidebar.md").write_text(sidebar(), encoding="utf-8", newline="\n")
     written.append("_Sidebar.md")
@@ -139,8 +143,8 @@ def main(argv: list[str]) -> int:
     if len(argv) != 2:
         print(__doc__)
         return 2
-    wiki_dir = Path(argv[1])
-    if not (wiki_dir / ".git").exists():
+    wiki_dir = Path(argv[1]).resolve()
+    if not wiki_dir.is_dir() or not (wiki_dir / ".git").exists():
         print(f"{wiki_dir} is not a git clone of the wiki repository", file=sys.stderr)
         return 1
     root = Path(__file__).resolve().parent.parent
