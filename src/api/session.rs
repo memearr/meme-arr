@@ -416,3 +416,7 @@ pub(super) async fn auth_change_password(
 }
 
 // ---- Authentik (OIDC) -----------------------------------------------------
+
+#[cfg(test)]
+#[path = "session_tests.rs"]
+mod tests;
