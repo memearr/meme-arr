@@ -12,6 +12,7 @@ The wiki is a separate git repository (<repo>.wiki.git). GitHub creates it
 only after a first page exists, so the very first page has to be made once in
 the web UI ("Create the first page"); after that this script does the rest.
 """
+import os
 import posixpath
 import re
 import sys
@@ -108,10 +109,11 @@ def sidebar() -> str:
 
 def _inside(base: Path, name: str) -> Path:
     """`base / name`, refusing anything that resolves outside `base` (the wiki clone given on the command line)."""
-    target = (base / name).resolve()
-    if not target.is_relative_to(base):
+    root = os.path.realpath(base)
+    target = os.path.realpath(os.path.join(root, name))
+    if target != root and not target.startswith(root + os.sep):
         raise ValueError(f"{name} would be written outside {base}")
-    return target
+    return Path(target)
 
 
 def sync(repo_root: Path, wiki_dir: Path) -> list[str]:
