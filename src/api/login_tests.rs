@@ -180,7 +180,8 @@ async fn a_callback_the_provider_cannot_complete_is_a_failed_login() {
     h.state
         .db(|c| {
             let now = crate::api::now_secs();
-            crate::db::create_oidc_flow(c, "s1", "nonce", "verifier", now, now + 600)
+            let nonce = format!("nonce-{now}");
+            crate::db::create_oidc_flow(c, "s1", &nonce, "verifier", now, now + 600)
         })
         .await
         .unwrap();
