@@ -31,6 +31,8 @@ mod bazarr;
 #[cfg(test)]
 mod catalog_tests;
 mod clips;
+#[cfg(test)]
+mod clips_tests;
 mod fonts;
 mod frames;
 mod jobs;
