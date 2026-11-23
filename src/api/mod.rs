@@ -36,6 +36,8 @@ mod frames;
 mod jobs;
 mod library;
 mod local_music;
+#[cfg(test)]
+mod login_tests;
 mod navidrome;
 mod overlays;
 mod plex_login;
