@@ -158,7 +158,8 @@ async fn the_authentik_callback_rejects_bad_returns() {
     h.state
         .db(|c| {
             let now = crate::api::now_secs();
-            crate::db::create_oidc_flow(c, "live-state", "nonce", "verifier", now, now + 600)
+            let nonce = format!("nonce-{now}");
+            crate::db::create_oidc_flow(c, "live-state", &nonce, "verifier", now, now + 600)
         })
         .await
         .unwrap();
