@@ -132,14 +132,19 @@ async fn start() -> (String, Shared) {
 async fn with_items(with_sidecar: bool) -> Harness {
     let h = Harness::new().await;
     let media = h.dir.path().join("m");
-    std::fs::create_dir_all(&media).unwrap();
-    std::fs::write(media.join("101.mkv"), b"video").unwrap();
-    std::fs::write(media.join("102.mkv"), b"video").unwrap();
+    tokio::fs::create_dir_all(&media).await.unwrap();
+    tokio::fs::write(media.join("101.mkv"), b"video")
+        .await
+        .unwrap();
+    tokio::fs::write(media.join("102.mkv"), b"video")
+        .await
+        .unwrap();
     if with_sidecar {
-        std::fs::write(
+        tokio::fs::write(
             media.join("101.en.srt"),
             "1\n00:00:01,000 --> 00:00:02,000\nhello there\n\n",
         )
+        .await
         .unwrap();
     }
     let r = h
