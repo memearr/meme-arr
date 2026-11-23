@@ -44,6 +44,8 @@ mod session;
 mod settings;
 mod source;
 mod subtitle_api;
+#[cfg(test)]
+mod subtitle_tests;
 mod system;
 #[cfg(test)]
 mod system_tests;
