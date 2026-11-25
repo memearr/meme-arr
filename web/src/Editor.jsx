@@ -629,6 +629,12 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
     });
   }
 
+  // The Tracks lanes point at the boxes that edit them.
+  function scrollToBox(id) {
+    const el = typeof document !== "undefined" ? document.getElementById(id) : null;
+    el?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+  }
+
   function toggleAudio(next) {
     setAudio(next);
     // Switch off an audio-incapable format rather than leaving the radio
@@ -778,6 +784,30 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
           ...displayCues.map((c, i) => ({ ...effective(c, subtitleOffsetMs), index: i })),
         ]
       : allCues.map((c) => ({ ...effective(c, 0), index: null }));
+  // What the Tracks lanes draw, in clip time: the caption lines over the clip, and each layer.
+  const trackCaptions = {
+    lines:
+      captionMode === "meme"
+        ? [top && `Top: ${top}`, bottom && `Bottom: ${bottom}`].filter(Boolean)
+        : [],
+    cues:
+      captionMode === "source"
+        ? timelineCues
+            .filter((c) => c.end_ms > start && c.start_ms < end)
+            .map((c) => ({
+              start_ms: Math.max(0, c.start_ms - start),
+              end_ms: Math.min(clipLength, c.end_ms - start),
+              text: c.text,
+            }))
+        : [],
+  };
+  const trackLayers = layers.map((l) => ({
+    id: l.id,
+    label: layerLabel(l, overlayList.overlays, overlayList.shapes),
+    start_ms: l.start_ms,
+    end_ms: l.end_ms,
+    selected: l.id === selectedLayer,
+  }));
   const outFrames = Math.round((clipLength * fps) / 1000);
   const shownView = view || fitView(start, end, mediaDuration || 0);
 
@@ -910,7 +940,7 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
             onFit={() => setView(fitView(start, end, mediaDuration || 0))}
           />
 
-          {(music || (audio && !sequenceEdit)) && (
+          {(!sequenceEdit || music) && (
             <MixTimeline
               ratingKey={item.rating_key}
               start={start}
@@ -923,7 +953,20 @@ export function Editor({ item, onJob, onClose, onAddToSequence, sequenceEdit }) 
               onClipCurve={setClipCurve}
               music={music}
               onMusicCurve={(curve) => setMusic((m) => (m ? adjustMusic(m, { curve }, clipLength) : m))}
-              master={sequenceEdit ? undefined : { level: master, onLevel: setMaster, active: playing, loudness: advanced }}
+              master={
+                sequenceEdit || !(music || audio)
+                  ? undefined
+                  : { level: master, onLevel: setMaster, active: playing, loudness: advanced }
+              }
+              captions={sequenceEdit ? undefined : trackCaptions}
+              layers={sequenceEdit ? undefined : trackLayers}
+              onSelectLayer={(id) => {
+                setSelectedLayer(id);
+                scrollToBox("layers-box");
+              }}
+              onAddLayer={() => scrollToBox("layers-box")}
+              onAudio={sequenceEdit ? undefined : () => toggleAudio(true)}
+              onAddSong={sequenceEdit ? undefined : () => scrollToBox("music-box")}
               clipTrack={
                 sequenceEdit
                   ? undefined

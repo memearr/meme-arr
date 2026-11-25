@@ -1124,3 +1124,50 @@
 .loudness-readout b {
   font-variant-numeric: tabular-nums;
 }
+
+/* ---- Tracks: bar lanes (captions, layers) and the empty states of the sound lanes ---- */
+.mix-bars-lane,
+.mix-empty-lane {
+  min-height: 28px;
+}
+.mix-bar {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  min-width: 6px;
+  padding: 0 6px;
+  overflow: hidden;
+  border: 1px solid var(--accent, #7c5cff);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent, #7c5cff) 28%, transparent);
+  color: inherit;
+  font-size: 0.8em;
+  text-align: left;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.mix-bar.plain {
+  cursor: default;
+  opacity: 0.85;
+}
+.mix-bar.selected {
+  background: color-mix(in srgb, var(--accent, #7c5cff) 60%, transparent);
+  outline: 2px solid var(--accent, #7c5cff);
+}
+.mix-bar span {
+  pointer-events: none;
+}
+.mix-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  font-size: 0.85em;
+  color: var(--muted, #888);
+}
+.mix-empty .link {
+  padding: 0;
+}

@@ -160,6 +160,11 @@ and WebM only; GIF and WebP can't carry audio). Finished files also land in your
   **Include audio**). The clip's own volume applies when **Include audio** is ticked (a clip with no sound of its
   own just gets the music). Music is for MP4 and WebM, so picking a song switches a GIF or WebP to MP4. It
   is in the exported clip or sequence, not in a saved frame.
+- **Tracks.** Under the trim timeline, the **Tracks** strip is always there, with or without a song. It
+  lays the clip out along its length: the **Picture**, the **Captions** (meme text as a bar the length of the
+  clip, subtitle lines as bars where they are said), one lane for each **layer**, the **Clip sound** and the
+  **Music**. Click a layer's bar to select it and jump to the Layers box. A lane with nothing in it says so and
+  offers the next step: **Include clip sound**, **Add a song**, **Add a layer**. The sound lanes are the Mix below.
 - **Mix: volume over time.** With a song picked, or **Include audio** ticked, the **Mix** strip under the
   timeline lays the picture (a filmstrip), the clip's own sound and the song side by side, as wide as the clip
   is long, with the playhead across all of them. Each sound lane draws its waveform as it will come out. **Click

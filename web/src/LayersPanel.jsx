@@ -63,7 +63,7 @@ export function LayersPanel({ layers, setLayers, selectedId, setSelectedId, over
   }
 
   return (
-    <fieldset className="layers-panel">
+    <fieldset className="layers-panel" id="layers-box">
       <legend>Layers</legend>
       <div className="layer-add">
         {shapeList.map((s) => (
