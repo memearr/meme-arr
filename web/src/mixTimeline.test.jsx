@@ -40,7 +40,7 @@ function Harness({ audio = true, withMusic = true, seen }) {
 describe("the mix timeline", () => {
   it("shows the picture, the clip's sound and the music over the clip's length", async () => {
     render(<Harness />);
-    expect(screen.getByLabelText("Sound over the clip")).toBeTruthy();
+    expect(screen.getByLabelText("Tracks")).toBeTruthy();
     expect(screen.getByLabelText("Music volume over the clip")).toBeTruthy();
     expect(screen.getByLabelText("Clip sound volume over the clip")).toBeTruthy();
     await waitFor(() => expect(api.clipWaveform).toHaveBeenCalledWith("k1", 10000, 14000));
@@ -131,5 +131,78 @@ describe("the preview of a volume line", () => {
     expect(previewState(m, 0, 4000).gain).toBeCloseTo(1, 5);
     expect(previewState(m, 2000, 4000).gain).toBeCloseTo(0.5, 5);
     expect(previewState(m, 4000, 4000).gain).toBeCloseTo(0, 5);
+  });
+});
+
+describe("the tracks", () => {
+  const base = { ratingKey: "k1", start: 10000, end: 14000, relMs: 1000, onSeek: () => {} };
+
+  it("is there without a song or the clip's sound, with a way to add each", () => {
+    const onAudio = vi.fn();
+    const onAddSong = vi.fn();
+    render(
+      <MixTimeline {...base} audio={false} clipCurve={[]} onClipCurve={() => {}} music={null} onAudio={onAudio} onAddSong={onAddSong} />
+    );
+    expect(screen.getByLabelText("Tracks")).toBeTruthy();
+    fireEvent.click(screen.getByText("Include clip sound"));
+    fireEvent.click(screen.getByText("Add a song"));
+    expect(onAudio).toHaveBeenCalledTimes(1);
+    expect(onAddSong).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the caption lines and subtitle cues as bars", () => {
+    render(
+      <MixTimeline
+        {...base}
+        audio={false}
+        clipCurve={[]}
+        onClipCurve={() => {}}
+        music={null}
+        captions={{ lines: ["Top: hi"], cues: [{ start_ms: 500, end_ms: 1500, text: "a line" }] }}
+      />
+    );
+    const lane = screen.getByLabelText("Captions over the clip");
+    expect(lane.textContent).toContain("Top: hi");
+    expect(lane.textContent).toContain("a line");
+  });
+
+  it("says when there are no captions or layers, and offers to add a layer", () => {
+    const onAddLayer = vi.fn();
+    render(
+      <MixTimeline
+        {...base}
+        audio={false}
+        clipCurve={[]}
+        onClipCurve={() => {}}
+        music={null}
+        captions={{ lines: [], cues: [] }}
+        layers={[]}
+        onAddLayer={onAddLayer}
+      />
+    );
+    expect(screen.getByText("No captions on this clip.")).toBeTruthy();
+    fireEvent.click(screen.getByText("Add a layer"));
+    expect(onAddLayer).toHaveBeenCalled();
+  });
+
+  it("lays each layer on its own lane and selects it when clicked", () => {
+    const onSelectLayer = vi.fn();
+    render(
+      <MixTimeline
+        {...base}
+        audio={false}
+        clipCurve={[]}
+        onClipCurve={() => {}}
+        music={null}
+        layers={[
+          { id: "a", label: "Arrow", start_ms: 0, end_ms: 1000, selected: false },
+          { id: "b", label: "Star", start_ms: 1000, end_ms: null, selected: true },
+        ]}
+        onSelectLayer={onSelectLayer}
+      />
+    );
+    fireEvent.click(screen.getByText("Arrow"));
+    expect(onSelectLayer).toHaveBeenCalledWith("a");
+    expect(screen.getByText("Star").closest("button").getAttribute("aria-pressed")).toBe("true");
   });
 });

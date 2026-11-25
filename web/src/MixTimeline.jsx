@@ -153,6 +153,67 @@ function MasterRow({ master }) {
   );
 }
 
+/** A lane's bars over the clip: each is `{id, start_ms, end_ms, text, selected}` in clip time. */
+function BarsLane({ label, what, bars, clipMs, relMs, onSelect, empty, action, children }) {
+  const pct = clipMs > 0 ? Math.min(100, (relMs / clipMs) * 100) : 0;
+  const at = (ms) => Math.min(100, Math.max(0, (ms / clipMs) * 100));
+  return (
+    <div className="mix-row">
+      <div className="mix-label">
+        <b>{label}</b>
+        {children}
+      </div>
+      <div className="mix-lane mix-bars-lane" role="group" aria-label={what}>
+        {bars.map((b) => (
+          <button
+            key={b.id}
+            type="button"
+            className={"mix-bar" + (b.selected ? " selected" : "") + (onSelect ? "" : " plain")}
+            style={{ left: `${at(b.start_ms)}%`, width: `${Math.max(0.8, at(b.end_ms) - at(b.start_ms))}%` }}
+            title={`${b.text}
+${secondsText(b.start_ms)} – ${secondsText(b.end_ms)} s`}
+            aria-pressed={onSelect ? !!b.selected : undefined}
+            disabled={!onSelect}
+            onClick={() => onSelect?.(b.id)}
+          >
+            <span>{b.text}</span>
+          </button>
+        ))}
+        {bars.length === 0 && (
+          <div className="mix-empty">
+            <span>{empty}</span>
+            {action && (
+              <button type="button" className="link" onClick={action.onClick}>
+                {action.label}
+              </button>
+            )}
+          </div>
+        )}
+        <div className="mix-playhead" style={{ left: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+/** A sound lane that has nothing to draw yet, with the one action that gives it something. */
+function EmptySoundLane({ label, text, action }) {
+  return (
+    <div className="mix-row">
+      <div className="mix-label">
+        <b>{label}</b>
+      </div>
+      <div className="mix-lane mix-empty-lane" role="group" aria-label={`${label}: ${text}`}>
+        <div className="mix-empty">
+          <span>{text}</span>
+          <button type="button" className="link" onClick={action.onClick}>
+            {action.label}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /**
  * One lane that has a volume line: the sound's bars as they come out (the line applied), the line
  * itself and its points. Click on the lane to put a point on the line, drag a point to move it,
@@ -277,6 +338,12 @@ export function MixTimeline({
   clipTrack,
   songTrack,
   master,
+  captions, // {cues: [{start_ms, end_ms, text}] in clip time, lines: ["top text", ...]}: the Captions lane
+  layers, // [{id, label, start_ms, end_ms, selected}] in clip time: one lane each
+  onSelectLayer,
+  onAddLayer,
+  onAudio, // turn the clip's own sound on: the Clip sound lane's empty state
+  onAddSong, // the Music lane's empty state
 }) {
   const clipMs = Math.max(0, end - start);
   const [own, setOwn] = useState(null); // {has_audio, peaks} of the clip's own sound
@@ -310,11 +377,12 @@ export function MixTimeline({
   };
 
   return (
-    <section className="mix-timeline" aria-label="Sound over the clip">
+    <section className="mix-timeline" aria-label="Tracks">
       <div className="mix-head">
-        <b>Mix</b>
+        <b>Tracks</b>
         <span className="muted">
-          Click a sound lane to add a point to its volume line, drag to move it, double-click a point to remove it.
+          Everything on the clip, along its length. Click a sound lane to add a point to its volume line, drag to move
+          it, double-click a point to remove it.
         </span>
       </div>
       <div className="mix-row">
@@ -330,6 +398,43 @@ export function MixTimeline({
           <div className="mix-playhead" style={{ left: `${pct}%` }} />
         </div>
       </div>
+      {captions && (
+        <BarsLane
+          label="Captions"
+          what="Captions over the clip"
+          clipMs={clipMs}
+          relMs={relMs}
+          bars={[
+            ...(captions.lines || []).map((text, i) => ({ id: `line-${i}`, start_ms: 0, end_ms: clipMs, text })),
+            ...(captions.cues || []).map((c, i) => ({ id: `cue-${i}`, start_ms: c.start_ms, end_ms: c.end_ms, text: c.text })),
+          ]}
+          empty="No captions on this clip."
+        />
+      )}
+      {layers &&
+        (layers.length === 0 ? (
+          <BarsLane
+            label="Layers"
+            what="Layers over the clip"
+            clipMs={clipMs}
+            relMs={relMs}
+            bars={[]}
+            empty="Nothing laid over the clip."
+            action={onAddLayer && { label: "Add a layer", onClick: onAddLayer }}
+          />
+        ) : (
+          layers.map((l, i) => (
+            <BarsLane
+              key={l.id}
+              label={i === 0 ? "Layers" : ""}
+              what={`Layer ${l.label}`}
+              clipMs={clipMs}
+              relMs={relMs}
+              onSelect={onSelectLayer}
+              bars={[{ id: l.id, start_ms: l.start_ms, end_ms: l.end_ms ?? clipMs, text: l.label, selected: l.selected }]}
+            />
+          ))
+        ))}
       {audio && clipSound && (
         <CurveLane
           label="Clip sound"
@@ -344,6 +449,13 @@ export function MixTimeline({
           {own && !own.has_audio && <span className="mix-note">This video has no sound.</span>}
         </CurveLane>
       )}
+      {!audio && clipSound && onAudio && (
+        <EmptySoundLane
+          label="Clip sound"
+          text="The clip's own sound is off."
+          action={{ label: "Include clip sound", onClick: onAudio }}
+        />
+      )}
       {music && (
         <CurveLane
           label="Music"
@@ -357,6 +469,9 @@ export function MixTimeline({
         >
           {music.at_ms > 0 && <span className="mix-come-in" style={{ left: `${(music.at_ms / clipMs) * 100}%` }} title="The song comes in here" />}
         </CurveLane>
+      )}
+      {!music && onAddSong && (
+        <EmptySoundLane label="Music" text="No song." action={{ label: "Add a song", onClick: onAddSong }} />
       )}
       <MasterRow master={master} />
       <div className="mix-scale muted" aria-hidden="true">

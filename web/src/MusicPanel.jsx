@@ -188,7 +188,7 @@ export function MusicPanel({ music, onChoose, onClear, onChange, clipVolume, set
   const songMs = wave?.duration_ms > 0 ? wave.duration_ms : music?.duration_s > 0 ? Math.round(music.duration_s * 1000) : 600_000;
 
   return (
-    <fieldset className="layers-panel music-panel">
+    <fieldset className="layers-panel music-panel" id="music-box">
       <legend>Music</legend>
 
       {sources && !sources.navidrome && !sources.library && !sources.jellyfin && (
