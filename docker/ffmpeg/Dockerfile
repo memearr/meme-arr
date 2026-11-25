@@ -7,7 +7,9 @@
 # edit the two ARGs below (checksum: `sha256sum ffmpeg-<version>.tar.xz`).
 #
 # Only the codecs and filters meme-arr uses are built: libx264, libvpx (VP9),
-# libopus, libwebp, libass (burned subtitles) and drawtext (meme text); GIF,
+# libopus, libwebp, libass (burned subtitles) and drawtext (meme text), plus libdav1d
+# so AV1 sources can be read (the app's health check warns without a software AV1
+# decoder); GIF,
 # AAC and palettegen are part of ffmpeg itself. The ffmpeg libraries are linked
 # in statically; the codec libraries are copied next to the binaries
 # (/opt/ffmpeg/lib, found through an rpath), so the result only needs glibc
@@ -19,7 +21,7 @@ ARG FFMPEG_SHA256=8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e00
 RUN apt-get update && apt-get install -y --no-install-recommends \
       build-essential nasm pkg-config curl xz-utils ca-certificates \
       libx264-dev libvpx-dev libopus-dev libwebp-dev libass-dev \
-      libfreetype-dev libfontconfig-dev libfribidi-dev libharfbuzz-dev \
+      libfreetype-dev libfontconfig-dev libfribidi-dev libharfbuzz-dev libdav1d-dev \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 RUN curl --proto '=https' --tlsv1.2 -fsSLO "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz" \
@@ -31,7 +33,7 @@ RUN ./configure \
       --enable-gpl --enable-version3 \
       --enable-libx264 --enable-libvpx --enable-libopus --enable-libwebp \
       --enable-libass --enable-libfreetype --enable-libfontconfig \
-      --enable-libfribidi --enable-libharfbuzz \
+      --enable-libfribidi --enable-libharfbuzz --enable-libdav1d \
       --disable-doc --disable-debug --disable-ffplay \
       --extra-ldflags="-Wl,--disable-new-dtags -Wl,-rpath,/opt/ffmpeg/lib" \
  && make -j"$(nproc)" \
@@ -59,6 +61,7 @@ RUN set -eux; \
     ! ldd /opt/ffmpeg/bin/ffmpeg | grep "not found"; \
     enc="$(ffmpeg -hide_banner -encoders)"; \
     for e in libx264 libvpx-vp9 libopus libwebp aac gif; do echo "$enc" | grep -qw "$e"; done; \
+    ffmpeg -hide_banner -decoders | grep -qw libdav1d; \
     flt="$(ffmpeg -hide_banner -filters)"; \
     for f in subtitles drawtext palettegen paletteuse; do echo "$flt" | grep -qw "$f"; done; \
     cd /tmp; \
